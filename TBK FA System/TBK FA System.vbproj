@@ -1,0 +1,1864 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\packages\SQLite.3.13.0\build\net45\SQLite.props" Condition="Exists('..\packages\SQLite.3.13.0\build\net45\SQLite.props')" />
+  <Import Project="..\packages\EntityFramework.6.4.4\build\EntityFramework.props" Condition="Exists('..\packages\EntityFramework.6.4.4\build\EntityFramework.props')" />
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{98EDA25F-4115-40AB-BFB1-FB93AA6AC7C3}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <StartupObject>TBK_FA_System.My.MyApplication</StartupObject>
+    <RootNamespace>TBK_FA_System</RootNamespace>
+    <AssemblyName>TBK FA System</AssemblyName>
+    <FileAlignment>512</FileAlignment>
+    <MyType>WindowsForms</MyType>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <TargetFrameworkProfile />
+    <PublishUrl>publish\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <ApplicationRevision>0</ApplicationRevision>
+    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <BootstrapperEnabled>true</BootstrapperEnabled>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <DefineDebug>true</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DocumentationFile>TBK FA System.xml</DocumentationFile>
+    <NoWarn>42016,41999,42017,42018,42019,42032,42036,42020,42021,42022</NoWarn>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <DefineDebug>false</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DocumentationFile>TBK FA System.xml</DocumentationFile>
+    <NoWarn>42016,41999,42017,42018,42019,42032,42036,42020,42021,42022</NoWarn>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OptionExplicit>Off</OptionExplicit>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OptionCompare>Binary</OptionCompare>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OptionStrict>Off</OptionStrict>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OptionInfer>Off</OptionInfer>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>ICO_NEW_FA.ico</ApplicationIcon>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <DefineDebug>true</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DocumentationFile>TBK FA System.xml</DocumentationFile>
+    <NoWarn>42016,41999,42017,42018,42019,42032,42036,42020,42021,42022</NoWarn>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <DefineTrace>true</DefineTrace>
+    <OutputPath>bin\x64\Release\</OutputPath>
+    <DocumentationFile>TBK FA System.xml</DocumentationFile>
+    <Optimize>true</Optimize>
+    <NoWarn>42016,41999,42017,42018,42019,42032,42036,42020,42021,42022</NoWarn>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
+    <DebugSymbols>true</DebugSymbols>
+    <DefineDebug>true</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <OutputPath>bin\x86\Debug\</OutputPath>
+    <DocumentationFile>TBK FA System.xml</DocumentationFile>
+    <NoWarn>42016,41999,42017,42018,42019,42032,42036,42020,42021,42022</NoWarn>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
+    <DefineTrace>true</DefineTrace>
+    <OutputPath>bin\x86\Release\</OutputPath>
+    <DocumentationFile>TBK FA System.xml</DocumentationFile>
+    <Optimize>true</Optimize>
+    <NoWarn>42016,41999,42017,42018,42019,42032,42036,42020,42021,42022</NoWarn>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Antlr3.Runtime, Version=3.5.0.2, Culture=neutral, PublicKeyToken=eb42632606e9261f, processorArchitecture=MSIL">
+      <HintPath>..\packages\Antlr.3.5.0.2\lib\Antlr3.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="cdio.net, Version=0.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\cdio.net.0.1.0\lib\netstandard2.0\cdio.net.dll</HintPath>
+    </Reference>
+    <Reference Include="CircularProgressBar, Version=2.7.0.7, Culture=neutral, PublicKeyToken=310fd07b25df79b3, processorArchitecture=MSIL">
+      <HintPath>..\packages\CircularProgressBar.2.7.0.7\lib\net40\CircularProgressBar.dll</HintPath>
+    </Reference>
+    <Reference Include="EntityFramework, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+      <HintPath>..\packages\EntityFramework.6.4.4\lib\net45\EntityFramework.dll</HintPath>
+    </Reference>
+    <Reference Include="EntityFramework.SqlServer, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+      <HintPath>..\packages\EntityFramework.6.4.4\lib\net45\EntityFramework.SqlServer.dll</HintPath>
+    </Reference>
+    <Reference Include="MessagingToolkit.QRCode, Version=1.3.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MessagingToolkit.QRCode.1.3.0\lib\MessagingToolkit.QRCode.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.Core, Version=1.0.1293.44, Culture=neutral, PublicKeyToken=2a8ab48044d2601e, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Web.WebView2.1.0.1293.44\lib\net45\Microsoft.Web.WebView2.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.WinForms, Version=1.0.1293.44, Culture=neutral, PublicKeyToken=2a8ab48044d2601e, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Web.WebView2.1.0.1293.44\lib\net45\Microsoft.Web.WebView2.WinForms.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.Wpf, Version=1.0.1293.44, Culture=neutral, PublicKeyToken=2a8ab48044d2601e, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Web.WebView2.1.0.1293.44\lib\net45\Microsoft.Web.WebView2.Wpf.dll</HintPath>
+    </Reference>
+    <Reference Include="NationalInstruments.Common, Version=19.1.40.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\NationalInstruments.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="NationalInstruments.DAQmx">
+      <HintPath>D:\NationalInstruments.DAQmx.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="QRCoder, Version=1.6.0.0, Culture=neutral, PublicKeyToken=c4ed5b9ae8358a28, processorArchitecture=MSIL">
+      <HintPath>..\packages\QRCoder.1.6.0\lib\net40\QRCoder.dll</HintPath>
+    </Reference>
+    <Reference Include="SQLitePCLRaw.core, Version=2.0.5.1324, Culture=neutral, PublicKeyToken=1488e028ca7ab535, processorArchitecture=MSIL">
+      <HintPath>..\packages\SQLitePCLRaw.core.2.0.5-pre20210817120427\lib\netstandard2.0\SQLitePCLRaw.core.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Buffers, Version=4.0.2.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Buffers.4.4.0\lib\netstandard2.0\System.Buffers.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Collections.Immutable, Version=1.2.2.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Collections.Immutable.1.4.0\lib\netstandard2.0\System.Collections.Immutable.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Data.SQLite, Version=1.0.114.0, Culture=neutral, PublicKeyToken=db937bc2d44ff139, processorArchitecture=MSIL">
+      <HintPath>..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.114.0\lib\net46\System.Data.SQLite.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Data.SQLite.EF6, Version=1.0.114.0, Culture=neutral, PublicKeyToken=db937bc2d44ff139, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Data.SQLite.EF6.1.0.114.0\lib\net46\System.Data.SQLite.EF6.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Data.SQLite.Linq, Version=1.0.114.0, Culture=neutral, PublicKeyToken=db937bc2d44ff139, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Data.SQLite.Linq.1.0.114.0\lib\net46\System.Data.SQLite.Linq.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Deployment" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.IO.Log" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.Memory, Version=4.0.1.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Memory.4.5.3\lib\netstandard2.0\System.Memory.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Net.Http, Version=4.1.1.3, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Net.Http.4.3.4\lib\net46\System.Net.Http.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Numerics.Vectors, Version=4.1.3.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Numerics.Vectors.4.4.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=4.0.4.1, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.4.5.2\lib\netstandard2.0\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Security.Cryptography.Algorithms, Version=4.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Security.Cryptography.Algorithms.4.3.0\lib\net461\System.Security.Cryptography.Algorithms.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Security.Cryptography.Encoding, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Security.Cryptography.Encoding.4.3.0\lib\net46\System.Security.Cryptography.Encoding.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Security.Cryptography.Primitives, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Security.Cryptography.Primitives.4.3.0\lib\net46\System.Security.Cryptography.Primitives.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Security.Cryptography.X509Certificates, Version=4.1.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Security.Cryptography.X509Certificates.4.3.0\lib\net461\System.Security.Cryptography.X509Certificates.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Speech, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Speech.8.0.0\lib\netstandard2.0\System.Speech.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Text.Json, Version=4.0.1.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\PACKING_CONTROL\packages\System.Text.Json.5.0.2\lib\net461\System.Text.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Vse.Web.Serialization">
+      <HintPath>..\..\PACKING_CONTROL\packages\Vse.Web.Serialization.ControlledSerializationJsonConverter.1.0.4\lib\net45\Vse.Web.Serialization.dll</HintPath>
+    </Reference>
+    <Reference Include="WebApiContrib.Formatting.JavaScriptSerializer">
+      <HintPath>..\WebApiContrib.Formatting.JavaScriptSerializer.dll</HintPath>
+    </Reference>
+    <Reference Include="WindowsBase" />
+    <Reference Include="WinFormAnimation, Version=1.6.0.4, Culture=neutral, PublicKeyToken=310fd07b25df79b3, processorArchitecture=MSIL">
+      <HintPath>..\packages\WinFormAnimation.1.6.0.4\lib\net40\WinFormAnimation.dll</HintPath>
+    </Reference>
+    <Reference Include="zxing, Version=0.16.9.0, Culture=neutral, PublicKeyToken=4e88037ac681fe60, processorArchitecture=MSIL">
+      <HintPath>..\packages\ZXing.Net.0.16.9\lib\net461\zxing.dll</HintPath>
+    </Reference>
+    <Reference Include="zxing.presentation, Version=0.16.9.0, Culture=neutral, PublicKeyToken=4e88037ac681fe60, processorArchitecture=MSIL">
+      <HintPath>..\packages\ZXing.Net.0.16.9\lib\net461\zxing.presentation.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Import Include="cdio.net" />
+    <Import Include="Microsoft.VisualBasic" />
+    <Import Include="System" />
+    <Import Include="System.Collections" />
+    <Import Include="System.Collections.Generic" />
+    <Import Include="System.Data" />
+    <Import Include="System.Drawing" />
+    <Import Include="System.Diagnostics" />
+    <Import Include="System.Windows.Forms" />
+    <Import Include="System.Linq" />
+    <Import Include="System.Xml.Linq" />
+    <Import Include="System.Threading.Tasks" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Add_skill.Designer.vb">
+      <DependentUpon>Add_skill.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Add_skill.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Add_success.Designer.vb">
+      <DependentUpon>Add_success.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Add_success.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Add_user.Designer.vb">
+      <DependentUpon>Add_user.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Add_user.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AdmindefectSelectSupplier.Designer.vb">
+      <DependentUpon>AdmindefectSelectSupplier.vb</DependentUpon>
+    </Compile>
+    <Compile Include="AdmindefectSelectSupplier.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="adminPrintdefect.Designer.vb">
+      <DependentUpon>adminPrintdefect.vb</DependentUpon>
+    </Compile>
+    <Compile Include="adminPrintdefect.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Adm_login.Designer.vb">
+      <DependentUpon>Adm_login.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Adm_login.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Adm_manage.Designer.vb">
+      <DependentUpon>Adm_manage.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Adm_manage.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Adm_page.Designer.vb">
+      <DependentUpon>Adm_page.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Adm_page.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Alert_scan_qr_product.Designer.vb">
+      <DependentUpon>Alert_scan_qr_product.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Alert_scan_qr_product.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Api_Scan_FA.vb" />
+    <Compile Include="AssemblyInfo.vb" />
+    <Compile Include="AutoUpdate.vb" />
+    <Compile Include="Auto_close_lot.Designer.vb">
+      <DependentUpon>Auto_close_lot.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Auto_close_lot.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="backofficeRobot.vb" />
+    <Compile Include="Backoffice_model.vb" />
+    <Compile Include="CDIO.vb" />
+    <Compile Include="Change_Loss2.Designer.vb">
+      <DependentUpon>Change_Loss2.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Change_Loss2.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Chang_Admin_Shift.Designer.vb">
+      <DependentUpon>Chang_Admin_Shift.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Chang_Admin_Shift.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Chang_sh.Designer.vb">
+      <DependentUpon>Chang_sh.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Chang_sh.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CheckWindow.Designer.vb">
+      <DependentUpon>CheckWindow.vb</DependentUpon>
+    </Compile>
+    <Compile Include="CheckWindow.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="closeLotsummary.Designer.vb">
+      <DependentUpon>closeLotsummary.vb</DependentUpon>
+    </Compile>
+    <Compile Include="closeLotsummary.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Close_lot.Designer.vb">
+      <DependentUpon>Close_lot.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Close_lot.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Close_lot_cfm.Designer.vb">
+      <DependentUpon>Close_lot_cfm.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Close_lot_cfm.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Completed_rework.Designer.vb">
+      <DependentUpon>Completed_rework.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Completed_rework.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="confixLamp.vb" />
+    <Compile Include="Confrime_work_production.Designer.vb">
+      <DependentUpon>Confrime_work_production.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Confrime_work_production.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Conf_add_skill.Designer.vb">
+      <DependentUpon>Conf_add_skill.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Conf_add_skill.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Conf_del_line.Designer.vb">
+      <DependentUpon>Conf_del_line.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Conf_del_line.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Conf_del_skill.Designer.vb">
+      <DependentUpon>Conf_del_skill.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Conf_del_skill.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Conf_edit_line.Designer.vb">
+      <DependentUpon>Conf_edit_line.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Conf_edit_line.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Conf_edit_skill.Designer.vb">
+      <DependentUpon>Conf_edit_skill.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Conf_edit_skill.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Conf_edit_user.Designer.vb">
+      <DependentUpon>Conf_edit_user.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Conf_edit_user.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Controller.vb" />
+    <Compile Include="Confrm_end.Designer.vb">
+      <DependentUpon>Confrm_end.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Confrm_end.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Conf_login.Designer.vb">
+      <DependentUpon>Conf_login.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Conf_login.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="DataPlan.vb" />
+    <Compile Include="defecAdmintnumpadregister.Designer.vb">
+      <DependentUpon>defecAdmintnumpadregister.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defecAdmintnumpadregister.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminAdjustdetail.Designer.vb">
+      <DependentUpon>defectAdminAdjustdetail.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminAdjustdetail.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminAdjustnumpadadjust.Designer.vb">
+      <DependentUpon>defectAdminAdjustnumpadadjust.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminAdjustnumpadadjust.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdmindetailnc.Designer.vb">
+      <DependentUpon>defectAdmindetailnc.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdmindetailnc.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdmindetailng.Designer.vb">
+      <DependentUpon>defectAdmindetailng.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdmindetailng.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminhome.Designer.vb">
+      <DependentUpon>defectAdminhome.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminhome.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminNumpadadjust.Designer.vb">
+      <DependentUpon>defectAdminNumpadadjust.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminNumpadadjust.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminregister.Designer.vb">
+      <DependentUpon>defectAdminregister.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminregister.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminsearch.Designer.vb">
+      <DependentUpon>defectAdminsearch.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminsearch.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminsearchng.Designer.vb">
+      <DependentUpon>defectAdminsearchng.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminsearchng.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminselectcodenc.Designer.vb">
+      <DependentUpon>defectAdminselectcodenc.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminselectcodenc.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminselectcodeng.Designer.vb">
+      <DependentUpon>defectAdminselectcodeng.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminselectcodeng.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminselectdetailncadjust.Designer.vb">
+      <DependentUpon>defectAdminselectdetailncadjust.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminselectdetailncadjust.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminselecttypenc.Designer.vb">
+      <DependentUpon>defectAdminselecttypenc.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminselecttypenc.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAdminselecttypeng.Designer.vb">
+      <DependentUpon>defectAdminselecttypeng.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAdminselecttypeng.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAlertsuredefect.Designer.vb">
+      <DependentUpon>defectAlertsuredefect.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAlertsuredefect.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectAlertupdatesuccess.Designer.vb">
+      <DependentUpon>defectAlertupdatesuccess.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectAlertupdatesuccess.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectDetailnc.Designer.vb">
+      <DependentUpon>defectDetailnc.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectDetailnc.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectDetailng.Designer.vb">
+      <DependentUpon>defectDetailng.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectDetailng.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectHome.Designer.vb">
+      <DependentUpon>defectHome.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectHome.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectNumpadadjust.Designer.vb">
+      <DependentUpon>defectNumpadadjust.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectNumpadadjust.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectNumpadregister.Designer.vb">
+      <DependentUpon>defectNumpadregister.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectNumpadregister.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectRegister.Designer.vb">
+      <DependentUpon>defectRegister.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectRegister.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectSelectcode.Designer.vb">
+      <DependentUpon>defectSelectcode.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectSelectcode.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectSelectSupplier.Designer.vb">
+      <DependentUpon>defectSelectSupplier.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectSelectSupplier.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectSelecttype.Designer.vb">
+      <DependentUpon>defectSelecttype.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectSelecttype.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="defectSpecialSelectFG.Designer.vb">
+      <DependentUpon>defectSpecialSelectFG.vb</DependentUpon>
+    </Compile>
+    <Compile Include="defectSpecialSelectFG.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Defect_nc_adj.Designer.vb">
+      <DependentUpon>Defect_nc_adj.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Defect_nc_adj.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Del_success.Designer.vb">
+      <DependentUpon>Del_success.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Del_success.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Desc_act.Designer.vb">
+      <DependentUpon>Desc_act.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Desc_act.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Edit_line_mst.Designer.vb">
+      <DependentUpon>Edit_line_mst.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Edit_line_mst.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Edit_skill.Designer.vb">
+      <DependentUpon>Edit_skill.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Edit_skill.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Edit_user.Designer.vb">
+      <DependentUpon>Edit_user.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Edit_user.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ExtractionOptions.vb" />
+    <Compile Include="Finish_work.Designer.vb">
+      <DependentUpon>Finish_work.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Finish_work.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Form1.Designer.vb">
+      <DependentUpon>Form1.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Form1.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="KeyboardAdmin.Designer.vb">
+      <DependentUpon>KeyboardAdmin.vb</DependentUpon>
+    </Compile>
+    <Compile Include="KeyboardAdmin.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="keyboardDefect.Designer.vb">
+      <DependentUpon>keyboardDefect.vb</DependentUpon>
+    </Compile>
+    <Compile Include="keyboardDefect.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="keyboardRm_Scan.Designer.vb">
+      <DependentUpon>keyboardRm_Scan.vb</DependentUpon>
+    </Compile>
+    <Compile Include="keyboardRm_Scan.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="keyboardScanMold.Designer.vb">
+      <DependentUpon>keyboardScanMold.vb</DependentUpon>
+    </Compile>
+    <Compile Include="keyboardScanMold.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="LeaderConfirmDefect.Designer.vb">
+      <DependentUpon>LeaderConfirmDefect.vb</DependentUpon>
+    </Compile>
+    <Compile Include="LeaderConfirmDefect.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="loadData.Designer.vb">
+      <DependentUpon>loadData.vb</DependentUpon>
+    </Compile>
+    <Compile Include="loadData.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="loadingFA.Designer.vb">
+      <DependentUpon>loadingFA.vb</DependentUpon>
+    </Compile>
+    <Compile Include="loadingFA.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="loadingFrom.Designer.vb">
+      <DependentUpon>loadingFrom.vb</DependentUpon>
+    </Compile>
+    <Compile Include="loadingFrom.vb" />
+    <Compile Include="load_show_OEE.Designer.vb">
+      <DependentUpon>load_show_OEE.vb</DependentUpon>
+    </Compile>
+    <Compile Include="load_show_OEE.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ManagePrintDefectAdmin.Designer.vb">
+      <DependentUpon>ManagePrintDefectAdmin.vb</DependentUpon>
+    </Compile>
+    <Compile Include="ManagePrintDefectAdmin.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MenuReprint.Designer.vb">
+      <DependentUpon>MenuReprint.vb</DependentUpon>
+    </Compile>
+    <Compile Include="MenuReprint.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="modelMaintenance.vb" />
+    <Compile Include="ModelSqliteDefect.vb" />
+    <Compile Include="model_api_sqlite.vb" />
+    <Compile Include="model_rm_scan.vb" />
+    <Compile Include="numPadSetQTY.Designer.vb">
+      <DependentUpon>numPadSetQTY.vb</DependentUpon>
+    </Compile>
+    <Compile Include="numPadSetQTY.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="numPadSetStartTime.Designer.vb">
+      <DependentUpon>numPadSetStartTime.vb</DependentUpon>
+    </Compile>
+    <Compile Include="numPadSetStartTime.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="OEE_NODE.vb" />
+    <Compile Include="OEE_SQLITE.vb" />
+    <Compile Include="PopUpLossDelayStart.Designer.vb">
+      <DependentUpon>PopUpLossDelayStart.vb</DependentUpon>
+    </Compile>
+    <Compile Include="PopUpLossDelayStart.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ProgressBar_Form.Designer.vb">
+      <DependentUpon>ProgressBar_Form.vb</DependentUpon>
+    </Compile>
+    <Compile Include="ProgressBar_Form.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="RobotApppSuport.Designer.vb">
+      <DependentUpon>RobotApppSuport.vb</DependentUpon>
+    </Compile>
+    <Compile Include="RobotApppSuport.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ScanQRprod.Designer.vb">
+      <DependentUpon>ScanQRprod.vb</DependentUpon>
+    </Compile>
+    <Compile Include="ScanQRprod.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SetStartTime.Designer.vb">
+      <DependentUpon>SetStartTime.vb</DependentUpon>
+    </Compile>
+    <Compile Include="SetStartTime.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Settinglamp.Designer.vb">
+      <DependentUpon>Settinglamp.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Settinglamp.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ShowSpcDetailDefect.Designer.vb">
+      <DependentUpon>ShowSpcDetailDefect.vb</DependentUpon>
+    </Compile>
+    <Compile Include="ShowSpcDetailDefect.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="tag_print_normal.Designer.vb">
+      <DependentUpon>tag_print_normal.vb</DependentUpon>
+    </Compile>
+    <Compile Include="tag_print_normal.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="TestForm.Designer.vb">
+      <DependentUpon>TestForm.vb</DependentUpon>
+    </Compile>
+    <Compile Include="TestForm.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="TEST_PRINTLABEL.Designer.vb">
+      <DependentUpon>TEST_PRINTLABEL.vb</DependentUpon>
+    </Compile>
+    <Compile Include="TEST_PRINTLABEL.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FunctionGobal.vb" />
+    <Compile Include="IArchive.vb" />
+    <Compile Include="Inf_manage.Designer.vb">
+      <DependentUpon>Inf_manage.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Inf_manage.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="inf_save_conf.Designer.vb">
+      <DependentUpon>inf_save_conf.vb</DependentUpon>
+    </Compile>
+    <Compile Include="inf_save_conf.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Insert_list.Designer.vb">
+      <DependentUpon>Insert_list.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Insert_list.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ins_qty.Designer.vb">
+      <DependentUpon>ins_qty.vb</DependentUpon>
+    </Compile>
+    <Compile Include="ins_qty.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ins_qty_special_time.Designer.vb">
+      <DependentUpon>ins_qty_special_time.vb</DependentUpon>
+    </Compile>
+    <Compile Include="ins_qty_special_time.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ins_time_loss.Designer.vb">
+      <DependentUpon>ins_time_loss.vb</DependentUpon>
+    </Compile>
+    <Compile Include="ins_time_loss.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="int_qty_rework.Designer.vb">
+      <DependentUpon>int_qty_rework.vb</DependentUpon>
+    </Compile>
+    <Compile Include="int_qty_rework.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Keyboards.Designer.vb">
+      <DependentUpon>Keyboards.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Keyboards.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Line_conf.Designer.vb">
+      <DependentUpon>Line_conf.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Line_conf.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="line_manage.Designer.vb">
+      <DependentUpon>line_manage.vb</DependentUpon>
+    </Compile>
+    <Compile Include="line_manage.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="List_Production.Designer.vb">
+      <DependentUpon>List_Production.vb</DependentUpon>
+    </Compile>
+    <Compile Include="List_Production.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Chang_Loss.Designer.vb">
+      <DependentUpon>Chang_Loss.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Chang_Loss.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="load_show.Designer.vb">
+      <DependentUpon>load_show.vb</DependentUpon>
+    </Compile>
+    <Compile Include="load_show.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Loss_reg.Designer.vb">
+      <DependentUpon>Loss_reg.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Loss_reg.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Loss_reg_pass.Designer.vb">
+      <DependentUpon>Loss_reg_pass.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Loss_reg_pass.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainFA.Designer.vb">
+      <DependentUpon>MainFA.vb</DependentUpon>
+    </Compile>
+    <Compile Include="MainFA.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainFrm.designer.vb">
+      <DependentUpon>MainFrm.vb</DependentUpon>
+    </Compile>
+    <Compile Include="MainFrm.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="maintenance.vb" />
+    <Compile Include="ManagePlan.Designer.vb">
+      <DependentUpon>ManagePlan.vb</DependentUpon>
+    </Compile>
+    <Compile Include="ManagePlan.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="manageVariable.vb" />
+    <Compile Include="modelDefect.vb" />
+    <Compile Include="Model_change_alert.Designer.vb">
+      <DependentUpon>Model_change_alert.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Model_change_alert.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="My Project\AssemblyInfo.vb" />
+    <Compile Include="My Project\Application.Designer.vb">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Application.myapp</DependentUpon>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <Compile Include="My Project\Resources.Designer.vb">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="My Project\Settings.Designer.vb">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+    <Compile Include="OEE.vb" />
+    <Compile Include="Prd_detail.Designer.vb">
+      <DependentUpon>Prd_detail.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Prd_detail.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Prd_status.Designer.vb">
+      <DependentUpon>Prd_status.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Prd_status.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="printDefect.Designer.vb">
+      <DependentUpon>printDefect.vb</DependentUpon>
+    </Compile>
+    <Compile Include="printDefect.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PrintLabelBreak.Designer.vb">
+      <DependentUpon>PrintLabelBreak.vb</DependentUpon>
+    </Compile>
+    <Compile Include="PrintLabelBreak.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="print_back.Designer.vb">
+      <DependentUpon>print_back.vb</DependentUpon>
+    </Compile>
+    <Compile Include="print_back.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Print_Defact.Designer.vb">
+      <DependentUpon>Print_Defact.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Print_Defact.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Rm_scan.Designer.vb">
+      <DependentUpon>Rm_scan.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Rm_scan.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Sc.Designer.vb">
+      <DependentUpon>Sc.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Sc.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="List_Emp.Designer.vb">
+      <DependentUpon>List_Emp.vb</DependentUpon>
+    </Compile>
+    <Compile Include="List_Emp.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ScanTagPlan.Designer.vb">
+      <DependentUpon>ScanTagPlan.vb</DependentUpon>
+    </Compile>
+    <Compile Include="ScanTagPlan.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Scan_reprint.Designer.vb">
+      <DependentUpon>Scan_reprint.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Scan_reprint.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="sc_prd_plan.Designer.vb">
+      <DependentUpon>sc_prd_plan.vb</DependentUpon>
+    </Compile>
+    <Compile Include="sc_prd_plan.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="sc_wi_plan.Designer.vb">
+      <DependentUpon>sc_wi_plan.vb</DependentUpon>
+    </Compile>
+    <Compile Include="sc_wi_plan.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="select_int_qty.Designer.vb">
+      <DependentUpon>select_int_qty.vb</DependentUpon>
+    </Compile>
+    <Compile Include="select_int_qty.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Sel_defect_cd_nc.Designer.vb">
+      <DependentUpon>Sel_defect_cd_nc.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Sel_defect_cd_nc.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ccc.Designer.vb">
+      <DependentUpon>ccc.vb</DependentUpon>
+    </Compile>
+    <Compile Include="ccc.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Sel_prod_start.Designer.vb">
+      <DependentUpon>Sel_prod_start.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Sel_prod_start.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Set_print_tag.Designer.vb">
+      <DependentUpon>Set_print_tag.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Set_print_tag.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="show_detail_production.Designer.vb">
+      <DependentUpon>show_detail_production.vb</DependentUpon>
+    </Compile>
+    <Compile Include="show_detail_production.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="show_information.Designer.vb">
+      <DependentUpon>show_information.vb</DependentUpon>
+    </Compile>
+    <Compile Include="show_information.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="show_list_information.Designer.vb">
+      <DependentUpon>show_list_information.vb</DependentUpon>
+    </Compile>
+    <Compile Include="show_list_information.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Show_reprint_wi.Designer.vb">
+      <DependentUpon>Show_reprint_wi.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Show_reprint_wi.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Show_Worker.Designer.vb">
+      <DependentUpon>Show_Worker.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Show_Worker.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="skill_manage.Designer.vb">
+      <DependentUpon>skill_manage.vb</DependentUpon>
+    </Compile>
+    <Compile Include="skill_manage.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="StopMenu.Designer.vb">
+      <DependentUpon>StopMenu.vb</DependentUpon>
+    </Compile>
+    <Compile Include="StopMenu.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="System\Api\api.vb" />
+    <Compile Include="Tag_reprint.Designer.vb">
+      <DependentUpon>Tag_reprint.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Tag_reprint.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="tag_reprint_new.Designer.vb">
+      <DependentUpon>tag_reprint_new.vb</DependentUpon>
+    </Compile>
+    <Compile Include="tag_reprint_new.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Test_scrobar.Designer.vb">
+      <DependentUpon>Test_scrobar.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Test_scrobar.vb" />
+    <Compile Include="Time_Loss.Designer.vb">
+      <DependentUpon>Time_Loss.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Time_Loss.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="TrasnferData.Designer.vb">
+      <DependentUpon>TrasnferData.vb</DependentUpon>
+    </Compile>
+    <Compile Include="TrasnferData.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Unit_test.vb" />
+    <Compile Include="Update_Patch.Designer.vb">
+      <DependentUpon>Update_Patch.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Update_Patch.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="user_manage.Designer.vb">
+      <DependentUpon>user_manage.vb</DependentUpon>
+    </Compile>
+    <Compile Include="user_manage.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Wait_data.Designer.vb">
+      <DependentUpon>Wait_data.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Wait_data.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Working_OEE.Designer.vb">
+      <DependentUpon>Working_OEE.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Working_OEE.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Working_Pro.Designer.vb">
+      <DependentUpon>Working_Pro.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Working_Pro.vb">
+      <SubType>Form</SubType>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Add_skill.resx">
+      <DependentUpon>Add_skill.vb</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Add_success.resx">
+      <DependentUpon>Add_success.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Add_user.resx">
+      <DependentUpon>Add_user.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="AdmindefectSelectSupplier.resx">
+      <DependentUpon>AdmindefectSelectSupplier.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="adminPrintdefect.resx">
+      <DependentUpon>adminPrintdefect.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Adm_login.resx">
+      <DependentUpon>Adm_login.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Adm_manage.resx">
+      <DependentUpon>Adm_manage.vb</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Adm_page.resx">
+      <DependentUpon>Adm_page.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Alert_scan_qr_product.resx">
+      <DependentUpon>Alert_scan_qr_product.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Auto_close_lot.resx">
+      <DependentUpon>Auto_close_lot.vb</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Change_Loss2.resx">
+      <DependentUpon>Change_Loss2.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Chang_Admin_Shift.resx">
+      <DependentUpon>Chang_Admin_Shift.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Chang_sh.resx">
+      <DependentUpon>Chang_sh.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CheckWindow.resx">
+      <DependentUpon>CheckWindow.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="closeLotsummary.resx">
+      <DependentUpon>closeLotsummary.vb</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Close_lot.resx">
+      <DependentUpon>Close_lot.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Close_lot_cfm.resx">
+      <DependentUpon>Close_lot_cfm.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Completed_rework.resx">
+      <DependentUpon>Completed_rework.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Confrime_work_production.resx">
+      <DependentUpon>Confrime_work_production.vb</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Confrm_end.resx">
+      <DependentUpon>Confrm_end.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Conf_add_skill.resx">
+      <DependentUpon>Conf_add_skill.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Conf_del_line.resx">
+      <DependentUpon>Conf_del_line.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Conf_del_skill.resx">
+      <DependentUpon>Conf_del_skill.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Conf_edit_line.resx">
+      <DependentUpon>Conf_edit_line.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Conf_edit_skill.resx">
+      <DependentUpon>Conf_edit_skill.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Conf_edit_user.resx">
+      <DependentUpon>Conf_edit_user.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Conf_login.resx">
+      <DependentUpon>Conf_login.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defecAdmintnumpadregister.resx">
+      <DependentUpon>defecAdmintnumpadregister.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminAdjustdetail.resx">
+      <DependentUpon>defectAdminAdjustdetail.vb</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminAdjustnumpadadjust.resx">
+      <DependentUpon>defectAdminAdjustnumpadadjust.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdmindetailnc.resx">
+      <DependentUpon>defectAdmindetailnc.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdmindetailng.resx">
+      <DependentUpon>defectAdmindetailng.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminhome.resx">
+      <DependentUpon>defectAdminhome.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminNumpadadjust.resx">
+      <DependentUpon>defectAdminNumpadadjust.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminregister.resx">
+      <DependentUpon>defectAdminregister.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminsearch.resx">
+      <DependentUpon>defectAdminsearch.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminsearchng.resx">
+      <DependentUpon>defectAdminsearchng.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminselectcodenc.resx">
+      <DependentUpon>defectAdminselectcodenc.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminselectcodeng.resx">
+      <DependentUpon>defectAdminselectcodeng.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminselectdetailncadjust.resx">
+      <DependentUpon>defectAdminselectdetailncadjust.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminselecttypenc.resx">
+      <DependentUpon>defectAdminselecttypenc.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAdminselecttypeng.resx">
+      <DependentUpon>defectAdminselecttypeng.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAlertsuredefect.resx">
+      <DependentUpon>defectAlertsuredefect.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectAlertupdatesuccess.resx">
+      <DependentUpon>defectAlertupdatesuccess.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectDetailnc.resx">
+      <DependentUpon>defectDetailnc.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectDetailng.resx">
+      <DependentUpon>defectDetailng.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectHome.resx">
+      <DependentUpon>defectHome.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectNumpadadjust.resx">
+      <DependentUpon>defectNumpadadjust.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectNumpadregister.resx">
+      <DependentUpon>defectNumpadregister.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectRegister.resx">
+      <DependentUpon>defectRegister.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectSelectcode.resx">
+      <DependentUpon>defectSelectcode.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectSelectSupplier.resx">
+      <DependentUpon>defectSelectSupplier.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectSelecttype.resx">
+      <DependentUpon>defectSelecttype.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="defectSpecialSelectFG.resx">
+      <DependentUpon>defectSpecialSelectFG.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Defect_nc_adj.resx">
+      <DependentUpon>Defect_nc_adj.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Del_success.resx">
+      <DependentUpon>Del_success.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Desc_act.resx">
+      <DependentUpon>Desc_act.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Edit_line_mst.resx">
+      <DependentUpon>Edit_line_mst.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Edit_skill.resx">
+      <DependentUpon>Edit_skill.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Edit_user.resx">
+      <DependentUpon>Edit_user.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Finish_work.resx">
+      <DependentUpon>Finish_work.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Form1.resx">
+      <DependentUpon>Form1.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="KeyboardAdmin.resx">
+      <DependentUpon>KeyboardAdmin.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="keyboardDefect.resx">
+      <DependentUpon>keyboardDefect.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="keyboardRm_Scan.resx">
+      <DependentUpon>keyboardRm_Scan.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="keyboardScanMold.resx">
+      <DependentUpon>keyboardScanMold.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LeaderConfirmDefect.resx">
+      <DependentUpon>LeaderConfirmDefect.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="loadData.resx">
+      <DependentUpon>loadData.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="loadingFA.resx">
+      <DependentUpon>loadingFA.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="loadingFrom.resx">
+      <DependentUpon>loadingFrom.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="load_show_OEE.resx">
+      <DependentUpon>load_show_OEE.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ManagePrintDefectAdmin.resx">
+      <DependentUpon>ManagePrintDefectAdmin.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MenuReprint.resx">
+      <DependentUpon>MenuReprint.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="numPadSetQTY.resx">
+      <DependentUpon>numPadSetQTY.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="numPadSetStartTime.resx">
+      <DependentUpon>numPadSetStartTime.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PopUpLossDelayStart.resx">
+      <DependentUpon>PopUpLossDelayStart.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ProgressBar_Form.resx">
+      <DependentUpon>ProgressBar_Form.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="RobotApppSuport.resx">
+      <DependentUpon>RobotApppSuport.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ScanQRprod.resx">
+      <DependentUpon>ScanQRprod.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SetStartTime.resx">
+      <DependentUpon>SetStartTime.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Settinglamp.resx">
+      <DependentUpon>Settinglamp.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ShowSpcDetailDefect.resx">
+      <DependentUpon>ShowSpcDetailDefect.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="tag_print_normal.resx">
+      <DependentUpon>tag_print_normal.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="TestForm.resx">
+      <DependentUpon>TestForm.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="TEST_PRINTLABEL.resx">
+      <DependentUpon>TEST_PRINTLABEL.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Inf_manage.resx">
+      <DependentUpon>Inf_manage.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="inf_save_conf.resx">
+      <DependentUpon>inf_save_conf.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Insert_list.resx">
+      <DependentUpon>Insert_list.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ins_qty.resx">
+      <DependentUpon>ins_qty.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ins_qty_special_time.resx">
+      <DependentUpon>ins_qty_special_time.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ins_time_loss.resx">
+      <DependentUpon>ins_time_loss.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="int_qty_rework.resx">
+      <DependentUpon>int_qty_rework.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Keyboards.resx">
+      <DependentUpon>Keyboards.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Line_conf.resx">
+      <DependentUpon>Line_conf.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="line_manage.resx">
+      <DependentUpon>line_manage.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="List_Production.resx">
+      <DependentUpon>List_Production.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Chang_Loss.resx">
+      <DependentUpon>Chang_Loss.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="load_show.resx">
+      <DependentUpon>load_show.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Loss_reg.resx">
+      <DependentUpon>Loss_reg.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Loss_reg_pass.resx">
+      <DependentUpon>Loss_reg_pass.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MainFA.resx">
+      <DependentUpon>MainFA.vb</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MainFrm.resx">
+      <DependentUpon>MainFrm.vb</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ManagePlan.resx">
+      <DependentUpon>ManagePlan.vb</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Model_change_alert.resx">
+      <DependentUpon>Model_change_alert.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="My Project\Resources.resx">
+      <Generator>VbMyResourcesResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.vb</LastGenOutput>
+      <CustomToolNamespace>My.Resources</CustomToolNamespace>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Prd_detail.resx">
+      <DependentUpon>Prd_detail.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Prd_status.resx">
+      <DependentUpon>Prd_status.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="printDefect.resx">
+      <DependentUpon>printDefect.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PrintLabelBreak.resx">
+      <DependentUpon>PrintLabelBreak.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="print_back.resx">
+      <DependentUpon>print_back.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Print_Defact.resx">
+      <DependentUpon>Print_Defact.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Rm_scan.resx">
+      <DependentUpon>Rm_scan.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Sc.resx">
+      <DependentUpon>Sc.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="List_Emp.resx">
+      <DependentUpon>List_Emp.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ScanTagPlan.resx">
+      <DependentUpon>ScanTagPlan.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Scan_reprint.resx">
+      <DependentUpon>Scan_reprint.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="sc_prd_plan.resx">
+      <DependentUpon>sc_prd_plan.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="sc_wi_plan.resx">
+      <DependentUpon>sc_wi_plan.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="select_int_qty.resx">
+      <DependentUpon>select_int_qty.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Sel_defect_cd_nc.resx">
+      <DependentUpon>Sel_defect_cd_nc.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ccc.resx">
+      <DependentUpon>ccc.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Sel_prod_start.resx">
+      <DependentUpon>Sel_prod_start.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Set_print_tag.resx">
+      <DependentUpon>Set_print_tag.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="show_detail_production.resx">
+      <DependentUpon>show_detail_production.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="show_information.resx">
+      <DependentUpon>show_information.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="show_list_information.resx">
+      <DependentUpon>show_list_information.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Show_reprint_wi.resx">
+      <DependentUpon>Show_reprint_wi.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Show_Worker.resx">
+      <DependentUpon>Show_Worker.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="skill_manage.resx">
+      <DependentUpon>skill_manage.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="StopMenu.resx">
+      <DependentUpon>StopMenu.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Tag_reprint.resx">
+      <DependentUpon>Tag_reprint.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="tag_reprint_new.resx">
+      <DependentUpon>tag_reprint_new.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Test_scrobar.resx">
+      <DependentUpon>Test_scrobar.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Time_Loss.resx">
+      <DependentUpon>Time_Loss.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="TrasnferData.resx">
+      <DependentUpon>TrasnferData.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Update_Patch.resx">
+      <DependentUpon>Update_Patch.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="user_manage.resx">
+      <DependentUpon>user_manage.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Wait_data.resx">
+      <DependentUpon>Wait_data.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Working_OEE.resx">
+      <DependentUpon>Working_OEE.vb</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Working_Pro.resx">
+      <DependentUpon>Working_Pro.vb</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.manifest">
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="My Project\Application.myapp">
+      <Generator>MyApplicationCodeGenerator</Generator>
+      <LastGenOutput>Application.Designer.vb</LastGenOutput>
+    </None>
+    <None Include="My Project\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <CustomToolNamespace>My</CustomToolNamespace>
+      <LastGenOutput>Settings.Designer.vb</LastGenOutput>
+    </None>
+    <None Include="App.config">
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="packages.config">
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="Standard Config Files\Synthesis.ControlPanel.IdentityServer.config.disabled" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="fa_logo.ico" />
+    <Content Include="ICO_NEW_FA.ico" />
+    <None Include="Resources\JgIO.gif" />
+    <None Include="Resources\ingif.gif" />
+    <None Include="Resources\LossE1.png" />
+    <None Include="Resources\dis.gif" />
+    <None Include="Resources\waitingnetwork.png" />
+    <None Include="Resources\btnClose1.png" />
+    <None Include="Resources\logScanProduction.png" />
+    <None Include="Resources\btnClearRemainDMC.png" />
+    <None Include="Resources\ww2.PNG" />
+    <None Include="Resources\result221.PNG" />
+    <None Include="Resources\result22.PNG" />
+    <None Include="Resources\selectLoss4.png" />
+    <None Include="Resources\ErrorTImeOld1.png" />
+    <None Include="Resources\configLineGemba.png" />
+    <None Include="Resources\OEE WAIT DATA %281%291.png" />
+    <None Include="Resources\0s-200px-200px-unscreen.gif" />
+    <None Include="Resources\OEE WAIT DATA %281%29.png" />
+    <None Include="Resources\Loading_image1.png" />
+    <None Include="Resources\Loading_image.png" />
+    <None Include="Resources\ErrorTImeOld.png" />
+    <None Include="Resources\ErrorTime2.png" />
+    <None Include="Resources\NumSettingActual1.png" />
+    <None Include="Resources\NumSettingTime3.png" />
+    <None Include="Resources\NumSettingActual.png" />
+    <None Include="Resources\JU.PNG" />
+    <None Include="Resources\NumSettingTime2.png" />
+    <None Include="Resources\NumSettingTime1.png" />
+    <None Include="Resources\NumSettingTime.png" />
+    <None Include="Resources\giphy.gif" />
+    <None Include="Resources\ErrorTime1.png" />
+    <None Include="Resources\936b3a9a817fed848e7025c0430cbb-unscreen.gif" />
+    <None Include="Resources\ErrorTime.png" />
+    <None Include="Resources\defectDetailadjustNew231.png" />
+    <None Include="Resources\defectDetailadjustNew23.png" />
+    <None Include="Resources\productionListDetailNewNotext.png" />
+    <None Include="Resources\eadb74787dda41cc6333341e552934323.gif" />
+    <None Include="Resources\defectNumpadadjusttNew23.png" />
+    <None Include="Resources\closeLotsummaryNew23.png" />
+    <None Include="Resources\defectNumpadadjustNew23.png" />
+    <None Include="Resources\defectSelectcodeNew23.png" />
+    <None Include="Resources\defectHomeNew231.png" />
+    <None Include="Resources\defectHomeNew23.png" />
+    <None Include="Resources\eadb74787dda41cc6333341e552934322.gif" />
+    <None Include="Resources\eadb74787dda41cc6333341e552934321.gif" />
+    <None Include="Resources\startingProd1.png" />
+    <None Include="Resources\btnInfoNew.png" />
+    <None Include="Resources\btnSetUpNewnew.png" />
+    <None Include="Resources\btnStartNewnew.png" />
+    <None Include="Resources\btnSetUpNew.png" />
+    <None Include="Resources\btnCloseLotNew.png" />
+    <None Include="Resources\btnDefectNew.png" />
+    <None Include="Resources\btnIncNew.png" />
+    <None Include="Resources\btnDescNew.png" />
+    <None Include="Resources\btnbacknew1.png" />
+    <None Include="Resources\btnStartnew.png" />
+    <None Include="Resources\btnbacknew.png" />
+    <None Include="Resources\tabStopProd.png" />
+    <None Include="Resources\stopProd.png" />
+    <None Include="Resources\btnStart1.png" />
+    <None Include="Resources\btnBack.png" />
+    <None Include="Resources\tabStartProd.png" />
+    <None Include="Resources\tabStartProd1.png" />
+    <None Include="Resources\startingProd.png" />
+    <None Include="Resources\btnUser.png" />
+    <None Include="Resources\btnStopp.png" />
+    <None Include="Resources\btnStop1.png" />
+    <None Include="Resources\btnSetting11.png" />
+    <None Include="Resources\btnInfo.png" />
+    <None Include="Resources\btnDesc1.png" />
+    <None Include="Resources\btnInc1.png" />
+    <None Include="Resources\btnSetting1.png" />
+    <None Include="Resources\btnDefect1.png" />
+    <None Include="Resources\btnClose.png" />
+    <None Include="Resources\btnStarting.png" />
+    <None Include="Resources\red.png" />
+    <None Include="Resources\logoTBKK.jpeg" />
+    <None Include="Resources\MainMenu4.png" />
+    <None Include="Resources\addSpeNumpad1.png" />
+    <None Include="Resources\addActualNumpad4.png" />
+    <None Include="Resources\scanMaterial.png" />
+    <None Include="Resources\manageEmp4.png" />
+    <None Include="Resources\MainMenu3.png" />
+    <None Include="Resources\dwdd1.png" />
+    <None Include="Resources\cf250687395151.5db728c7879d3.gif" />
+    <None Include="Resources\dwdd.png" />
+    <None Include="Resources\eadb74787dda41cc6333341e55293432.gif" />
+    <None Include="Resources\loading.png" />
+    <None Include="Resources\exitProgram.png" />
+    <None Include="Resources\BLOCK.png" />
+    <None Include="Resources\Untitled-4.png" />
+    <None Include="Resources\breaktime3.png" />
+    <None Include="Resources\btnstartbreaktime2.png" />
+    <None Include="Resources\btnstartbreaktime1.png" />
+    <None Include="Resources\btnstartbreaktime.png" />
+    <None Include="Resources\breaktime2.png" />
+    <None Include="Resources\addActualNumpad3.png" />
+    <None Include="Resources\addActualNumpad2.png" />
+    <None Include="Resources\btnokkk.png" />
+    <None Include="Resources\manageEmp3.png" />
+    <None Include="Resources\sw.gif" />
+    <None Include="Resources\breaktime1.png" />
+    <None Include="Resources\breaktime.png" />
+    <None Include="Resources\closeLotsummary1.png" />
+    <None Include="Resources\sweetAlertSuccess.png" />
+    <None Include="Resources\btnOK.png" />
+    <None Include="Resources\sweetAlertWarningUnseccess.png" />
+    <None Include="Resources\addSpeNumpad.png" />
+    <None Include="Resources\addActualNumpadspaissue.png" />
+    <None Include="Resources\addActualNumpadspa.png" />
+    <None Include="Resources\productionListDetail2.png" />
+    <None Include="Resources\productionListDetail.png" />
+    <None Include="Resources\21.png" />
+    <None Include="Resources\2.png" />
+    <None Include="Resources\productionStoppedtarget.png" />
+    <None Include="Resources\btnDetail.png" />
+    <None Include="Resources\man.png" />
+    <None Include="Resources\productionStartingtarget.png" />
+    <None Include="Resources\productionStarttarget.png" />
+    <None Include="Resources\ok.png" />
+    <None Include="Resources\manualLossAfter1.png" />
+    <None Include="Resources\addLossNumpad.png" />
+    <None Include="Resources\manualLossBefor1.png" />
+    <None Include="Resources\manualLossBefore.png" />
+    <None Include="Resources\selectLoss3.png" />
+    <None Include="Resources\selectLoss2.png" />
+    <None Include="Resources\autoLoss.png" />
+    <None Include="Resources\manualLossAfter.png" />
+    <None Include="Resources\selectLoss1.png" />
+    <None Include="Resources\selectLoss.png" />
+    <None Include="Resources\reprintTag1.png" />
+    <None Include="Resources\reprintTag.png" />
+    <None Include="Resources\setupMenu1.png" />
+    <None Include="Resources\setupMenu.png" />
+    <None Include="Resources\addActualNumpad1.png" />
+    <None Include="Resources\addActualNumpad.png" />
+    <None Include="Resources\selectNormalRework.png" />
+    <None Include="Resources\decreaseActualNumpad.png" />
+    <None Include="Resources\btnCloselot.png" />
+    <None Include="Resources\btnDefect.png" />
+    <None Include="Resources\btnSetting.png" />
+    <None Include="Resources\btnInc.png" />
+    <None Include="Resources\productionStopped5.png" />
+    <None Include="Resources\btnDesc.png" />
+    <None Include="Resources\productionStopped4.png" />
+    <None Include="Resources\productionStopped3.png" />
+    <None Include="Resources\productionStopped2.png" />
+    <None Include="Resources\productionStarting5.png" />
+    <None Include="Resources\productionStart5.png" />
+    <None Include="Resources\productionStart4.png" />
+    <None Include="Resources\productionStarting4.png" />
+    <None Include="Resources\productionStarting3.png" />
+    <None Include="Resources\productionStopped1.png" />
+    <None Include="Resources\btnStart.png" />
+    <None Include="Resources\productionStopped.png" />
+    <None Include="Resources\btnStop.png" />
+    <None Include="Resources\productionStarting2.png" />
+    <None Include="Resources\productionStarting1.png" />
+    <None Include="Resources\productionStarting.png" />
+    <None Include="Resources\productionStart3.png" />
+    <None Include="Resources\productionStart2.png" />
+    <None Include="Resources\productionStart1.png" />
+    <None Include="Resources\productionStart.png" />
+    <None Include="Resources\scanAdminAccount1.png" />
+    <None Include="Resources\scanAdminAccount.png" />
+    <None Include="Resources\selectShift.png" />
+    <None Include="Resources\productionDetail.png" />
+    <None Include="Resources\configLine2.png" />
+    <None Include="Resources\configLine.png" />
+    <None Include="Resources\configLine1.png" />
+    <None Include="Resources\manageEmp2.png" />
+    <None Include="Resources\manageEmp1.png" />
+    <None Include="Resources\scanEmpCard.png" />
+    <None Include="Resources\manageEmp.png" />
+    <None Include="Resources\MainMenu2.png" />
+    <None Include="Resources\MainMenu1.png" />
+    <None Include="Resources\MainMenu.png" />
+    <None Include="Resources\defectAdminregister1.png" />
+    <None Include="Resources\defectAdminregister.png" />
+    <None Include="Resources\defectRegister2.png" />
+    <None Include="Resources\defectAdminnumpadregister2.png" />
+    <None Include="Resources\defectAdminnumpadregister1.png" />
+    <None Include="Resources\defectAdmindetailselectadjustNC1.png" />
+    <None Include="Resources\defectAdmindetailselectadjustNC.png" />
+    <None Include="Resources\defectAdmindetailNC2.png" />
+    <None Include="Resources\defectAdmindetailadjustNC1.png" />
+    <None Include="Resources\defectAdmindetailadjustNC.png" />
+    <None Include="Resources\defectAlertsure1.png" />
+    <None Include="Resources\defectAlertupdate.png" />
+    <None Include="Resources\defectAlertsure.png" />
+    <None Include="Resources\defectAdminnumpadadjust.png" />
+    <None Include="Resources\defectAdminnumpadregister.png" />
+    <None Include="Resources\defectAdminselectcodeNG.png" />
+    <None Include="Resources\defectAdminselectcodeNC.png" />
+    <None Include="Resources\defectAdminselecttypeNG.png" />
+    <None Include="Resources\defectAdminselecttypeNC1.png" />
+    <None Include="Resources\defectAdminselecttypeNC.png" />
+    <None Include="Resources\defectAdminsearchNG.png" />
+    <None Include="Resources\defectAdminsearchNC.png" />
+    <None Include="Resources\defectAdmindetailNG.png" />
+    <None Include="Resources\defectAdmindetailNC1.png" />
+    <None Include="Resources\defectAdmindetailNC.png" />
+    <None Include="Resources\defectHome6.png" />
+    <None Include="Resources\defectHome11.png" />
+    <None Include="Resources\defectHome5.png" />
+    <None Include="Resources\defectHome4.png" />
+    <None Include="Resources\defectHome3.png" />
+    <None Include="Resources\defectHome2.png" />
+    <None Include="Resources\defectHome1.png" />
+    <None Include="Resources\menuLogin.png" />
+    <None Include="Resources\loginAdmin1.png" />
+    <None Include="Resources\Information2.png" />
+    <None Include="Resources\Information1.png" />
+    <None Include="Resources\loginAdmin.png" />
+    <None Include="Resources\Information.png" />
+    <None Include="Resources\closeLotsummary.png" />
+    <None Include="Resources\defectSelecttype.png" />
+    <None Include="Resources\defectSelectcode.png" />
+    <None Include="Resources\defectRegister1.png" />
+    <None Include="Resources\defectRegister.png" />
+    <None Include="Resources\defectNumpadregister.png" />
+    <None Include="Resources\defectNumpadadjust.png" />
+    <None Include="Resources\defectHome.png" />
+    <None Include="Resources\defectDetailnc2.png" />
+    <None Include="Resources\defectDetailnc1.png" />
+    <None Include="Resources\defectDetailnc.png" />
+    <None Include="Resources\inst_qty2.png" />
+    <None Include="Resources\inst_qty.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Newtonsoft\" />
+    <Folder Include="System\Data\" />
+  </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Connected Services\" />
+  </ItemGroup>
+  <ItemGroup>
+    <BootstrapperPackage Include=".NETFramework,Version=v4.6.1">
+      <Visible>False</Visible>
+      <ProductName>Microsoft .NET Framework 4.6.1 %28x86 and x64%29</ProductName>
+      <Install>true</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\EntityFramework.6.4.4\build\EntityFramework.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EntityFramework.6.4.4\build\EntityFramework.props'))" />
+    <Error Condition="!Exists('..\packages\EntityFramework.6.4.4\build\EntityFramework.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EntityFramework.6.4.4\build\EntityFramework.targets'))" />
+    <Error Condition="!Exists('..\packages\Microsoft.Web.WebView2.1.0.1293.44\build\Microsoft.Web.WebView2.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Web.WebView2.1.0.1293.44\build\Microsoft.Web.WebView2.targets'))" />
+    <Error Condition="!Exists('..\packages\SQLite.3.13.0\build\net45\SQLite.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\SQLite.3.13.0\build\net45\SQLite.props'))" />
+    <Error Condition="!Exists('..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.114.0\build\net46\Stub.System.Data.SQLite.Core.NetFramework.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.114.0\build\net46\Stub.System.Data.SQLite.Core.NetFramework.targets'))" />
+  </Target>
+  <Import Project="..\packages\EntityFramework.6.4.4\build\EntityFramework.targets" Condition="Exists('..\packages\EntityFramework.6.4.4\build\EntityFramework.targets')" />
+  <Import Project="..\packages\Microsoft.Web.WebView2.1.0.1293.44\build\Microsoft.Web.WebView2.targets" Condition="Exists('..\packages\Microsoft.Web.WebView2.1.0.1293.44\build\Microsoft.Web.WebView2.targets')" />
+  <Import Project="..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.114.0\build\net46\Stub.System.Data.SQLite.Core.NetFramework.targets" Condition="Exists('..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.114.0\build\net46\Stub.System.Data.SQLite.Core.NetFramework.targets')" />
+</Project>
