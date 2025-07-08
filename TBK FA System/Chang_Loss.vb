@@ -182,8 +182,8 @@ Public Class Chang_Loss
             load_show.Show()
         End Try
     End Sub
-    Public Shared Sub check_loss_sys()
-        Working_Pro.insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+    Public Shared Async Sub check_loss_sys()
+        Await Working_Pro.insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
         Working_Pro.insLossClickStart_Loss_X(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
     End Sub
     Private Sub Button1_Click_1(sender As Object, e As EventArgs) Handles Button1.Click

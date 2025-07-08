@@ -32,7 +32,7 @@ Public Class Loss_reg_pass
             load_show.Show()
         End Try
     End Sub
-    Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+    Private Async Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
         Dim line_id As String = MainFrm.line_id.Text
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
@@ -141,6 +141,10 @@ Public Class Loss_reg_pass
                                 j = j + 1
                             Next
                         Else
+                            Console.WriteLine("start_loss ===>" & start_loss)
+                            Console.WriteLine("end_loss ===>" & end_loss)
+                            Console.WriteLine("total_loss ===>" & total_loss)
+                            Await Working_Pro.insLossClickStart_Loss_E1(start_loss.ToString("yyyy/MM/dd"), start_loss.ToString("HH:mm:ss"))
                             Backoffice_model.ins_loss_act(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id)
                             Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id)
                         End If

@@ -74,6 +74,7 @@ Public Class Working_Pro
     Public Shared RemainScanDmcDefect As Integer = 0
     Public Shared RemainScanDmcAddQty As Integer = 0
     Public Shared RemainScanDmcDelQty As Integer = 0
+    Public Shared flg_tag_print As Integer = 0
     'Dim digitalReadTask_new_dio As New Task()
     'Dim reader_new_dio As DigitalSingleChannelReader
     'Dim data_new_dio As UInt32
@@ -2335,16 +2336,21 @@ outNet:
 
     Public count As String = 0
     Public Async Function counter_contect_DIO() As Task
+        Dim hasError As Boolean = False
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
-                insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
             Else
-                insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
             End If
         Catch ex As Exception
-            insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+            hasError = True
         End Try
+        If hasError Then
+            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+            hasError = False
+        End If
         Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
         Dim monthNow As Integer = DateTime.Now.ToString("MM")
         Dim dayNow As Integer = DateTime.Now.ToString("dd")
@@ -2668,6 +2674,7 @@ outNet:
             End Try
             Dim sum_diff As Integer = Label8.Text - Label6.Text
             Label10.Text = "-" & sum_diff
+            flg_tag_print = 0
             If sum_diff = 0 Then
                 Me.Enabled = False
                 comp_flg = 1
@@ -2717,16 +2724,20 @@ outNet:
         'Edit_Down(BitNo).Text = CStr(DownCount(BitNo))
     End Function
     Public Async Function counter_contect_DIO_RS232() As Task
+        Dim hasError As Boolean = False
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
-                insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
             Else
-                insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
             End If
         Catch ex As Exception
-            insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+            hasError = True
         End Try
+        If hasError Then
+            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+        End If
         Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
         Dim monthNow As Integer = DateTime.Now.ToString("MM")
         Dim dayNow As Integer = DateTime.Now.ToString("dd")
@@ -3040,6 +3051,7 @@ outNet:
             End Try
             Dim sum_diff As Integer = Label8.Text - Label6.Text
             Label10.Text = "-" & sum_diff
+            flg_tag_print = 0
             If sum_diff = 0 Then
                 Me.Enabled = False
                 comp_flg = 1
@@ -3754,6 +3766,7 @@ outNet:
     Public Shared Function tag_print()
         'asdfasd
         Working_Pro.keep_data_and_gen_qr_tag_fa_completed()
+        flg_tag_print = 1
         If check_tag_type = "1" Then
             Working_Pro.PrintDocument1.Print()
         ElseIf check_tag_type = "2" Then
@@ -3883,6 +3896,7 @@ outNet:
         End Try
     End Sub
     Public Sub manage_print()
+        wasd
         Dim SQLite = New ModelSqliteDefect
         Dim defectAll = SQLite.mSqlieGetDataNGbyWILot(MainFrm.Label4.Text, Label18.Text, DateTimeStartofShift.Text, wi_no.Text)
         Dim result_add As Integer = CDbl(Val(lb_ins_qty.Text)) + CDbl(Val(Label6.Text))
@@ -4627,17 +4641,22 @@ outNet:
     End Function
     Public Async Function counter_data_new_dio() As Task ' NI MAX
         ''Console.WriteLine("READY NI MAX")
+        Dim hasError As Boolean = False
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
-                insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
             Else
-                insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
                 ' MsgBox("NO NET")
             End If
         Catch ex As Exception
-            insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+            hasError = True
         End Try
+        If hasError Then
+            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+            hasError = False
+        End If
         Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
         Dim monthNow As Integer = DateTime.Now.ToString("MM")
         Dim dayNow As Integer = DateTime.Now.ToString("dd")
@@ -4914,6 +4933,7 @@ outNet:
                     End If
                 End If
             End Try
+            flg_tag_print = 0
             Dim sum_diff As Integer = Label8.Text - Label6.Text
             Label10.Text = "-" & sum_diff
             If sum_diff = 0 Then

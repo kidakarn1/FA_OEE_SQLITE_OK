@@ -575,7 +575,7 @@ Public Class closeLotsummary
         End If
         'If Integer.Parse(lbGood.Text) > 0 And result_mod > 0 And CDbl(Val(Working_Pro.Label10.Text)) < 0 Then
         If Integer.Parse(lbGood.Text) > 0 And result_mod > 0 Then
-            If CDbl(Val(Working_Pro.Label10.Text)) < 0 Or result_mod > 0 Then
+            If CDbl(Val(Working_Pro.Label10.Text)) < 0 Or result_mod > 0 And Working_Pro.flg_tag_print = 0 Then
                 Working_Pro.lb_box_count.Text = Working_Pro.lb_box_count.Text + 1
                 Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
                 Dim cupprint = 0

@@ -4,12 +4,11 @@ Imports System.Web.Script.Serialization
 Imports System.Data.SqlClient
 Imports System.Globalization
 Public Class Scan_reprint
-    Public date_now_start
-    Public date_now_end
+    Public Shared date_now_start
+    Public Shared date_now_end
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles pbBack.Click
         Adm_manage.Enabled = True
         Me.Close()
-
     End Sub
     Public Sub Button2_Click(sender As Object, e As EventArgs) Handles BbOk.Click
         Dim date_reprint As String

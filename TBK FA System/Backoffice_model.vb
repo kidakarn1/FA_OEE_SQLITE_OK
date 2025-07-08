@@ -273,7 +273,8 @@ Public Class Backoffice_model
                 "DELETE FROM maintenance where mn_create_date BETWEEN '" & convert_date_start1 & "' AND '" & currdated1 & "' and mn_status = '1'",
                 "DELETE FROM defect_tag_information where dti_created_date BETWEEN '" & convert_date_start & "' AND '" & convert_del_2_week & "' and dti_tranfer_flg = '1'",
                 "DELETE FROM defect_actual where da_created_date BETWEEN '" & convert_date_start & "' AND '" & convert_del_2_week & "' and da_transfer_flg = '1'",
-                "DELETE FROM line_status_detail"
+                "DELETE FROM line_status_detail",
+                "Delete FROM production_working_info where pwi_created_date BETWEEN '" & convert_date_start & "' AND '" & convert_del_2_week & "'"
             }
         For i = 0 To command_data.Length - 1
             '  Console.WriteLine(command_data(i))
@@ -1645,7 +1646,6 @@ where
                             "?emp_code=" & emp_cd &
                             "&line_cd=" & line_cd &
                             "&pd=" & pd
-            Console.WriteLine("Calling API GetPermissionLeader URL: " & url)
             ' ✅ แปลงให้ async โดยรันบน background thread
             Dim api = New api()
             Dim rsData As String = Await Task.Run(Function() api.Load_data(url))
@@ -1662,7 +1662,6 @@ where
         Try
             Dim api = New api()
             Dim result_worker = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_permission_worker?emp_code=" & emp_cd & "&line_cd=" & line_cd)
-            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_permission_worker?emp_code=" & emp_cd & "&line_cd=" & line_cd)
             Return result_worker
             ' SQLConn.ConnectionString = sqlConnect 'Set the Connection String
             ' SQLConn.Open()
@@ -3385,7 +3384,6 @@ re_insert_data:
                 Console.WriteLine(reserveSql)
                 Try
                     Dim result = Await api.Load_dataSQLiteAsync(reserveSql)
-                    Console.WriteLine("result===>" & result)
                     If result = "0" Then
                         retryMap(id) += 1
                         Console.WriteLine($"⛔ จองข้อมูลไม่สำเร็จ (ID={id}) รอบที่ {retryMap(id)}" & reserveSql)
@@ -3437,7 +3435,7 @@ re_insert_data:
                         Backoffice_model.work_complete(wi_plan)
                     End If
                 Else
-                    update_qty_seq(wi_plan, seq_no, act_qty)
+                    update_qty_seq(wi_plan, seq_no, act_qty) 'add condition lot
                 End If
 
                 arr_list_id2.Add(LoadSQLcl("id").ToString())
@@ -3727,7 +3725,6 @@ recheck:
             Dim api = New api
             Dim Sql = " UPDATE act_ins SET tr_status = '1', updated_date = '" & currdated & "' WHERE id = '" & id & "'"
             Dim jsonData As String = api.Load_dataSQLite(Sql)
-            Console.WriteLine(Sql)
         Catch ex As Exception
             ' MsgBox("Error Files Backoffice_model In Function update_tr_status")
         End Try
@@ -4073,7 +4070,6 @@ re_insert_rework_act:
                 'case Load โปรแกรม ครั้ง แรก
                 SQLCmd.CommandText = "INSERT INTO loss_actual (wi,line_cd,item_cd,seq_no,shift_prd,start_loss,end_loss,loss_time,updated_date,loss_type,loss_cd_id,line_op_id,pd,transfer_flg , flg_control , pwi_id) VALUES ('" & wi_plan & "','" & line_cd & "','" & item_cd & "','" & seq_no & "','" & shift_prd & "','" & st_datetime2 & "','" & end_datetime2 & "','" & loss_time & "','" & currdated & "','" & loss_type & "','" & loss_id & "','" & op_id & "','" & pd & "','" & transfer_flg & "','" & flg_control & "','" & pwi_id & "')"
             End Try
-            Console.WriteLine(SQLCmd.CommandText)
             reader = SQLCmd.ExecuteReader()
             'SQLConn.Dispose()
             SQLConn.Close()
@@ -4412,7 +4408,6 @@ re_insert_rework_act:
     Public Function Get_Plan_All_By_Line_Auto_Loss_X(line_cd As String, shift As String, dateStart As String, timeStart As String, flg_spec As String, item_cd As String)
         Try
             Dim api = New api()
-            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_X?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_X?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
             Return GetData
         Catch ex As Exception
@@ -4423,7 +4418,6 @@ re_insert_rework_act:
     Public Function Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss(line_cd As String, shift As String, dateStart As String, timeStart As String, flg_spec As String, item_cd As String, dateEnd As String, timeEnd As String)
         Try
             Dim api = New api()
-            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd & "&dateEnd=" & dateEnd & "&timeEnd=" & timeEnd)
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd & "&dateEnd=" & dateEnd & "&timeEnd=" & timeEnd)
             Return GetData
         Catch ex As Exception
@@ -4435,7 +4429,6 @@ re_insert_rework_act:
         Try
             Dim api = New api()
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_A?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
-            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_A?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
             Return GetData
         Catch ex As Exception
             MsgBox("Error Function Get_Plan_All_By_Line_LOSS_A In Backoffice_model")
@@ -4446,7 +4439,6 @@ re_insert_rework_act:
         Try
             Dim api = New api()
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_E1?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
-            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_E1?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
             Return GetData
         Catch ex As Exception
             MsgBox("Error Function Get_Plan_All_By_Line_LOSS_E1 In Backoffice_model")
@@ -4476,7 +4468,6 @@ re_insert_rework_act:
         Try
             Dim api = New api()
             Dim result_api_checkper = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/Api_Get_plan_production_critical/GetDataPlanCritical?wi=" & wi & "&line_cd=" & GET_LINE_PRODUCTION())
-            'Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/Api_Get_plan_production_critical/GetDataPlanCritical?wi=" & wi & "&line_cd=" & GET_LINE_PRODUCTION())
             Return result_api_checkper
         Catch ex As Exception
             MsgBox("Error Function GetDataPlanCritical In Backoffice_model")
@@ -4531,7 +4522,6 @@ re_insert_rework_act:
             Dim api = New api()
             'Dim reusult_data = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/Update_supply_dev_WorkingSpecial?wi1=" & wi1 & "&wi2=" & wi2 & "&wi3=" & wi3 & "&wi4=" & wi4 & "&wi5=" & wi5)
             Dim result = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/loadsecPopUp_Loss_E1?dateStart=" & dateStart & "&timeStart=" & timeStart & "&Shift=" & shift & "&item_cd=" & item_cd & "&flg_spec=" & flg_spec & "&line_cd=" & line_cd)
-            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/loadsecPopUp_Loss_E1?dateStart=" & dateStart & "&timeStart=" & timeStart & "&Shift=" & shift & "&item_cd=" & item_cd & "&flg_spec=" & flg_spec & "&line_cd=" & line_cd)
             Return result
         Catch ex As Exception
             MsgBox("Error Function M_loadsecPopUp_Loss_E1 In Backoffice_model")
@@ -4542,7 +4532,6 @@ re_insert_rework_act:
             Dim api = New api()
             'Dim reusult_data = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/Update_supply_dev_WorkingSpecial?wi1=" & wi1 & "&wi2=" & wi2 & "&wi3=" & wi3 & "&wi4=" & wi4 & "&wi5=" & wi5)
             Dim result = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/getDataloss?dateStart=" & start_loss & "&dateEnd=" & end_loss & "&line_cd=" & line_cd)
-            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/getDataloss?dateStart=" & start_loss & "&dateEnd=" & end_loss & "&line_cd=" & line_cd)
             Return result
         Catch ex As Exception
             MsgBox("Error Function GetDataLoss In Backoffice_model")
@@ -4552,7 +4541,6 @@ re_insert_rework_act:
         Try
             Dim url As String = "http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GetPercenPlanned_OEE " &
                             "?line_cd=" & line_cd
-            Console.WriteLine("Calling API GetPercenPlanned_OEE URL: " & url)
             ' ✅ แปลงให้ async โดยรันบน background thread
             Dim api = New api()
             Dim rsData As String = Await Task.Run(Function() api.Load_data(url))

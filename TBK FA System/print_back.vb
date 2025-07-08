@@ -1,11 +1,11 @@
 Imports System.Globalization
 Imports System.Web.Script.Serialization
 Public Class print_back
-	Dim QR_Generator As New MessagingToolkit.QRCode.Codec.QRCodeEncoder
-	Private Sub print_back_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-		print()
-	End Sub
-	Public Function print()
+    Dim QR_Generator As New MessagingToolkit.QRCode.Codec.QRCodeEncoder
+    Private Sub print_back_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        print()
+    End Sub
+    Public Function print()
         Dim api = New api()
         PrintDocument1.Print()
     End Function

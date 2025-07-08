@@ -253,11 +253,10 @@ Public Class Confrime_work_production
                     Working_Pro.Label3.Text = Prd_detail.lb_item_cd.Text
                     Working_Pro.Label12.Text = Prd_detail.lb_item_name.Text
                     Working_Pro.newPartname.Text = Prd_detail.lb_item_name.Text
-
-                    If Working_Pro.newPartname.Text.Length > 17 Then
-                        Working_Pro.newPartname.Text = Working_Pro.newPartname.Text.ToString.Substring(0, 17) & "..."
-                    End If
-                    Working_Pro.Label8.Text = Prd_detail.lb_plan_qty.Text
+                If Working_Pro.newPartname.Text.Length > 17 Then
+                    Working_Pro.newPartname.Text = Working_Pro.newPartname.Text.ToString.Substring(0, 17) & "..."
+                End If
+                Working_Pro.Label8.Text = Prd_detail.lb_plan_qty.Text
                     'Working_Pro.Label6.Text = ListView1.Items(numOfindex).SubItems(4).Text.ToString
                     'SNP
                     'Working_Pro.Label27.Text = Prd_detail.lb_snp.Text

@@ -433,6 +433,7 @@ break_loop:
                     Else
                         cal_qty()
                     End If
+                    Working_Pro.flg_tag_print = 0
                     Working_Pro.LB_COUNTER_SHIP.Text -= inp_qty
                     Working_Pro.lb_good.Text -= inp_qty
                     ' MsgBox("M1")

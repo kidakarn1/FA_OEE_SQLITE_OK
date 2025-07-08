@@ -390,28 +390,15 @@ Public Class ins_time_loss
                         Dim date_end_time As String = date_end_shift.ToString("dd/mm/yy", CultureInfo.InvariantCulture)
                         Dim convert_date_time_start As String = date_start_shift.ToString("HH:mm:ss", CultureInfo.InvariantCulture)
                         Dim convert_date_end_shift As String = date_end_shift.ToString("HH:mm:ss", CultureInfo.InvariantCulture)
-                        ' ' MsgBox("--->")
-                        ' MsgBox("convert_date_time_start = " & convert_date_time_start)
-                        'MsgBox("convert_date_end_shift = " & convert_date_end_shift)
-                        'MsgBox("=============<><>===")
                         Dim date_cerrunt_now As Date = DateTime.Now.ToString()
                         Dim date_cerrunt_now1 = date_cerrunt_now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-                        '  MsgBox("re====")
-                        'MsgBox("date_cerrunt_now = " & date_cerrunt_now1)
-                        '  MsgBox("date_start_time = " & date_start_time)
-                        ' If TimeOfDay.ToString("HH:mm:ss") >= "00:00:00" And TimeOfDay.ToString("HH:mm:ss") <= "07:59:59" Then
                         If date_cerrunt_now1 > date_start_time Then ' check เลย เที่ยงคืน 
-                            '   MsgBox("===>")
                             date_end_shift = Backoffice_model.date_time_end_check_date_paralell_linet.AddDays(1)
-                            '   MsgBox("===>")
                         End If
-                        ' MsgBox("01")
                         Dim total_time_loss As Integer
                         Dim date1 As Date = Date.Parse(TextBox1.Text)
-                        'MsgBox("02")
                         Dim date2 As Date = Date.Parse(TextBox2.Text)
                         If Trim(Prd_detail.Label12.Text.Substring(0, 1)) = "B" Or Trim(Prd_detail.Label12.Text.Substring(0, 1)) = "Q" Or Trim(Prd_detail.Label12.Text.Substring(0, 1)) = "S" Then
-                            '   MsgBox("TimeOfDay   = " & TimeOfDay.ToString("HH:mm:ss"))
                             If TimeOfDay.ToString("HH:mm:ss") >= "00:00:00" And TimeOfDay.ToString("HH:mm:ss") <= "07:59:59" Then
                                 ' MsgBox("IF -1 DAYS")
                                 '   MsgBox("date_cerrunt_now1===>" & date_cerrunt_now1)
@@ -481,7 +468,6 @@ Public Class ins_time_loss
                                                 total_time_loss = Minutes.ToString
                                             End If
                                         Catch ex As Exception
-
                                         End Try
                                         Dim GET_CHECK_LOSS_reuslt = Backoffice_model.GET_CHECK_LOSS(start_time, end_time)
                                         Dim check_double_loss As Integer = 0

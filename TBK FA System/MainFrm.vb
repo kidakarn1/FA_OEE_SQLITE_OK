@@ -687,9 +687,10 @@ Public Class MainFrm
         List_Emp.lb_link.Text = "main"
         List_Emp.Show()
         List_Emp.Enabled = False
-        Me.Enabled = False
+        ' Me.Enabled = False
         Sc.TextBox2.Select()
-        Sc.Show()
+        'Sc.Show()
+        Sc.ShowDialog()
     End Sub
     Private Sub PictureBox7_Click(sender As Object, e As EventArgs) Handles PictureBox7.Click
         load_worker()

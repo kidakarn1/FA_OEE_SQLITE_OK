@@ -106,6 +106,7 @@ Public Class defectRegister
                     ScanQRprod.Show()
                 Else ' case Normal
                     CalFG()
+                    Working_Pro.flg_tag_print = 0
                 End If
             Else
                 CalChildPart()

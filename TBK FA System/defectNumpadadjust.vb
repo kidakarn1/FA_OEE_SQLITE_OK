@@ -235,6 +235,7 @@
                 'MsgBox("dtCode = " & dtCode)
 
                 updateAddjustqty(wi, lot, seq, dfType, dtCode, dfName, mainCP, source_code_supplier)
+                Working_Pro.flg_tag_print = 0
                 Working_Pro.cal_eff()
                 Working_Pro.ResetRed()
                 Working_Pro.Enabled = True
@@ -324,6 +325,7 @@
                         updateAddjustqty(wi, lot, seq, dfType, dtCode, dfDetailsnc.dtName, mainCP, source_code_supplier)
                         Working_Pro.ResetRed()
                         Working_Pro.Enabled = True
+                        Working_Pro.flg_tag_print = 0
                         Working_Pro.cal_eff()
                         Working_Pro.ResetRed()
                         Me.Close()
@@ -342,6 +344,7 @@
                     dfType = dfDetailsng.dtType
                     dtCode = dfDetailsng.dtCode
                     If rsCheck Then
+                        Working_Pro.flg_tag_print = 0
                         setValueng(actQty, nc, ng, sNg, tbAddjust.Text)
                         updateAddjustqty(wi, lot, seq, dfType, dtCode, dfDetailsng.dtName, mainCP, source_code_supplier)
                         Working_Pro.ResetRed()
@@ -431,8 +434,6 @@
         If defectHome.dtType = "NC" Then
             manageNc()
         Else
-
-
             If Working_Pro.slm_flg_qr_prod = "1" Then ' scan QR 
                 If defectDetailng.types = "FG" Then
                     Dim rsCheck = ckInputqtyaddjust(tbAddjust.Text, lbMax.Text)

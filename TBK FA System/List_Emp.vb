@@ -15,8 +15,8 @@ Public Class List_Emp
                 MainFrm.lb_ctrl_sc_flg.Text = "emp"
             End If
             Sc.TextBox2.Select()
-            Me.Enabled = False
-            Sc.Show()
+            ' Me.Enabled = False
+            Sc.ShowDialog()
         End If
     End Sub
     Public Function set_data_Month(lotSubstMonth)

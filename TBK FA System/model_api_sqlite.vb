@@ -656,6 +656,8 @@ Public Class model_api_sqlite
                   "(line_cd = '" & line_cd & "' AND end_loss BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND loss_cd_id <> '1' AND flg_control <> '2') " &
                   "ORDER BY id DESC LIMIT 1;"
             End If
+            Console.WriteLine("sql ==>" & sql)
+            Console.WriteLine("sql_check_loss ==>" & sql_check_loss)
             ' โหลดข้อมูลการผลิต
             Dim jsonDataProd As String = Await api.Load_dataSQLiteAsyncLoaddata(sql)
             If String.IsNullOrWhiteSpace(jsonDataProd) OrElse Not jsonDataProd.Trim().StartsWith("[") Then
