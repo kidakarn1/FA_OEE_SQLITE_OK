@@ -1226,7 +1226,7 @@ Public Class Working_Pro
     Private Sub btn_start_Click(sender As Object, e As EventArgs) Handles btn_start.Click
         Start_Production()
     End Sub
-    Public Sub ins_loss_code(pd As String, line_cd As String, wi_plan As String, item_cd As String, seq_no As String, shift_prd As String, start_loss As String, end_loss As String, total_loss As String, loss_type As String, loss_cd_id As String, op_id As String, pwi_id As String)
+    Public Sub ins_loss_code(pd As String, line_cd As String, wi_plan As String, item_cd As String, seq_no As String, shift_prd As String, start_loss As String, end_loss As String, total_loss As String, loss_type As String, loss_cd_id As String, op_id As String, pwi_id As String, statusLossManualE1 As Integer)
         Dim flg_control As String = "0"
         If loss_cd_id = "36" Then
             flg_control = "1"
@@ -1237,15 +1237,15 @@ Public Class Working_Pro
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 transfer_flg = "1"
-                Backoffice_model.ins_loss_act(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id)
-                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id)
+                Backoffice_model.ins_loss_act(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id, statusLossManualE1)
+                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id, statusLossManualE1)
             Else
                 transfer_flg = "0"
-                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id)
+                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id, statusLossManualE1)
             End If
         Catch ex As Exception
             transfer_flg = "0"
-            Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id)
+            Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id, statusLossManualE1)
         End Try
     End Sub
     Public Sub insLossClickStart_Loss_X(dateNow As String, timeNow As String)
@@ -1265,6 +1265,7 @@ Public Class Working_Pro
                     Dim Loss_Time_codex As String = ""
                     Dim Loss_Code As String = ""
                     Try
+                        Dim statusLossManualE1 As Integer = 0
                         For Each item As Object In dict3
                             start_loss_codex = item("Start_Loss").ToString()
                             end_loss_codex = item("End_Loss").ToString()
@@ -1280,11 +1281,11 @@ Public Class Working_Pro
                                         Dim indRow As String = itemPlanData.IND_ROW
                                         Dim wi As String = itemPlanData.wi
                                         Dim item_cd As String = itemPlanData.item_cd
-                                        ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j))
+                                        ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j), statusLossManualE1)
                                         j = j + 1
                                     Next
                                 Else
-                                    ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id)
+                                    ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id, statusLossManualE1)
                                 End If
                             End If
                         Next
@@ -1312,6 +1313,8 @@ Public Class Working_Pro
                     Dim start_loss_codex As String = ""
                     Dim Loss_Time_codex As String = ""
                     Dim Loss_Code As String = ""
+                    Dim statusLossManualE1 As Integer = 0
+
                     Try
                         For Each item As Object In dict3
                             start_loss_codex = item("Start_Loss").ToString()
@@ -1328,11 +1331,11 @@ Public Class Working_Pro
                                         Dim indRow As String = itemPlanData.IND_ROW
                                         Dim wi As String = itemPlanData.wi
                                         Dim item_cd As String = itemPlanData.item_cd
-                                        ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j))
+                                        ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j), statusLossManualE1)
                                         j = j + 1
                                     Next
                                 Else
-                                    ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id)
+                                    ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id, statusLossManualE1)
                                 End If
                             End If
                         Next
@@ -1369,6 +1372,7 @@ Public Class Working_Pro
                     'End If
                     Dim RsCheckProduction_Plan = bf.Get_Plan_All_By_Line_Loss_A(Backoffice_model.GET_LINE_PRODUCTION(), Label14.Text, dateNow, timeNow, Backoffice_model.S_chk_spec_line, Label3.Text)
                     ''Console.WriteLine(RsCheckProduction_Plan)
+                    Dim statusLossManualE1 As Integer = 0
                     If RsCheckProduction_Plan <> "0" Then
                         Dim loss_type As String = "0"
                         Dim op_id As String = "0"
@@ -1395,11 +1399,11 @@ Public Class Working_Pro
                                             Dim indRow As String = itemPlanData.IND_ROW
                                             Dim wi As String = itemPlanData.wi
                                             Dim item_cd As String = itemPlanData.item_cd
-                                            ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j))
+                                            ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j), statusLossManualE1)
                                             j = j + 1
                                         Next
                                     Else
-                                        ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id)
+                                        ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id, statusLossManualE1)
                                     End If
                                 End If
                             Next
@@ -1413,7 +1417,7 @@ Public Class Working_Pro
             'MsgBox("catch ====>" & ex.Message)
         End Try
     End Sub
-    Public Async Function insLossClickStart_Loss_E1(dateNow As String, timeNow As String) As Task
+    Public Async Function insLossClickStart_Loss_E1(dateNow As String, timeNow As String, statusLossManualE1 As Integer) As Task
         Dim RsCheckProduction_Plan = ""
         Dim exMessage As String = ""
         Dim hasError As Boolean = False
@@ -1463,11 +1467,11 @@ Public Class Working_Pro
                                 Dim indRow As String = itemPlanData.IND_ROW
                                 Dim wi As String = itemPlanData.wi
                                 Dim item_cd As String = itemPlanData.item_cd
-                                ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j))
+                                ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j), statusLossManualE1)
                                 j = j + 1
                             Next
                         Else
-                            ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id)
+                            ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id, statusLossManualE1)
                         End If
                     End If
                 Next
@@ -2337,18 +2341,19 @@ outNet:
     Public count As String = 0
     Public Async Function counter_contect_DIO() As Task
         Dim hasError As Boolean = False
+        Dim statusLossManualE1 As Integer = 0
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
-                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
             Else
-                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
             End If
         Catch ex As Exception
             hasError = True
         End Try
         If hasError Then
-            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
             hasError = False
         End If
         Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
@@ -2725,18 +2730,19 @@ outNet:
     End Function
     Public Async Function counter_contect_DIO_RS232() As Task
         Dim hasError As Boolean = False
+        Dim statusLossManualE1 As Integer = 0
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
-                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
             Else
-                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
             End If
         Catch ex As Exception
             hasError = True
         End Try
         If hasError Then
-            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
         End If
         Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
         Dim monthNow As Integer = DateTime.Now.ToString("MM")
@@ -3896,7 +3902,6 @@ outNet:
         End Try
     End Sub
     Public Sub manage_print()
-        wasd
         Dim SQLite = New ModelSqliteDefect
         Dim defectAll = SQLite.mSqlieGetDataNGbyWILot(MainFrm.Label4.Text, Label18.Text, DateTimeStartofShift.Text, wi_no.Text)
         Dim result_add As Integer = CDbl(Val(lb_ins_qty.Text)) + CDbl(Val(Label6.Text))
@@ -4642,19 +4647,20 @@ outNet:
     Public Async Function counter_data_new_dio() As Task ' NI MAX
         ''Console.WriteLine("READY NI MAX")
         Dim hasError As Boolean = False
+        Dim statusLossManualE1 As Integer = 0
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
-                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
             Else
-                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
                 ' MsgBox("NO NET")
             End If
         Catch ex As Exception
             hasError = True
         End Try
         If hasError Then
-            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
             hasError = False
         End If
         Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
@@ -5078,7 +5084,8 @@ outNet:
                                                                                                  If check_in_up_seq = 0 Then
                                                                                                      Backoffice_model.IDLossCodeAuto = "36"
                                                                                                  End If
-                                                                                                 insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+                                                                                                 Dim statusLossManualE1 As Integer = 0
+                                                                                                 insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
                                                                                                  StopMenu.Show()
                                                                                                  ' StopMenu.ShowDialog()
                                                                                                  'If StopMenu.Visible Then

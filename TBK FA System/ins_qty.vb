@@ -429,10 +429,11 @@ Public Class ins_qty
             Working_Pro.LB_COUNTER_SEQ.Text = CDbl(Val(Working_Pro.LB_COUNTER_SEQ.Text)) + CDbl(Val(tb))
             Working_Pro.lb_good.Text = CDbl(Val(Working_Pro.lb_good.Text)) + CDbl(Val(tb))
             Dim max_val_int As Integer = Convert.ToInt32(max_val)
-            Backoffice_model.qty_int = ins_qtyy
+        Backoffice_model.qty_int = ins_qtyy
+        Dim statusLossManualE1 As Integer = 0
         If ins_qtyy > 0 And ins_qtyy <= max_val_int Then
             Working_Pro.lb_ins_qty.Text = tb
-            Working_Pro.insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
+            Working_Pro.insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
             Working_Pro.ins_qty_fn_manual()
             Working_Pro.Enabled = True
             select_int_qty.Close()

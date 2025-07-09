@@ -253,6 +253,7 @@
         Dim total_loss As Integer = DateDiff(DateInterval.Minute, date1, date2)
         Dim loss_type As String = "0"  '0:Normally,1:Manual
         Dim op_id As String = "0"
+        Dim statusManualE1 As Integer = 0
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 transfer_flg = "1"
@@ -271,13 +272,13 @@
                         Catch ex As Exception
                             localPwis = ""
                         End Try
-                        Backoffice_model.ins_loss_act(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis)
-                        Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis)
+                        Backoffice_model.ins_loss_act(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis, statusManualE1)
+                        Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis, statusManualE1)
                         j = j + 1
                     Next
                 Else
-                    Backoffice_model.ins_loss_act(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id)
-                    Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id)
+                    Backoffice_model.ins_loss_act(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id, statusManualE1)
+                    Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id, statusManualE1)
                 End If
             Else
                 transfer_flg = "0"
@@ -296,11 +297,11 @@
                         Catch ex As Exception
                             localPwis = ""
                         End Try
-                        Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis)
+                        Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis, statusManualE1)
                         j = j + 1
                     Next
                 Else
-                    Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id)
+                    Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id, statusManualE1)
                 End If
             End If
         Catch ex As Exception
@@ -320,11 +321,11 @@
                     Dim special_wi As String = itemPlanData.wi
                     Dim special_item_cd As String = itemPlanData.item_cd
                     Dim special_item_name As String = itemPlanData.item_name
-                    Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis)
+                    Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis, statusManualE1)
                     j = j + 1
                 Next
             Else
-                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id)
+                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id, statusManualE1)
             End If
         End Try
     End Sub

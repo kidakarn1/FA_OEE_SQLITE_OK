@@ -636,6 +636,16 @@ Public Class model_api_sqlite
             Dim api = New api()
             Dim sql As String
             Dim sql_check_loss As String
+
+            Dim originalDate As String = dateTimeStartShift
+            Dim dt As DateTime = DateTime.Parse(originalDate)
+            Dim formattedDate As String = dt.ToString("yyyy-MM-dd HH:mm:ss")
+            dateTimeStartShift = formattedDate
+            Dim originalDate_defaultTime As String = defaultTime
+            Dim dt_defaultTime As DateTime = DateTime.Parse(originalDate_defaultTime)
+            Dim formattedDateDefaultTime As String = dt_defaultTime.ToString("yyyy-MM-dd HH:mm:ss")
+            defaultTime = formattedDateDefaultTime
+            ' ผลลัพธ์: "2025-07-09 08:00:00"
             ' สร้าง SQL ตาม flg_spec
             If flg_spec = "1" Then
                 sql = "SELECT * FROM act_ins WHERE " &

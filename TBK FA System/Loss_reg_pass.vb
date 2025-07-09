@@ -120,12 +120,14 @@ Public Class Loss_reg_pass
                 op_id = 0 'ComboBox1.Text
                 Dim pd As String = MainFrm.Label6.Text
                 Dim transfer_flg As String = "0"
+                Dim statusManualE1 As Integer = 0
                 Try
                     If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                         transfer_flg = "1"
                         ' Dim onlyDate As String = Working_Pro.DatTimeCodeXEndUpdate.Substring(0, 10)     ' "2025-05-05"
                         ' Dim onlyTime As String = Working_Pro.DatTimeCodeXEndUpdate.Substring(11, 8)     ' "14:48:27"
                         ' Working_Pro.insLossClickStart_Loss_X(onlyDate, onlyTime)
+                        Await Working_Pro.insLossClickStart_Loss_E1(start_loss.ToString("yyyy/MM/dd"), start_loss.ToString("HH:mm:ss"), "1")
                         Dim rsClickSTart = Backoffice_model.date_time_click_start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
                         Working_Pro.insLossClickStart_Loss_X_adjust_loss(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture), rsClickSTart, Label8.Text)
                         If MainFrm.chk_spec_line = "2" Then
@@ -136,17 +138,16 @@ Public Class Loss_reg_pass
                                 Iseq += 1
                                 Dim special_wi As String = itemPlanData.wi
                                 Dim special_item_cd As String = itemPlanData.item_cd
-                                Backoffice_model.ins_loss_act(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.Spwi_id(j))
-                                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.Spwi_id(j))
+                                Backoffice_model.ins_loss_act(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.Spwi_id(j), statusManualE1)
+                                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.Spwi_id(j), statusManualE1)
                                 j = j + 1
                             Next
                         Else
                             Console.WriteLine("start_loss ===>" & start_loss)
                             Console.WriteLine("end_loss ===>" & end_loss)
                             Console.WriteLine("total_loss ===>" & total_loss)
-                            Await Working_Pro.insLossClickStart_Loss_E1(start_loss.ToString("yyyy/MM/dd"), start_loss.ToString("HH:mm:ss"))
-                            Backoffice_model.ins_loss_act(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id)
-                            Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id)
+                            Backoffice_model.ins_loss_act(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id, statusManualE1)
+                            Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id, statusManualE1)
                         End If
                     Else
                         transfer_flg = "0"
@@ -158,11 +159,11 @@ Public Class Loss_reg_pass
                                 Iseq += 1
                                 Dim special_wi As String = itemPlanData.wi
                                 Dim special_item_cd As String = itemPlanData.item_cd
-                                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.Spwi_id(j))
+                                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.Spwi_id(j), statusManualE1)
                                 j = j + 1
                             Next
                         Else
-                            Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id)
+                            Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id, statusManualE1)
                         End If
                     End If
                 Catch ex As Exception
@@ -175,11 +176,11 @@ Public Class Loss_reg_pass
                             Iseq += 1
                             Dim special_wi As String = itemPlanData.wi
                             Dim special_item_cd As String = itemPlanData.item_cd
-                            Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.Spwi_id(j))
+                            Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.Spwi_id(j), statusManualE1)
                             j = j + 1
                         Next
                     Else
-                        Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id)
+                        Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id, statusManualE1)
                     End If
                 End Try
                 Working_Pro.ResetRed()

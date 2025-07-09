@@ -4042,13 +4042,18 @@ re_insert_rework_act:
         End Try
     End Function
 
-    Public Shared Function ins_loss_act(pd As String, line_cd As String, wi_plan As String, item_cd As String, seq_no As String, shift_prd As String, st_time As DateTime, end_time As DateTime, loss_time As Integer, loss_type As String, loss_id As String, op_id As String, transfer_flg As String, flg_control As String, pwi_id As String)
+    Public Shared Function ins_loss_act(pd As String, line_cd As String, wi_plan As String, item_cd As String, seq_no As String, shift_prd As String, st_time As DateTime, end_time As DateTime, loss_time As Integer, loss_type As String, loss_id As String, op_id As String, transfer_flg As String, flg_control As String, pwi_id As String, statusManualE1 As Integer)
         If MainFrm.chk_spec_line = "2" Then
             '
         Else
             Check_loss_and_update_flg_loss()
         End If
-        Dim currdated As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
+        Dim currdated As String
+        If statusManualE1 = 0 Then ' Update_datetime ที่ไม่ได้ เกิด จาก Loss Manual
+            currdated = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
+        Else  ' Update_datetime ที่ เกิด จาก Loss Manual
+            currdated = end_time.ToString("yyyy/MM/dd H:m:s")
+        End If
         Dim reader As SqlDataReader
         Dim SQLConn As New SqlConnection() 'The SQL Connection
         Dim SQLCmd As New SqlCommand()
@@ -4070,6 +4075,7 @@ re_insert_rework_act:
                 'case Load โปรแกรม ครั้ง แรก
                 SQLCmd.CommandText = "INSERT INTO loss_actual (wi,line_cd,item_cd,seq_no,shift_prd,start_loss,end_loss,loss_time,updated_date,loss_type,loss_cd_id,line_op_id,pd,transfer_flg , flg_control , pwi_id) VALUES ('" & wi_plan & "','" & line_cd & "','" & item_cd & "','" & seq_no & "','" & shift_prd & "','" & st_datetime2 & "','" & end_datetime2 & "','" & loss_time & "','" & currdated & "','" & loss_type & "','" & loss_id & "','" & op_id & "','" & pd & "','" & transfer_flg & "','" & flg_control & "','" & pwi_id & "')"
             End Try
+            Console.WriteLine(SQLCmd.CommandText)
             reader = SQLCmd.ExecuteReader()
             'SQLConn.Dispose()
             SQLConn.Close()
@@ -4101,14 +4107,19 @@ re_insert_rework_act:
 
         End Try
     End Function
-    Public Shared Function ins_loss_act_sqlite(pd As String, line_cd As String, wi_plan As String, item_cd As String, seq_no As String, shift_prd As String, st_time As DateTime, end_time As DateTime, loss_time As Integer, loss_type As String, loss_id As String, op_id As String, transfer_flg As String, flg_control As String, pwi_id As String)
+    Public Shared Function ins_loss_act_sqlite(pd As String, line_cd As String, wi_plan As String, item_cd As String, seq_no As String, shift_prd As String, st_time As DateTime, end_time As DateTime, loss_time As Integer, loss_type As String, loss_id As String, op_id As String, transfer_flg As String, flg_control As String, pwi_id As String, statusManualE1 As Integer)
 re_insert_rework_act:
         Dim sqliteConn As New SQLiteConnection(sqliteConnect)
         Try
             sqliteConn.Open()
             Dim cmd As New SQLiteCommand
             cmd.Connection = sqliteConn
-            Dim currdated As String = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            Dim currdated As String
+            If statusManualE1 = 0 Then ' Update_datetime ที่ไม่ได้ เกิด จาก Loss Manual
+                currdated = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            Else  ' Update_datetime ที่ เกิด จาก Loss Manual
+                currdated = end_time.ToString("yyyy/MM/dd HH:mm:ss")
+            End If
             Dim reader As SqlDataReader
             Dim SQLConn As New SqlConnection() 'The SQL Connection
             Dim SQLCmd As New SqlCommand()
@@ -4222,7 +4233,7 @@ recheck:
                     Dim transfer_flg As String = LoadSQL("transfer_flg").ToString()
                     Dim flg_control As String = LoadSQL("flg_control").ToString()
                     Dim pwi_id As String = LoadSQL("pwi_id").ToString()
-                    Backoffice_model.ins_loss_act(pd, line_cd, wi, item_cd, seq_no, shift_prd, start_loss, end_loss, loss_time, loss_type, loss_cd_id, op_id, "1", flg_control, pwi_id)
+                    Backoffice_model.ins_loss_act(pd, line_cd, wi, item_cd, seq_no, shift_prd, start_loss, end_loss, loss_time, loss_type, loss_cd_id, op_id, "1", flg_control, pwi_id, "0")
                 End While
                 LoadSQL.Close()
                 update_flg_loss_atc_sqlite()
@@ -4419,6 +4430,7 @@ re_insert_rework_act:
         Try
             Dim api = New api()
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd & "&dateEnd=" & dateEnd & "&timeEnd=" & timeEnd)
+            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd & "&dateEnd=" & dateEnd & "&timeEnd=" & timeEnd)
             Return GetData
         Catch ex As Exception
             MsgBox("Error Function Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss In Backoffice_model")
