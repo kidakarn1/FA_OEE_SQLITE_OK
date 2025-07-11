@@ -3565,12 +3565,12 @@ outNet:
         End If
         Dim qr_detailss As String
         Try
-            PictureBox1.Image = QR_Generator.Encode(iden_cd & Label24.Text & plan_date & plan_seq & part_no_res1 & act_date & qty_num & Label18.Text & cus_part_no & act_date & plan_seq & plan_cd & box_no)
-            e.Graphics.DrawImage(PictureBox1.Image, 597, 17, 95, 95)
-            e.Graphics.DrawImage(PictureBox1.Image, 31, 190, 95, 95)
-            PictureBox8.Image = QR_Generator.Encode(iden_cd & Label24.Text & plan_date & plan_seq & part_no_res1 & act_date & qty_num & Label18.Text & cus_part_no & act_date & plan_seq & plan_cd & box_no)
-            e.Graphics.DrawImage(PictureBox8.Image, 620, 199, 70, 70)
             qr_detailss = iden_cd & Label24.Text & plan_date & plan_seq & part_no_res1 & act_date & qty_num & Label18.Text & cus_part_no & act_date & plan_seq & plan_cd & box_no
+            Using bmp As Bitmap = QR_Generator.Encode(qr_detailss)
+                e.Graphics.DrawImage(bmp, 597, 17, 95, 95)
+                e.Graphics.DrawImage(bmp, 31, 190, 95, 95)
+                e.Graphics.DrawImage(bmp, 620, 199, 70, 70)
+            End Using
         Catch ex As Exception
             qr_detailss = ""
         End Try
@@ -3769,19 +3769,24 @@ outNet:
             model_api_sqlite.mas_Insert_tag_print(wi_no.Text, qr_detailsss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text, pwi_id, tag_group_no, GoodQty, Gobal_NEXT_PROCESS, tr_status)
         End Try
     End Sub
-    Public Shared Function tag_print()
-        'asdfasd
+    Public Shared Sub tag_print()
+        If Working_Pro.InvokeRequired Then
+            Working_Pro.Invoke(Sub()
+                                   tag_print()
+                               End Sub)
+            Return
+        End If
+        ' เรียกเฉพาะใน UI Thread เท่านั้น
         Working_Pro.keep_data_and_gen_qr_tag_fa_completed()
         flg_tag_print = 1
-        If check_tag_type = "1" Then
-            Working_Pro.PrintDocument1.Print()
-        ElseIf check_tag_type = "2" Then
-            Backoffice_model.flg_cat_layout_line = "2"
-            print_back.print()
-        ElseIf check_tag_type = "3" Then
-            Working_Pro.PrintDocument1.Print()
-        End If
-    End Function
+        Select Case check_tag_type
+            Case "1", "3"
+                Working_Pro.PrintDocument1.Print()
+            Case "2"
+                Backoffice_model.flg_cat_layout_line = "2"
+                print_back.print()
+        End Select
+    End Sub
     Public Shared Function tag_print_incomplete()
         Working_Pro.PrintDocument2.Print()
     End Function
@@ -5391,5 +5396,8 @@ outNet:
         Catch ex As Exception
             ' Handle global error
         End Try
+    End Sub
+    Private Sub btnTestPrint_Click(sender As Object, e As EventArgs)
+        tag_print()
     End Sub
 End Class
