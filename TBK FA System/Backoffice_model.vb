@@ -7,6 +7,8 @@ Imports System.IO.Ports
 Imports Newtonsoft.Json.Linq
 Imports System.Threading
 Imports System.IO
+Imports System.Net.NetworkInformation
+
 Public Class Backoffice_model
     Public Shared total_nc As Integer = 0
     Public Shared statusTransfer As Integer = 0
@@ -58,6 +60,44 @@ Public Class Backoffice_model
     Public Shared checkSqliteTrasnfer As Boolean = False
     Public Shared isRunningupdated_data_to_dbsvr As Boolean = False
     Private Shared semTransfer As New SemaphoreSlim(1, 1)
+    Public Shared Async Function CheckSingnalNetwork() As Task(Of Boolean)
+        Dim targetHost As String = svp_ping
+        Dim sw As New Stopwatch()
+        sw.Start()
+
+        ' ลด timeout และจำนวนครั้ง
+        Dim isStable As Boolean = Await IsNetworkStableAsync(targetHost, 2, 300)
+        sw.Stop()
+
+        Dim elapsedSec As Double = sw.Elapsed.TotalSeconds
+
+        If isStable Then
+            Console.WriteLine("check Network : " & $"✅ Network เสถียร พร้อมใช้งาน{vbCrLf}⏱ เวลา: {elapsedSec:F2} วินาที")
+            Return True
+        Else
+            Console.WriteLine($"⚠️ Network ไม่เสถียร หรือเชื่อมต่อไม่ได้{vbCrLf}⏱ เวลา: {elapsedSec:F2} วินาที")
+            Return False
+        End If
+    End Function
+    Public Shared Async Function IsNetworkStableAsync(host As String, Optional attempts As Integer = 2, Optional timeout As Integer = 300) As Task(Of Boolean)
+        Dim successCount As Integer = 0
+        Try
+            Dim pingSender As New Ping()
+            For i As Integer = 1 To attempts
+                Dim reply As PingReply = Await pingSender.SendPingAsync(host, timeout)
+                If reply.Status = IPStatus.Success Then
+                    successCount += 1
+                End If
+                Await Task.Delay(50) ' ลด delay เหลือ 50ms
+            Next
+
+            Dim successRate As Double = successCount / attempts
+            Return successRate >= 0.5 ' ใช้เกณฑ์ 50% ก็พอ
+        Catch ex As Exception
+            Return False
+        End Try
+    End Function
+
     Public Shared Function sqlite_conn_dbsv()
         Dim sqliteConn As New SQLiteConnection(sqliteConnect)
         Check_connect_sqlite()
@@ -3296,11 +3336,14 @@ re_insert_data:
         Dim objTransferData As Form = Nothing
         Try
             ' ❌ หยุดถ้า statusCheckData = 2 และไม่มี Network
-            If statusCheckData = "2" AndAlso Not My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+            Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+            If statusCheckData = "2" AndAlso (rsNetwork = False) Then
                 Console.WriteLine("❌ ไม่มี Network และ statusCheckData = 2 → ยกเลิก Transfer")
                 Exit Function
             End If
-            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+            rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+            If rsNetwork Then
+                ' If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Dim api = New api()
                 api.InitSQLiteWAL()
                 ' Load ข้อมูลทุกตาราง
@@ -3350,7 +3393,6 @@ re_insert_data:
     Private Shared Async Function DoTransferWork(parentForm As Form, objTransferData As Form,
                                              LoadSQL As Object, LoadSQLcl As Object, statusCheckData As String) As Task
         Dim retryMap As New Dictionary(Of String, Integer)()
-
         ' ========== Transfer production detail ==========
         If LoadSQL.HasRows Then
             While LoadSQL.Read()

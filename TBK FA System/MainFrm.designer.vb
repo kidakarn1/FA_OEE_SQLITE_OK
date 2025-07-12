@@ -97,11 +97,11 @@ Partial Class MainFrm
         Me.Label9.BackColor = System.Drawing.Color.Transparent
         Me.Label9.Font = New System.Drawing.Font("Catamaran", 12.75!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
         Me.Label9.ForeColor = System.Drawing.Color.White
-        Me.Label9.Location = New System.Drawing.Point(576, 137)
+        Me.Label9.Location = New System.Drawing.Point(574, 138)
         Me.Label9.Name = "Label9"
-        Me.Label9.Size = New System.Drawing.Size(239, 19)
+        Me.Label9.Size = New System.Drawing.Size(216, 19)
         Me.Label9.TabIndex = 23
-        Me.Label9.Text = "FA VERSIONS 2.1.7 TT ERR"
+        Me.Label9.Text = "FA VERSIONS 2.1.7 TT01"
         '
         'Panel1
         '

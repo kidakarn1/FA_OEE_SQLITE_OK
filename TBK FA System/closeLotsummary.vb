@@ -406,7 +406,7 @@ Public Class closeLotsummary
                 If StopMenu.Visible Then
                     StopMenu.SatrtWork()
                 End If
-                Await Backoffice_model.updated_data_to_dbsvr(Me, "2") ' check ก่อน Close Lot อีกครั้ง
+                Await Backoffice_model.updated_data_to_dbsvr(Me, "1") ' check ก่อน Close Lot อีกครั้ง
                 If Working_Pro.s_mecg_name = "RS232" Then '
                     Working_Pro.serialPort.Close()
                 End If

@@ -1922,7 +1922,9 @@ outNet:
     Public Async Function CheckMN() As Task
         Dim modelmn = New modelMaintenance
         Try
-            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+            Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+            If rsNetwork Then
+                ' If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 If modelmn.getDataMN(MainFrm.Label4.Text) <> "0" Then
                     Me.Enabled = False
                     Sel_prd_setup.loadDataLossCrr()
@@ -2343,7 +2345,9 @@ outNet:
         Dim hasError As Boolean = False
         Dim statusLossManualE1 As Integer = 0
         Try
-            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+            Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+            If rsNetwork Then
+                'If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
                 Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
             Else
@@ -2578,7 +2582,9 @@ outNet:
             Dim result_use_time As Double = Cal_Use_Time_ins_qty_fn_manual(start_time2, end_time2)
             Dim PK_pad_id_sqlite As Integer = 0
             Try
-                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+                If rsNetwork Then
+                    ' If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                     tr_status = "1"
                     If MainFrm.chk_spec_line = "2" Then
                         Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
@@ -2732,7 +2738,9 @@ outNet:
         Dim hasError As Boolean = False
         Dim statusLossManualE1 As Integer = 0
         Try
-            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+            Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+            If rsNetwork Then
+                'If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
                 Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
             Else
@@ -2953,7 +2961,9 @@ outNet:
             Dim result_use_time As Double = Cal_Use_Time_ins_qty_fn_manual(start_time2, end_time2)
             Dim PK_pad_id_sqlite As Integer = 0
             Try
-                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+                If rsNetwork Then
+                    'If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                     tr_status = "1"
                     If MainFrm.chk_spec_line = "2" Then
                         Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
@@ -3207,14 +3217,11 @@ outNet:
             check_bull = 0
         End If
     End Function
-
     Private Async Function Manage_counter_NI_MAX() As Task
         Dim fallbackNeeded As Boolean = False
         Dim shouldScan As Boolean = (slm_flg_qr_prod = 1)
-
         Try
             check_bull = 1
-
             If RemainScanDmc < 1 Then
                 Try
                     If shouldScan Then
@@ -3895,7 +3902,7 @@ outNet:
                 tr_status = 1
                 Backoffice_model.Insert_tag_print(wi_no.Text, qr_detailss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text, pwi_id, Working_Pro.tag_group_no, GoodQty, Gobal_NEXT_PROCESS, tr_status)
                 'model_api_sqlite.mas_Insert_tag_print(wi_no.Text, qr_detailss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text, pwi_id, Working_Pro.tag_group_no, GoodQty, Gobal_NEXT_PROCESS, tr_status)
-                'MsgBox("Ping completed")
+                'MsgBox("Ping completed")             
             Else
                 tr_status = 0
                 model_api_sqlite.mas_Insert_tag_print(wi_no.Text, qr_detailss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text, pwi_id, Working_Pro.tag_group_no, GoodQty, Gobal_NEXT_PROCESS, tr_status)
@@ -4227,7 +4234,9 @@ outNet:
         Try
             Try
                 'MsgBox("ready run 1 ")
-                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+                If rsNetwork Then
+                    ' If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                     If checkStatusEmergency(MainFrm.Label4.Text) = "0" Then
                         Try
                             If StatusClickStart = 1 Then
@@ -4654,7 +4663,9 @@ outNet:
         Dim hasError As Boolean = False
         Dim statusLossManualE1 As Integer = 0
         Try
-            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+            'If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+            Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+            If rsNetwork Then
                 Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
                 Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
             Else
@@ -4833,7 +4844,9 @@ outNet:
             Dim result_use_time As Double = Cal_Use_Time_ins_qty_fn_manual(start_time2, end_time2)
             Dim PK_pad_id_sqlite As Integer = 0
             Try
-                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                ' If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+                If rsNetwork Then
                     tr_status = "1"
                     If MainFrm.chk_spec_line = "2" Then
                         Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length

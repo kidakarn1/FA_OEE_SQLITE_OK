@@ -47,8 +47,6 @@ Public Class ManagePrintLable
         Dim plb = New PrintLabelBreak()
         plb.loadData(part_no, break, lotNo, seq, number_qty)
     End Sub
-
-
     Public Sub loadDataLable(wi As String)
         Dim rsData = modelSpecialLine.LoadDataLable(wi)
         If rsData <> "0" Then

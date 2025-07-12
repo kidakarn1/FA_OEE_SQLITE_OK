@@ -23,50 +23,34 @@ Partial Class TestForm
     <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
         Dim resources As System.ComponentModel.ComponentResourceManager = New System.ComponentModel.ComponentResourceManager(GetType(TestForm))
-        Me.WebView21 = New Microsoft.Web.WebView2.WinForms.WebView2()
-        Me.sentParameter = New System.Windows.Forms.Button()
-        CType(Me.WebView21, System.ComponentModel.ISupportInitialize).BeginInit()
+        Me.btnCheckNetwork = New System.Windows.Forms.Button()
         Me.SuspendLayout()
         '
-        'WebView21
+        'btnCheckNetwork
         '
-        Me.WebView21.AllowExternalDrop = True
-        Me.WebView21.BackColor = System.Drawing.Color.White
-        Me.WebView21.CreationProperties = Nothing
-        Me.WebView21.DefaultBackgroundColor = System.Drawing.Color.White
-        Me.WebView21.Location = New System.Drawing.Point(722, 12)
-        Me.WebView21.Name = "WebView21"
-        Me.WebView21.Size = New System.Drawing.Size(66, 51)
-        Me.WebView21.TabIndex = 4640
-        Me.WebView21.ZoomFactor = 1.0R
-        '
-        'sentParameter
-        '
-        Me.sentParameter.Font = New System.Drawing.Font("Microsoft Sans Serif", 36.0!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(222, Byte))
-        Me.sentParameter.Location = New System.Drawing.Point(12, 253)
-        Me.sentParameter.Name = "sentParameter"
-        Me.sentParameter.Size = New System.Drawing.Size(391, 115)
-        Me.sentParameter.TabIndex = 4641
-        Me.sentParameter.Text = "Sent Parameter"
-        Me.sentParameter.UseVisualStyleBackColor = True
+        Me.btnCheckNetwork.Font = New System.Drawing.Font("Microsoft Sans Serif", 36.0!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(222, Byte))
+        Me.btnCheckNetwork.Location = New System.Drawing.Point(16, 311)
+        Me.btnCheckNetwork.Margin = New System.Windows.Forms.Padding(4)
+        Me.btnCheckNetwork.Name = "btnCheckNetwork"
+        Me.btnCheckNetwork.Size = New System.Drawing.Size(521, 142)
+        Me.btnCheckNetwork.TabIndex = 4641
+        Me.btnCheckNetwork.Text = "Sent Parameter"
+        Me.btnCheckNetwork.UseVisualStyleBackColor = True
         '
         'TestForm
         '
-        Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
+        Me.AutoScaleDimensions = New System.Drawing.SizeF(8.0!, 16.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
         Me.BackgroundImage = CType(resources.GetObject("$this.BackgroundImage"), System.Drawing.Image)
-        Me.ClientSize = New System.Drawing.Size(800, 600)
+        Me.ClientSize = New System.Drawing.Size(1067, 738)
         Me.ControlBox = False
-        Me.Controls.Add(Me.sentParameter)
-        Me.Controls.Add(Me.WebView21)
+        Me.Controls.Add(Me.btnCheckNetwork)
         Me.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None
+        Me.Margin = New System.Windows.Forms.Padding(4)
         Me.Name = "TestForm"
         Me.Text = "TestForm"
-        CType(Me.WebView21, System.ComponentModel.ISupportInitialize).EndInit()
         Me.ResumeLayout(False)
 
     End Sub
-
-    Friend WithEvents WebView21 As Microsoft.Web.WebView2.WinForms.WebView2
-    Friend WithEvents sentParameter As Button
+    Friend WithEvents btnCheckNetwork As Button
 End Class
