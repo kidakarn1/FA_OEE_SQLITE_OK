@@ -186,7 +186,6 @@ Public Class Chang_Loss
     Public Shared Async Function check_loss_sys() As Task
         Dim statusLossManualE1 As Integer = 0
         Await Working_Pro.insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
-        MsgBox("LOAD OK E1 ")
         Working_Pro.insLossClickStart_Loss_X(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"))
     End Function
     Private Sub Button1_Click_1(sender As Object, e As EventArgs) Handles Button1.Click
