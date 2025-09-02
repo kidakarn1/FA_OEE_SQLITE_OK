@@ -53,7 +53,7 @@ Friend Class defectSelectcode
                     Dim dcResultdata As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(rsData)
                     Dim i As Integer = 1
                     For Each item As Object In dcResultdata
-                        'MsgBox("==============>" & item("defect_cd").ToString())
+                        ''msgBox("==============>" & item("defect_cd").ToString())
                         datlvDefectcode = New ListViewItem(item("defect_cd").ToString())
                         datlvDefectcode.SubItems.Add(item("defect_name").ToString())
                         lvDefectcode.Items.Add(datlvDefectcode)

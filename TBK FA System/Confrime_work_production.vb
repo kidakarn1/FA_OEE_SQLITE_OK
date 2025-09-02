@@ -114,16 +114,16 @@ Public Class Confrime_work_production
                                 Try
                                     Dim emp_cd As String = List_Emp.ListView1.Items(i).Text
                                     Dim url As String = "http://" & Backoffice_model.svApi & "/tbkk_shopfloor_sys/asset/img_emp/" & emp_cd & ".jpg"
-                                    'Console.WriteLine(url)
-                                    Dim tImage As Bitmap = Bitmap.FromStream(New MemoryStream(tclient.DownloadData(url)))
-                                    Working_Pro.PictureBox2.Image = tImage
-                                    'Working_Pro.lb_emp1.Visible = True
-                                    Working_Pro.lb_emp1.Text = emp_cd
-                                Catch ex As Exception
-                                    Dim emp_cd As String = List_Emp.ListView1.Items(i).Text
-                                    Dim tImage As Bitmap = Bitmap.FromStream(New MemoryStream(tclient.DownloadData("http://" & Backoffice_model.svApi & "/tbkk_shopfloor_sys/asset/img_emp/no_user.jpg")))
-                                    'Console.WriteLine("http://" & Backoffice_model.svApi & "/tbkk_shopfloor_sys/asset/img_emp/no_user.jpg")
-                                    Working_Pro.PictureBox2.Image = tImage
+                                ''Console.WriteLine(url)
+                                Dim tImage As Bitmap = Bitmap.FromStream(New MemoryStream(tclient.DownloadData(url)))
+                                Working_Pro.PictureBox2.Image = tImage
+                                'Working_Pro.lb_emp1.Visible = True
+                                Working_Pro.lb_emp1.Text = emp_cd
+                            Catch ex As Exception
+                                Dim emp_cd As String = List_Emp.ListView1.Items(i).Text
+                                Dim tImage As Bitmap = Bitmap.FromStream(New MemoryStream(tclient.DownloadData("http://" & Backoffice_model.svApi & "/tbkk_shopfloor_sys/asset/img_emp/no_user.jpg")))
+                                ''Console.WriteLine("http://" & Backoffice_model.svApi & "/tbkk_shopfloor_sys/asset/img_emp/no_user.jpg")
+                                Working_Pro.PictureBox2.Image = tImage
                                     'Working_Pro.lb_emp1.Visible = True
                                     Working_Pro.lb_emp1.Text = emp_cd
                                 End Try
@@ -269,61 +269,61 @@ Public Class Confrime_work_production
                     Working_Pro.Label34.Text = time_req
                     Working_Pro.Label38.Text = Format((Prd_detail.lb_ct.Text * 60) * cavi_ty, "0.0")
                     Working_Pro.Label37.Text = "0.0"
-                    'MsgBox(lb_seq.Text)
-                    'SEQ = ListBox3
-                    If Convert.ToInt32(Prd_detail.lb_seq.Text) < 10 Then
-                        'MsgBox("dfsdfg")
-                        If MainFrm.chk_spec_line = "2" Then
-                            Working_Pro.Label22.Text = "0" & Prd_detail.lb_seq.Text + MainFrm.ArrayDataPlan.ToArray.Length
-                        Else
-                            Working_Pro.Label22.Text = "0" & Prd_detail.lb_seq.Text + 1
-                        End If
+                ''msgBox(lb_seq.Text)
+                'SEQ = ListBox3
+                If Convert.ToInt32(Prd_detail.lb_seq.Text) < 10 Then
+                    ''msgBox("dfsdfg")
+                    If MainFrm.chk_spec_line = "2" Then
+                        Working_Pro.Label22.Text = "0" & Prd_detail.lb_seq.Text + MainFrm.ArrayDataPlan.ToArray.Length
                     Else
-                        If MainFrm.chk_spec_line = "2" Then
-                            Working_Pro.Label22.Text = Prd_detail.lb_seq.Text + MainFrm.ArrayDataPlan.ToArray.Length
-                        Else
-                            Working_Pro.Label22.Text = Prd_detail.lb_seq.Text + 1
-                        End If
+                        Working_Pro.Label22.Text = "0" & Prd_detail.lb_seq.Text + 1
                     End If
-                    'DLV DATE
-                    Working_Pro.lb_dlv_date.Text = Prd_detail.lb_dlv_date.Text
-                    'MODEL
-                    Working_Pro.lb_model.Text = Prd_detail.lb_model.Text
-                    'LOCATION
-                    Working_Pro.lb_location.Text = Prd_detail.lb_location.Text
-                    'PRODUCT_TYPE
-                    Try
-                        Working_Pro.lb_prd_type.Text = Prd_detail.lb_prd_type.Text
-                    Catch ex As Exception
-                        Working_Pro.lb_prd_type.Text = "30"
-                    End Try
-                    Dim sum_progress As Integer = (Prd_detail.lb_remain_qty.Text * 100) / Prd_detail.lb_plan_qty.Text
-                    sum_progress = 100 - sum_progress
-                    ' Dim total_defect As Integer = CDbl(Val(Prd_detail.QTY_NG.Text)) - CDbl(Val(Prd_detail.QTY_NC.Text))
-                    Dim sum_act As Integer = (Prd_detail.lb_plan_qty.Text - Prd_detail.lb_remain_qty.Text) '- total_defect
-                    Working_Pro.Label6.Text = sum_act
-                    Close_lot_cfm.lb_qty_count.Text = sum_act
-                    Dim sum_diff As String = Prd_detail.lb_remain_qty.Text
-                    sum_diff = "-" & sum_diff
-                    Working_Pro.Label10.Text = sum_diff
-                    Working_Pro.Label33.Text = Prd_detail.lb_remain_qty.Text
-                    Working_Pro.CircularProgressBar1.Text = sum_progress & "%"
-                    Working_Pro.CircularProgressBar1.Value = sum_progress
-                    Working_Pro.CircularProgressBar2.Text = 0 & "%"
-                    Working_Pro.CircularProgressBar2.Value = 0
-                    Working_Pro.Panel1.BackColor = Color.Red
-                    Working_Pro.Label30.Text = "STOPPED"
-                    Working_Pro.btn_start.Visible = True
-                    Working_Pro.btn_stop.Visible = False
-                    loadData_Working_OEE()
-                    Prd_detail.Hide()
+                Else
+                    If MainFrm.chk_spec_line = "2" Then
+                        Working_Pro.Label22.Text = Prd_detail.lb_seq.Text + MainFrm.ArrayDataPlan.ToArray.Length
+                    Else
+                        Working_Pro.Label22.Text = Prd_detail.lb_seq.Text + 1
+                    End If
+                End If
+                'DLV DATE
+                Working_Pro.lb_dlv_date.Text = Prd_detail.lb_dlv_date.Text
+                'MODEL
+                Working_Pro.lb_model.Text = Prd_detail.lb_model.Text
+                'LOCATION
+                Working_Pro.lb_location.Text = Prd_detail.lb_location.Text
+                'PRODUCT_TYPE
+                Try
+                    Working_Pro.lb_prd_type.Text = Prd_detail.lb_prd_type.Text
+                Catch ex As Exception
+                    Working_Pro.lb_prd_type.Text = "30"
+                End Try
+                Dim sum_progress As Integer = (Prd_detail.lb_remain_qty.Text * 100) / Prd_detail.lb_plan_qty.Text
+                sum_progress = 100 - sum_progress
+                ' Dim total_defect As Integer = CDbl(Val(Prd_detail.QTY_NG.Text)) - CDbl(Val(Prd_detail.QTY_NC.Text))
+                Dim sum_act As Integer = (Prd_detail.lb_plan_qty.Text - Prd_detail.lb_remain_qty.Text) '- total_defect
+                Working_Pro.Label6.Text = sum_act
+                Close_lot_cfm.lb_qty_count.Text = sum_act
+                Dim sum_diff As String = Prd_detail.lb_remain_qty.Text
+                sum_diff = "-" & sum_diff
+                Working_Pro.Label10.Text = sum_diff
+                Working_Pro.Label33.Text = Prd_detail.lb_remain_qty.Text
+                Working_Pro.CircularProgressBar1.Text = sum_progress & "%"
+                Working_Pro.CircularProgressBar1.Value = sum_progress
+                Working_Pro.CircularProgressBar2.Text = 0 & "%"
+                Working_Pro.CircularProgressBar2.Value = 0
+                Working_Pro.Panel1.BackColor = Color.Red
+                Working_Pro.Label30.Text = "STOPPED"
+                Working_Pro.btn_start.Visible = True
+                Working_Pro.btn_stop.Visible = False
+                loadData_Working_OEE()
+                Prd_detail.Hide()
                 ' Else
                 ' Prd_detail.Enabled = False
                 ' Model_change_alert.Show()
                 'End If
             End If
         Catch ex As Exception
-            MsgBox("Over Plan Or  ===> " & ex.Message)
+            'msgBox("Over Plan Or  ===> " & ex.Message)
             load_show.Show()
             Prd_detail.Enabled = True
         End Try

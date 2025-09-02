@@ -166,7 +166,7 @@
             Working_Pro.Enabled = True
             Me.Close()
         Else
-            MsgBox("Please Check QTY.")
+            'msgBox("Please Check QTY.")
         End If
     End Sub
     Public Shared Function setValuenc(Act As String, nc As String, ng As String, sNc As String, ipQty As Integer)
@@ -184,18 +184,18 @@
             Dim dfRegister As New defectRegister()
             dfRegister.insertDefectregister(dtWino, dtLineno, dtItemcd, dtItemtype, dtLotNo, dtSeqno, dtType, dtCode, tbAddjust.Text, dtMenu, dtActualdate, pwi_id, "name", "mainCP", "source_cd_supplier", "leaderConfrime")
         Else
-            MsgBox("Update Status Fiall Function updateAddjustqty in defectNumpadadjust.vb")
+            'msgBox("Update Status Fiall Function updateAddjustqty in defectNumpadadjust.vb")
         End If
         Return 0
     End Function
     Public Function calNumpadadjustNc(Act As Integer, nc As Integer, ng As Integer, sNc As Integer)
         Dim total = Act - (nc + ng) + sNc
-        'MsgBox(Act & "-" & nc & "+" & ng & "-" & sNc)
+        ''msgBox(Act & "-" & nc & "+" & ng & "-" & sNc)
         Return total
     End Function
     Public Function calNumpadadjustNg(Act As Integer, nc As Integer, ng As Integer, sNg As Integer)
         Dim total = Act - (nc + ng) + sNg
-        ' MsgBox(Act & "-" & nc & "+" & ng & "-" & sNg)
+        ' 'msgBox(Act & "-" & nc & "+" & ng & "-" & sNg)
         Return total
     End Function
     Public Function ckInputqtyaddjust(ipQty As Integer, maxQty As Integer)

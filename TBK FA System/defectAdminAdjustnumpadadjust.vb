@@ -175,7 +175,7 @@ Public Class defectAdminAdjustnumpadadjust
             '  obj.Show()
             '  Me.Close()
         Else
-            MsgBox("Please Check QTY.")
+            'msgBox("Please Check QTY.")
         End If
     End Sub
     Public Function updateAddjustqty(dtWino As String, dtLotNo As String, dtSeqno As String, dtType As String, dtCode As String, dtItemCd As String, pwi_id As String)
@@ -191,21 +191,21 @@ Public Class defectAdminAdjustnumpadadjust
                 dfRegister.insertDefectregister(dtWino, dtLineno, objDefectdetailnc.SPART, dtItemtype, dtLotNo, dtSeqno, dtType, dtCode, tbAddjust.Text, dtMenu, dtActualdate, pwi_id)
                 Dim rsInsertActual = md.mInsertdefectactual(dtWino, dtLineno, objDefectdetailnc.SPART, dtItemtype, dtLotNo, dtSeqno, dtType, dtCode, tbAddjust.Text, "2", dtActualdate, pwi_id)
             Else
-                MsgBox("Update Status Fiall Function mUpdatedefectactual in defectNumpadadjust.vb")
+                'msgBox("Update Status Fiall Function mUpdatedefectactual in defectNumpadadjust.vb")
             End If
         Else
-            MsgBox("Update Status Fiall Function updateAddjustqty in defectNumpadadjust.vb")
+            'msgBox("Update Status Fiall Function updateAddjustqty in defectNumpadadjust.vb")
         End If
         Return 0
     End Function
     Public Function calNumpadadjustNc(Act As Integer, nc As Integer, ng As Integer, sNc As Integer)
         Dim total = (Act - (nc + ng)) + sNc
-        'MsgBox("(" & Act & "-" & "(" & nc & "+" & ng & ")) + " & sNc & " = " & total)
+        ''msgBox("(" & Act & "-" & "(" & nc & "+" & ng & ")) + " & sNc & " = " & total)
         Return total
     End Function
     Public Function calNumpadadjustNg(Act As Integer, nc As Integer, ng As Integer, sNg As Integer)
         Dim total = (Act - (nc + ng)) + sNg
-        'MsgBox("(" & Act & "-" & "(" & nc & "+" & ng & ")) + " & sNg & " = " & total)
+        ''msgBox("(" & Act & "-" & "(" & nc & "+" & ng & ")) + " & sNg & " = " & total)
         Return total
     End Function
     Public Function ckInputqtyaddjust(ipQty As Integer, maxQty As Integer)

@@ -126,7 +126,7 @@ Public Class Insert_list
 
 
 
-        'MsgBox(data)
+        ''msgBox(data)
 
         'Working_Pro.Button1.Text = MainFrm.cavity.Text & " Qty."
 
@@ -134,16 +134,16 @@ Public Class Insert_list
         Working_Pro.Label29.Text = Prd_detail.Label2.Text
         Working_Pro.Label14.Text = Prd_detail.Label12.Text.Substring(0, 1)
 
-        'MsgBox(Prd_detail.Label12.Text.Substring(0, 1))
+        ''msgBox(Prd_detail.Label12.Text.Substring(0, 1))
         Dim numOfindex As Integer = ListView1.SelectedIndices(0)
 
         lb_temp_selected.Text = numOfindex
         Working_Pro.lb_temp.Text = numOfindex
-        'MsgBox(ListView1.SelectedIndices(0))
-        'MsgBox(ListView1.Items(10).Text.ToString)
-        'MsgBox(ListView1.Items(10).SubItems(1).Text.ToString)
-        'MsgBox(ListView1.Items(10).SubItems(2).Text.ToString)
-        'MsgBox(ListView1.Items(numOfindex).SubItems(0).Text.ToString)
+        ''msgBox(ListView1.SelectedIndices(0))
+        ''msgBox(ListView1.Items(10).Text.ToString)
+        ''msgBox(ListView1.Items(10).SubItems(1).Text.ToString)
+        ''msgBox(ListView1.Items(10).SubItems(2).Text.ToString)
+        ''msgBox(ListView1.Items(numOfindex).SubItems(0).Text.ToString)
         Working_Pro.wi_no.Text = ListView1.Items(numOfindex).SubItems(0).Text.ToString
         Working_Pro.Label3.Text = ListView1.Items(numOfindex).SubItems(1).Text.ToString
         Working_Pro.Label12.Text = ListView1.Items(numOfindex).SubItems(2).Text.ToString
@@ -213,7 +213,7 @@ Public Class Insert_list
 
         Dim sum_progress As Integer = (ListView1.Items(numOfindex).SubItems(4).Text * 100) / ListView1.Items(numOfindex).SubItems(3).Text
         sum_progress = 100 - sum_progress
-        'MsgBox(sum_progress)
+        ''msgBox(sum_progress)
 
         Dim sum_act As Integer = ListView1.Items(numOfindex).SubItems(3).Text - ListView1.Items(numOfindex).SubItems(4).Text
         Working_Pro.Label6.Text = sum_act

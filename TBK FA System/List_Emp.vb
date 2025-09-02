@@ -6,11 +6,11 @@ Public Class List_Emp
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
         Dim i = ListView1.Items.Count
         If i >= MaxManPower Then
-            MsgBox("ไลน์นี้มีพนักงานเดินไลน์ได้ " & MaxManPower & " คนเท่านั้น")
+            'msgBox("ไลน์นี้มีพนักงานเดินไลน์ได้ " & MaxManPower & " คนเท่านั้น")
         Else
             Dim sc_type As String = MainFrm.lb_scanner_port.Text
             If sc_type = "USB" Then
-                'MsgBox("Data")
+                ''msgBox("Data")
             Else
                 MainFrm.lb_ctrl_sc_flg.Text = "emp"
             End If
@@ -72,8 +72,8 @@ Public Class List_Emp
         Return lotFirstDigit
     End Function
     Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
-        'MsgBox(DateTime.Now.ToString("yyyy").Substring(3, 1))
-        'MsgBox(DateTime.Now.ToString("HH"))
+        ''msgBox(DateTime.Now.ToString("yyyy").Substring(3, 1))
+        ''msgBox(DateTime.Now.ToString("HH"))
         Sc.SerialPort1.Close()
         'Sc.SerialPort1.Close()
         Dim tclient As New WebClient
@@ -101,10 +101,10 @@ Public Class List_Emp
             MainFrm.PictureBox6.Image = Nothing
             MainFrm.PictureBox7.Image = Nothing
         End If
-        'MsgBox(temp_co_emp)
+        ''msgBox(temp_co_emp)
         For i = 0 To temp_co_emp - 1
             If i = 0 Then
-                'MsgBox("SOON")
+                ''msgBox("SOON")
                 Try
                     Dim emp_cd As String = ListView1.Items(i).Text
                     Dim url As String = "http://" & Backoffice_model.svApi & "/tbkk_shopfloor_sys/asset/img_emp/" & emp_cd & ".jpg"
@@ -383,20 +383,20 @@ Public Class List_Emp
         Dim lotthirdDigit = DateTime.Now.ToString("dd")
         Dim d As Date = DateTime.Now.ToString("dd-MM-yyyy")
         Dim timeShift As String = DateTime.Now.ToString("HH")
-        'MsgBox("List EMP timeShift===>" & timeShift)
+        ''msgBox("List EMP timeShift===>" & timeShift)
         Dim time_now As String = DateTime.Now.ToString("HH:mm:ss tt")
         Dim date_st As Integer = lotthirdDigit
         If time_now >= "00:00:00 AM" And time_now <= "08:00:00 AM" Then
             date_st = lotthirdDigit - 1
             If date_st <= 0 Then
                 Dim tmp_date As String = d.AddDays(-1)
-                'MsgBox(tmp_date)
-                'MsgBox("day = " & tmp_date.Substring(0, 2))
+                ''msgBox(tmp_date)
+                ''msgBox("day = " & tmp_date.Substring(0, 2))
                 lotthirdDigit = tmp_date.Substring(0, 2)
                 lotSecondDigit = set_data_Month(tmp_date.Substring(3, 2))
-                'MsgBox("M = " & tmp_date.Substring(3, 2))
+                ''msgBox("M = " & tmp_date.Substring(3, 2))
                 lotFirstDigit = set_data_Year(tmp_date.Substring(6, 2))
-                'MsgBox("Y = " & tmp_date.Substring(6, 2))
+                ''msgBox("Y = " & tmp_date.Substring(6, 2))
             Else
                 lotthirdDigit = date_st
             End If
@@ -429,7 +429,7 @@ Public Class List_Emp
             Me.Hide()
         ElseIf lb_link.Text = "working" Then
             If ListView1.Items.Count = 0 Then
-                MsgBox("Please scan employee card")
+                'msgBox("Please scan employee card")
             Else
                 Working_Pro.check_seq_data()
                 Dim pd As String = MainFrm.Label6.Text
@@ -600,7 +600,7 @@ Public Class List_Emp
     Private Sub Button4_Click(sender As Object, e As EventArgs)
         Dim list_item As ListViewItem
         Dim str As String = lb_count_emp.Text
-        'MsgBox(str)
+        ''msgBox(str)
         Dim temp1 As Integer = Convert.ToInt32(lb_count_emp.Text)
         Dim ListView1_count As Integer = ListView1.Items.Count
         Dim flag_emp2 As Integer = Convert.ToInt32(flag_emp.Text)
@@ -620,7 +620,7 @@ Public Class List_Emp
                 End If
             Next
         End If
-        'MsgBox(temp2)
+        ''msgBox(temp2)
         lb_count_emp.Text = ListView1.Items.Count
         MainFrm.Enabled = True
         MainFrm.Show()
@@ -651,7 +651,7 @@ Public Class List_Emp
 
         For Each item As ListViewItem In ListView1.SelectedItems
             Dim temp_selected As Integer = ListView1.SelectedIndices(0)
-            'MsgBox(temp_selected)
+            ''msgBox(temp_selected)
             Dim lb_count As Integer = Convert.ToInt32(lb_count_emp.Text)
             lb_count = lb_count - 1
             lb_count_emp.Text = lb_count
@@ -685,7 +685,7 @@ Public Class List_Emp
             End If
 
             'Lit = ListBox1.Items.Count - 1
-            'MsgBox("Code is : " & ListBox1.Items(0).ToString, 0, "Show")
+            ''msgBox("Code is : " & ListBox1.Items(0).ToString, 0, "Show")
             'ListBox1.Items.RemoveAt(0)
         Next
 

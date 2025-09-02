@@ -208,7 +208,7 @@ Public Class Prd_detail
                     Label6.Text = lotFirstDigit & lotSecondDigit & lotthirdDigit
                 End If
             Else
-                'MsgBox("กรุณาลงข้อมูลพนักงานเพื่อเริ่มการผลิต")
+                ''msgBox("กรุณาลงข้อมูลพนักงานเพื่อเริ่มการผลิต")
             End If
             '    Else
             '      load_show.Show()
@@ -349,7 +349,7 @@ Public Class Prd_detail
                 Confrime_work_production.next_pae()
             End If
         Catch ex As Exception
-            MsgBox("ERROR = 111 " & ex.Message)
+            'msgBox("ERROR = 111 " & ex.Message)
             Me.Enabled = True
         End Try
     End Sub
@@ -436,4 +436,5 @@ Public Class Prd_detail
 
         End Try
     End Sub
+
 End Class

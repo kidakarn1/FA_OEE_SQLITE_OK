@@ -143,9 +143,9 @@ Public Class Loss_reg_pass
                                 j = j + 1
                             Next
                         Else
-                            Console.WriteLine("start_loss ===>" & start_loss)
-                            Console.WriteLine("end_loss ===>" & end_loss)
-                            Console.WriteLine("total_loss ===>" & total_loss)
+                            'Console.WriteLine("start_loss ===>" & start_loss)
+                            'Console.WriteLine("end_loss ===>" & end_loss)
+                            'Console.WriteLine("total_loss ===>" & total_loss)
                             Backoffice_model.ins_loss_act(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id, statusManualE1)
                             Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, "1", Working_Pro.pwi_id, statusManualE1)
                         End If

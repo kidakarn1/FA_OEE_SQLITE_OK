@@ -183,12 +183,12 @@
             LeaderConfirmDefect.Close()
             Me.Close()
         ElseIf rs = "2" Then
-            MsgBox("Not Permission.")
+            'msgBox("Not Permission.")
             LeaderConfirmDefect.tbEmpCodeleader.Text = ""
             defectHome.leaderConfrime = ""
             TextBoxKeyboard.Text = ""
         Else
-            MsgBox("Not Permission.")
+            'msgBox("Not Permission.")
             LeaderConfirmDefect.tbEmpCodeleader.Text = ""
             defectHome.leaderConfrime = ""
             TextBoxKeyboard.Text = ""

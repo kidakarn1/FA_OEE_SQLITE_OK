@@ -61,7 +61,6 @@ Public Class ManagePrintLable
             lvShowDataDefect.Columns.Add("SEQ", 75)
             lvShowDataDefect.Columns.Add("POSITION1", 150)
             lvShowDataDefect.Columns.Add("POSITION2", 150)
-
             Dim No As Integer = 0
             For Each item In defectJsonData
                 No += 1

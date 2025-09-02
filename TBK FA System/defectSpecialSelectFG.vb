@@ -27,10 +27,10 @@
                 sDefectcode.Show()
                 Me.Close()
             Else
-                MsgBox("Please Select Data")
+                'msgBox("Please Select Data")
             End If
         Catch ex As Exception
-            MsgBox("Please Select Data")
+            'msgBox("Please Select Data")
         End Try
     End Sub
     Private Sub defectSpecialSelectFG_Load(sender As Object, e As EventArgs) Handles MyBase.Load

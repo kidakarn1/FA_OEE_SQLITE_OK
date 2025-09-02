@@ -12,13 +12,13 @@
     Private Sub PictureBox3_Click(sender As Object, e As EventArgs) Handles PictureBox3.Click
 
         If TextBox1.Text.Length < 1 Then
-            MsgBox("please enter name!")
+            'msgBox("please enter name!")
 
         ElseIf TextBox2.Text.Length < 1 Then
-            MsgBox("please enter surname!")
+            'msgBox("please enter surname!")
 
         ElseIf TextBox3.Text.Length < 1 Then
-            MsgBox("please enter employee code!")
+            'msgBox("please enter employee code!")
 
         Else
             Dim group_id As Integer
@@ -37,12 +37,12 @@
                 num2 = LoadSQLlt("last_id")
             End While
 
-            'MsgBox(ComboBox1.SelectedItem)
-            'MsgBox(ListBox2.Items(ComboBox1.SelectedIndex))
+            ''msgBox(ComboBox1.SelectedItem)
+            ''msgBox(ListBox2.Items(ComboBox1.SelectedIndex))
 
             For i = 0 To ListView1.Items.Count - 1
                 If ListView1.Items(i).Checked = True Then
-                    'MsgBox(ListBox1.Items(i))
+                    ''msgBox(ListBox1.Items(i))
                     Backoffice_model.Insert_user_skill(num2, ListBox1.Items(i), created_emp_cd)
                 End If
             Next
@@ -75,7 +75,7 @@
 
 
 
-        'MsgBox(ListBox1.Items(2))
+        ''msgBox(ListBox1.Items(2))
 
     End Sub
 

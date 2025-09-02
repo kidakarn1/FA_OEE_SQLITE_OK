@@ -96,7 +96,7 @@ Public Class Adm_manage
     Private Sub PictureBox4_Click(sender As Object, e As EventArgs) Handles PictureBox4.Click
         'defectAdminhome.Show()
         'Me.Hide()
-        MsgBox("Not Permission")
+        'msgBox("Not Permission")
     End Sub
     Private Sub Button3_Click_1(sender As Object, e As EventArgs) Handles pbOK.Click
         'If Backoffice_model.user_pd = "K1PD01" Then

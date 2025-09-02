@@ -49,7 +49,7 @@
             SerialPort1.Open()
             SerialPort1.WriteLine(WriteLine)
         Catch ex As Exception
-            MsgBox(ex.Message)
+            'msgBox(ex.Message)
         End Try
 
         ' SerialPort1.PortName = comportTowerLamp

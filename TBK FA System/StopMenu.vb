@@ -6,7 +6,7 @@
         If PanelShowLoss.Visible Then
             UpdateAutoLoss()
             Dim BreakTime = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Working_Pro.Label14.Text) ' for set data 
-            ' MsgBox("Next BreakTime ===>" & BreakTime)
+            ' 'msgBox("Next BreakTime ===>" & BreakTime)
             If MainFrm.chk_spec_line = "2" Then
                 Dim GenSEQ As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
                 Dim Iseq = GenSEQ
@@ -94,14 +94,14 @@
         Dim end_loss As Date = Date.Parse(TimeOfDay.ToString("H:mm:ss"))
         Dim date1 As Date = Date.Parse(TimeOfDay.ToString("H:mm:ss"))
         Dim date2 As Date = Date.Parse(TimeOfDay.ToString("H:mm:ss"))
-        ' MsgBox("SAAAA")
+        ' 'msgBox("SAAAA")
         Dim total_loss As Integer = DateDiff(DateInterval.Minute, date1, date2)
-        'MsgBox("SFFFFF")
+        ''msgBox("SFFFFF")
         Dim loss_type As String = "0"  '0:Normally,1:Manual
         Dim op_id As String = "0"
-        'MsgBox("SCCCC")
+        ''msgBox("SCCCC")
         Dim loss_cd_id As String = "35"
-        'MsgBox("Ready load UpdateAutoLoss 2.")
+        ''msgBox("Ready load UpdateAutoLoss 2.")
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 transfer_flg = "1"
@@ -111,7 +111,7 @@
                     loss_cd_id = "35"
                 End If
                 If MainFrm.chk_spec_line = "2" Then
-                    'Console.WriteLine(MainFrm.ArrayDataPlan.ToArray().Length)
+                    ''Console.WriteLine(MainFrm.ArrayDataPlan.ToArray().Length)
                     Dim GenSEQ As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
                     Dim Iseq = GenSEQ
                     Dim j As Integer = 0
@@ -167,8 +167,8 @@
     End Function
     Private Sub btnBreakTime_Click(sender As Object, e As EventArgs) Handles btnBreakTime.Click
         If Backoffice_model.CountDelay <> "" Then
-            'Console.WriteLine(contDelay)
-            'MsgBox("ครบ 5 นาที")
+            ''Console.WriteLine(contDelay)
+            ''msgBox("ครบ 5 นาที")
             btnContinue.BringToFront()
             btnContinue.Visible = True
             'btnContinue.BackColor = Color.FromArgb(63, 63, 63)
@@ -201,9 +201,9 @@
                 If Backoffice_model.CountDelay <> "" Then
                     If btnBreakTime.Visible = True Then
 
-                        'Console.WriteLine(contDelay)
+                        ''Console.WriteLine(contDelay)
                         If CDbl(Val(contDelay)) = CDbl(Val((Backoffice_model.CountDelay))) Then
-                            'MsgBox("ครบ 5 นาที")
+                            ''msgBox("ครบ 5 นาที")
                             btnContinue.BringToFront()
                             btnContinue.Visible = True
                             'btnContinue.BackColor = Color.FromArgb(63, 63, 63)
@@ -330,10 +330,10 @@
         End Try
     End Sub
     Private Sub StopMenu_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        'Console.WriteLine("date_start_data ===>" & date_start_data) ' ไม่ต้องลบ 
-        Console.WriteLine("Working_Pro.slm_flg_qr_prod ===>" & Working_Pro.slm_flg_qr_prod)
-        Console.WriteLine("Working_Pro.check_bull ===>" & Working_Pro.check_bull)
-        Console.WriteLine("Working_Pro.start_flg ===>" & Working_Pro.start_flg)
+        ''Console.WriteLine("date_start_data ===>" & date_start_data) ' ไม่ต้องลบ 
+        'Console.WriteLine("Working_Pro.slm_flg_qr_prod ===>" & Working_Pro.slm_flg_qr_prod)
+        'Console.WriteLine("Working_Pro.check_bull ===>" & Working_Pro.check_bull)
+        'Console.WriteLine("Working_Pro.start_flg ===>" & Working_Pro.start_flg)
         If Working_Pro.check_in_up_seq = 0 Then
             date_start_data = Working_Pro.Gdate_now_date
         Else

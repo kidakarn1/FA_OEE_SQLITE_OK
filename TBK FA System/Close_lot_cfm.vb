@@ -25,7 +25,7 @@ Public Class Close_lot_cfm
                 radioValue = "sel2"
             End If
             'If lb_qty_count.Text = Working_Pro.Label6.Text Then
-            'MsgBox("NO INSERT DATA")
+            ''msgBox("NO INSERT DATA")
             'Nothing.... 'อาจจะเป็นสาเหตุที่ยอดการผลิตไม่เข้า'
             'Working_Pro.Label6.Text = ""
             'Prd_detail.Enabled = True
@@ -85,18 +85,18 @@ Public Class Close_lot_cfm
                         For i = 0 To temp_co_emp - 1
                             emp_cd = List_Emp.ListView1.Items(i).Text
                             Backoffice_model.Insert_emp_cd(wi_plan, emp_cd, seq_no)
-                            'MsgBox(List_Emp.ListView1.Items(i).Text)
+                            ''msgBox(List_Emp.ListView1.Items(i).Text)
                         Next
-                        'MsgBox("Ins completed")
+                        ''msgBox("Ins completed")
                     Else
                         transfer_flg = "0"
                         Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
                         'Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time, end_time, use_timee, tr_status)
 
-                        'MsgBox("Ins incompleted1")
+                        ''msgBox("Ins incompleted1")
                     End If
                 Catch ex As Exception
-                    'MsgBox("Ins incompleted2")
+                    ''msgBox("Ins incompleted2")
                     transfer_flg = "0"
                     Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
                     'Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time, end_time, use_timee, tr_status)
@@ -114,7 +114,7 @@ Public Class Close_lot_cfm
                             If CDbl(Val(Working_Pro.Label27.Text)) = 1 Or CDbl(Val(Working_Pro.Label27.Text)) = 999999 Then
                                 Working_Pro.lb_box_count.Text = Working_Pro.lb_box_count.Text + 1
                                 Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
-                                'MsgBox("result __A1__>")
+                                ''msgBox("result __A1__>")
                                 Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
                                 Working_Pro.tag_print()
                             Else
@@ -126,8 +126,8 @@ Public Class Close_lot_cfm
                         Working_Pro.lb_box_count.Text = Working_Pro.lb_box_count.Text + 1
                         Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
                         Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
-                        'MsgBox("108 Working_Pro.lb_qty_for_box.Text" & Working_Pro.lb_qty_for_box.Text)
-                        'MsgBox("result __B1__>")
+                        ''msgBox("108 Working_Pro.lb_qty_for_box.Text" & Working_Pro.lb_qty_for_box.Text)
+                        ''msgBox("result __B1__>")
                         Working_Pro.tag_print()
                     End If
                 End If
@@ -189,17 +189,17 @@ Public Class Close_lot_cfm
                         For i = 0 To temp_co_emp - 1
                             emp_cd = List_Emp.ListView1.Items(i).Text
                             Backoffice_model.Insert_emp_cd(wi_plan, emp_cd, seq_no)
-                            'MsgBox(List_Emp.ListView1.Items(i).Text)
+                            ''msgBox(List_Emp.ListView1.Items(i).Text)
                         Next
-                        'MsgBox("Ins completed")
+                        ''msgBox("Ins completed")
                     Else
                         transfer_flg = "0"
                         Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
                         'Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time, end_time, use_timee, tr_status)
-                        'MsgBox("Ins incompleted1")
+                        ''msgBox("Ins incompleted1")
                     End If
                 Catch ex As Exception
-                    'MsgBox("Ins incompleted2")
+                    ''msgBox("Ins incompleted2")
                     transfer_flg = "0"
                     Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
                     'Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time, end_time, use_timee, tr_status)
@@ -222,7 +222,7 @@ Public Class Close_lot_cfm
                         If Working_Pro.LB_COUNTER_SEQ.Text > 0 Then
                             If CDbl(Val(Working_Pro.Label27.Text)) = 1 Or CDbl(Val(Working_Pro.Label27.Text)) = 999999 Then
                                 Working_Pro.lb_box_count.Text = Working_Pro.lb_box_count.Text + 1
-                                'MsgBox("result __C1__>")
+                                ''msgBox("result __C1__>")
                                 Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
                                 Working_Pro.tag_print()
                             Else
@@ -235,8 +235,8 @@ Public Class Close_lot_cfm
                         Working_Pro.lb_box_count.Text = Working_Pro.lb_box_count.Text + 1
                         Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
                         'Working_Pro.tag_print_incomplete() 'print incompleted tag'
-                        'MsgBox("199 Working_Pro.lb_qty_for_box.Text" & Working_Pro.lb_qty_for_box.Text)
-                        'MsgBox("result __D1__>")
+                        ''msgBox("199 Working_Pro.lb_qty_for_box.Text" & Working_Pro.lb_qty_for_box.Text)
+                        ''msgBox("result __D1__>")
                         Working_Pro.tag_print()
                     End If
                 End If
@@ -252,7 +252,7 @@ Public Class Close_lot_cfm
                 MainFrm.Show()
             End If
             'End If
-            'MsgBox(radioValue)
+            ''msgBox(radioValue)
         End If
         Working_Pro.Label6.Text = ""
         Prd_detail.Timer3.Enabled = True

@@ -30,9 +30,9 @@ Public Class MainFrm
     Public Sub check_process()
         Dim hWnd As Integer = FindWindowNullClassName(0, "TBK FA System.exe")
         If hWnd = 0 Then
-            'MsgBox("No process found!")
+            ''msgBox("No process found!")
         Else
-            'MsgBox(" process found!")
+            ''msgBox(" process found!")
         End If
     End Sub
     Public Function CheckIfRunning()
@@ -49,32 +49,32 @@ Public Class MainFrm
     Public Sub check_close_fa()
         If Application.OpenForms().OfType(Of MainFrm).Any Then
         Else
-            MsgBox("end program")
+            'msgBox("end program")
         End If
     End Sub
     Public Async Function Main() As Task
         ' Create PipeServer
         Dim pipeServer As New NamedPipeServerStream("mypipe", PipeDirection.In)
-        'Console.WriteLine("Waiting for connection...")
+        ''Console.WriteLine("Waiting for connection...")
 
         ' Wait asynchronously for a connection from the client
         Await pipeServer.WaitForConnectionAsync()
-        'Console.WriteLine("Client connected.")
+        ''Console.WriteLine("Client connected.")
 
         ' Read command from the client
         Dim reader As New StreamReader(pipeServer)
         Dim command As String = Await reader.ReadLineAsync()
-        'Console.WriteLine("Received command from client: " & command)
+        ''Console.WriteLine("Received command from client: " & command)
 
         ' Check the command
         If command = "click button" Then
             reader.Close()
             pipeServer.Close()
         ElseIf command = "Wait_DATA" Then
-            'Console.WriteLine("Wait_DATA")
+            ''Console.WriteLine("Wait_DATA")
         End If
         ' Close the connection
-        'Console.WriteLine("close Connection main")
+        ''Console.WriteLine("close Connection main")
     End Function
     Public Async Function CheckMemoryLeak() As Task
         Dim memUsed As Long = GC.GetTotalMemory(False) \ 1024 \ 1024 ' >= 2.5 GB Clear Memory 
@@ -91,7 +91,7 @@ Public Class MainFrm
             Dim infoUrl As String = "http://" & Backoffice_model.svApi &
             "/API_NEW_FA/index.php/Api_Information/CheckInformation?pd=" & pd & "&line_cd=" & line_cd
 
-            Console.WriteLine(infoUrl)
+            'Console.WriteLine(infoUrl)
 
             Dim result_data As String = Await Task.Run(Function() api.Load_data(infoUrl))
 
@@ -165,7 +165,7 @@ Public Class MainFrm
                 WebViewEmergency.CoreWebView2.Navigate(infoUrl)
             End If
         Catch ex As Exception
-            MsgBox("ไม่สามารถโหลดข้อมูลได้ กรุณาตรวจสอบเครือข่าย", MsgBoxStyle.Exclamation)
+            'msgBox("ไม่สามารถโหลดข้อมูลได้ กรุณาตรวจสอบเครือข่าย", 'msgBoxStyle.Exclamation)
         End Try
     End Function
 
@@ -215,7 +215,7 @@ Public Class MainFrm
     Private Sub Label2_Click(sender As Object, e As EventArgs)
     End Sub
     Private Sub menu3_Click(sender As Object, e As EventArgs)
-        MsgBox("New version")
+        'msgBox("New version")
     End Sub
     Private Sub TextBox1_TextChanged(sender As Object, e As EventArgs)
     End Sub
@@ -362,8 +362,8 @@ Public Class MainFrm
                                 date_digit = re
                             Else
                                 Dim tmp_date As String = d.AddDays(-1)
-                                'MsgBox(tmp_date)
-                                'MsgBox("day = " & tmp_date.Substring(0, 2))
+                                ''msgBox(tmp_date)
+                                ''msgBox("day = " & tmp_date.Substring(0, 2))
                                 lotthirdDigit = tmp_date.Substring(0, 2)
                                 date_digit = lotthirdDigit
                             End If
@@ -392,7 +392,7 @@ Public Class MainFrm
                     Label5.Text = listdetail
                     Label5.BringToFront()
                     Label5.Show()
-                    ' MsgBox("กรุณาลงข้อมูลพนักงานเพื่อเริ่มการผลิต")
+                    ' 'msgBox("กรุณาลงข้อมูลพนักงานเพื่อเริ่มการผลิต")
                 End If
             Else
                 load_show.Show()
@@ -449,7 +449,7 @@ Public Class MainFrm
         Catch ex As Exception
             load_show.Show()
             Me.Enabled = True ' กัน หน้าจอ ล็อค
-            ' MsgBox("Please Wait Trasnfer Data.")
+            ' 'msgBox("Please Wait Trasnfer Data.")
         End Try
     End Sub
     Private Async Function WaitForSQLiteEmptyAsync() As Task
@@ -495,7 +495,7 @@ Public Class MainFrm
     Public Async Function load_page() As Task(Of String)
         Working_Pro.lb_nc_qty.Text = "0"
         Working_Pro.lb_ng_qty.Text = "0"
-        'MsgBox(line_id.Text)
+        ''msgBox(line_id.Text)
         Try
             ArrayDataPlan = New List(Of DataPlan)
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
@@ -551,7 +551,7 @@ Public Class MainFrm
                 LoadSQLskill.Close()
             End If
         Catch ex As Exception
-            Console.WriteLine("error ===>" & ex.Message)
+            'Console.WriteLine("error ===>" & ex.Message)
             load_show.Show()
             Me.Enabled = True
         End Try
@@ -594,7 +594,7 @@ Public Class MainFrm
         Return lotSecondDigit
     End Function
     Public Function set_data_Year(lotSubstYear)
-        'MsgBox("(((((999")
+        ''msgBox("(((((999")
         lotSubstYear = lotSubstYear.Substring(1, 1)
         'lotSubstYear = lotSubstYear - 1
         If lotSubstYear = "1" Then

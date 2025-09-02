@@ -54,7 +54,7 @@ Friend Class defectDetailnc
             ' rs = md.mGetdefectdetailnc(wi, seq, lot, type)
             rs = mdSQLite.mSqliteGetdefectdetailnc(wi, seq, lot, type)
         End If
-        'Console.WriteLine(rs)
+        ''Console.WriteLine(rs)
         cListview = 0
         If rs <> "0" Then
             Dim dcResultdata As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(rs)
@@ -122,10 +122,10 @@ Friend Class defectDetailnc
                 defectNumpadadjust.Show()
                 Me.Close()
             Else
-                MsgBox("Please Select Data")
+                'msgBox("Please Select Data")
             End If
         Catch ex As Exception
-            MsgBox("Please Select Data")
+            'msgBox("Please Select Data")
         End Try
     End Sub
 

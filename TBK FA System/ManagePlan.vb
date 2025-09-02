@@ -131,7 +131,7 @@ Public Class ManagePlan
             Mwi = ListView1.Items(sel_cd).SubItems(1).Text
             SelectPlan(Mwi)
         Catch ex As Exception
-            MsgBox("Please Check Plan.")
+            'msgBox("Please Check Plan.")
         End Try
     End Sub
 

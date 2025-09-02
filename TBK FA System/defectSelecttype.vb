@@ -90,7 +90,7 @@ Friend Class defectSelecttype
                     datlvChildpart.SubItems.Add(Iseq)
                     ' If checkRs = 1 Then
                     '
-                    'MsgBox("index ===>" & index)
+                    ''msgBox("index ===>" & index)
                     'End If
                     datlvChildpart.SubItems.Add(Working_Pro.Spwi_id(index - 1))
                 Else
@@ -191,7 +191,7 @@ Friend Class defectSelecttype
                 dfSS.Show()
                 Me.Hide()
             Else
-                MsgBox("Please Enable Line Special.")
+                'msgBox("Please Enable Line Special.")
                 'Dim sDefectcode As New defectSelectcode()
                 'Me.sPart = btnPartfg.Text
                 'lvChildpart.Items(0).Selected = True
@@ -255,7 +255,7 @@ Friend Class defectSelecttype
             sDefectcode.Show()
             Me.Hide()
         Else
-            MsgBox("PLEASE SELECT ROW. ")
+            'msgBox("PLEASE SELECT ROW. ")
         End If
     End Sub
 End Class

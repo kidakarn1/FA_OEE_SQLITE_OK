@@ -34,7 +34,7 @@ Public Class PrintDefectAdmin
             If Not load_show.Visible Then
                 load_show.Show()
             End If
-            Console.WriteLine("⛔ ยังไม่มี Network หรือ Ping ไม่ผ่าน... รอ 1 วินาที")
+            'Console.WriteLine("⛔ ยังไม่มี Network หรือ Ping ไม่ผ่าน... รอ 1 วินาที")
             Await Task.Delay(3000)
         Loop
         If load_show.Visible Then
@@ -89,7 +89,7 @@ Public Class PrintDefectAdmin
             Threading.Thread.Sleep(1000) ' รอ 1 วินาทีแล้วลองใหม่
         Loop While retryCount < maxRetries
         If Not success Then
-            ' MsgBox("❌ ไม่พบข้อมูล defect หรือ network ไม่พร้อมหลังจากพยายาม " & maxRetries & " ครั้ง", MsgBoxStyle.Critical)
+            ' 'msgBox("❌ ไม่พบข้อมูล defect หรือ network ไม่พร้อมหลังจากพยายาม " & maxRetries & " ครั้ง", 'msgBoxStyle.Critical)
             printReady = False
             Exit Sub
         End If
@@ -113,19 +113,19 @@ Public Class PrintDefectAdmin
     End Function
     Private Sub PrintDocument1_PrintPage(sender As Object, e As Printing.PrintPageEventArgs) Handles PrintDocument1.PrintPage
         If Not printReady OrElse defectDataList Is Nothing OrElse defectDataList.Count = 0 Then
-            ' MsgBox("⚠️ ข้อมูล defect ยังไม่พร้อม หรือ network ยังไม่มา", MsgBoxStyle.Exclamation)
-            Console.WriteLine("⚠️ ข้อมูล defect ยังไม่พร้อม หรือ network ยังไม่มา", MsgBoxStyle.Exclamation)
-            '  MsgBox("⚠️ ข้อมูล defect ยังไม่พร้อม หรือ network ยังไม่มา", MsgBoxStyle.Exclamation)
-            ' MsgBox("⚠️ ข้อมูล defect ยังไม่พร้อม หรือ network ยังไม่มา", MsgBoxStyle.Exclamation)
+            ' 'msgBox("⚠️ ข้อมูล defect ยังไม่พร้อม หรือ network ยังไม่มา", 'msgBoxStyle.Exclamation)
+            'Console.WriteLine("⚠️ ข้อมูล defect ยังไม่พร้อม หรือ network ยังไม่มา", 'msgBoxStyle.Exclamation)
+            '  'msgBox("⚠️ ข้อมูล defect ยังไม่พร้อม หรือ network ยังไม่มา", 'msgBoxStyle.Exclamation)
+            ' 'msgBox("⚠️ ข้อมูล defect ยังไม่พร้อม หรือ network ยังไม่มา", 'msgBoxStyle.Exclamation)
             e.Cancel = True 'สั่งให้ยกเลิกการพิมพ์หน้านี้
             Return ' ออกจากฟังก์ชันทันที
         End If
         '  Try
         Dim md = New modelDefect()
         Dim mdsqlite = New model_api_sqlite()
-        'MsgBox("lwi ==>" & lwi & "===seq====>" & lSeq)
+        ''msgBox("lwi ==>" & lwi & "===seq====>" & lSeq)
         ' Dim rs = md.mGetDatadefectcodeprint(lwi, lLot, lSeq, lPartno, sDefect)
-        ' MsgBox("rs====>" & rs)
+        ' 'msgBox("rs====>" & rs)
         If rs <> "0" Then
             Dim aPen = New Pen(Color.Black)
             e.Graphics.DrawLine(Pens.Azure, 10, 10, 20, 20)
@@ -270,7 +270,7 @@ outloop:
             Dim date_now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
             Dim dti_status_flg = "" 'FG = 1 , 2 = CP
             'If Backoffice_model.printedTags.Contains(qrDefectinfo) Then
-            '  MsgBox("Tag นี้พิมพ์แล้ว ไม่สามารถพิมพ์ซ้ำได้", MsgBoxStyle.Exclamation)
+            '  'msgBox("Tag นี้พิมพ์แล้ว ไม่สามารถพิมพ์ซ้ำได้", 'msgBoxStyle.Exclamation)
             'Exit Sub
             'Else
             '   Backoffice_model.printedTags.Add(qrDefectinfo)

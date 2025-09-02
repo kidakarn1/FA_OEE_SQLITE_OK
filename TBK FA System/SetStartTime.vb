@@ -5,7 +5,7 @@ Public Class SetStartTime
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Dim timeAdjust As String = tbHour.Text & ":" & tbMin.Text & ":" & DateTime.Now.ToString("ss") '"00"
-                'MsgBox("timeAdjust====>" & timeAdjust)
+                ''msgBox("timeAdjust====>" & timeAdjust)
                 Dim DateTimecompuerdown As String = Down_time.Text
                 Dim dateTimeAdjust As DateTime = DateTime.Now.ToString("yyyy-MM-dd") & " " & timeAdjust
                 Dim dateStartAdjusts As DateTime = dateTimeAdjust
@@ -16,9 +16,9 @@ Public Class SetStartTime
                     End If
                 End If
                 dateStartAdjusts = dateStartAdjusts.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-                'MsgBox("page start dateStartAdjusts===>" & dateStartAdjusts)
+                ''msgBox("page start dateStartAdjusts===>" & dateStartAdjusts)
                 Backoffice_model.gobal_DateTimeComputerDown = dateStartAdjusts
-                ' MsgBox("page start Backoffice_model.gobal_DateTimeComputerDown===>" & Backoffice_model.gobal_DateTimeComputerDown)
+                ' 'msgBox("page start Backoffice_model.gobal_DateTimeComputerDown===>" & Backoffice_model.gobal_DateTimeComputerDown)
                 'Backoffice_model.gobal_QTYComputerDown = tbQTY.Text
             Else
                 load_show.Show()
@@ -36,7 +36,7 @@ Public Class SetStartTime
                         End If
                     End If
                     dateStartAdjust = dateStartAdjust.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-                    'MsgBox("dateStartAdjust===>" & dateStartAdjust)
+                    ''msgBox("dateStartAdjust===>" & dateStartAdjust)
                     If dateStartAdjust <= DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") Then
                         If dateStartAdjust >= DateTimecompuerdown Then  'check condition about time 
                             'Try
@@ -45,16 +45,16 @@ Public Class SetStartTime
                             Working_Pro.Start_Production()
                             Me.Close()
                             'Else
-                            'MsgBox("Please Check QTY.")
+                            ''msgBox("Please Check QTY.")
                             'End If
                             'Catch ex As Exception
-                            'MsgBox("Please Checks QTY.")
+                            ''msgBox("Please Checks QTY.")
                             'End Try
                         Else
-                            MsgBox("Please Check Time.")
+                            'msgBox("Please Check Time.")
                         End If
                     Else
-                        MsgBox("Please Check Time Current.")
+                        'msgBox("Please Check Time Current.")
                     End If
                 Else
                     load_show.Show()

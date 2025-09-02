@@ -7,9 +7,9 @@
                 Dim result As String = webClient.DownloadString("http://192.168.161.102/exp_api3party/Api_sync_newfa/update_line_mst")
 
 
-                MsgBox("Synchronous completed")
+                'msgBox("Synchronous completed")
             Else
-                MsgBox("Synchronous not completed")
+                'msgBox("Synchronous not completed")
             End If
         Catch ex As Exception
 

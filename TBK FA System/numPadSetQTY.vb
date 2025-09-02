@@ -9,10 +9,10 @@
                 'SetStartTime.tbQTY.Text = tbAddjustQTY.Text
                 Me.Close()
             Else
-                MsgBox("Please Check QTY.")
+                'msgBox("Please Check QTY.")
             End If
         Catch ex As Exception
-            MsgBox("Please Checks QTY.")
+            'msgBox("Please Checks QTY.")
         End Try
     End Sub
 

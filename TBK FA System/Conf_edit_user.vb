@@ -14,7 +14,7 @@
 
         For i = 0 To Edit_user.ListView1.Items.Count - 1
             If Edit_user.ListView1.Items(i).Checked = True Then
-                'MsgBox(ListBox1.Items(i))
+                ''msgBox(ListBox1.Items(i))
                 Backoffice_model.Insert_user_skill(Edit_user.lb_su_id.Text, Edit_user.ListBox1.Items(i), created_emp_cd)
             End If
         Next

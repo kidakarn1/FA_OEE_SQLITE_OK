@@ -83,7 +83,7 @@
             sPart = dfDetailsnc.dtItemcd '"J107-11820-RM" 'pd.pFg
             dtWino = objDefectdetailnc.dtWino
             source_code_supplier = objDefectdetailnc.source_code_supplier
-            'MsgBox("NC source_code_supplier ===>" & source_code_supplier)
+            ''msgBox("NC source_code_supplier ===>" & source_code_supplier)
             If MainFrm.chk_spec_line = "2" Then
                 dtLineno = MainFrm.Label4.Text
             Else
@@ -196,7 +196,7 @@
                 End If
             End If
         Catch ex As Exception
-            MsgBox("Please Select Data")
+            'msgBox("Please Select Data")
         End Try
     End Sub
     Public Sub manageNc()
@@ -228,11 +228,11 @@
                     dfName = dfDetailsng.dtName
                     setValueng(actQty, nc, ng, sNg, tbAddjust.Text)
                 End If
-                'MsgBox("wi = " & wi)
-                'MsgBox("lot = " & lot)
-                'MsgBox("seq = " & seq)
-                'MsgBox("dfType = " & dfType)
-                'MsgBox("dtCode = " & dtCode)
+                ''msgBox("wi = " & wi)
+                ''msgBox("lot = " & lot)
+                ''msgBox("seq = " & seq)
+                ''msgBox("dfType = " & dfType)
+                ''msgBox("dtCode = " & dtCode)
 
                 updateAddjustqty(wi, lot, seq, dfType, dtCode, dfName, mainCP, source_code_supplier)
                 Working_Pro.flg_tag_print = 0
@@ -241,7 +241,7 @@
                 Working_Pro.Enabled = True
                 Me.Close()
             Else
-                MsgBox("Please Check QTY.")
+                'msgBox("Please Check QTY.")
             End If
         Else ' Child Part
             Dim LdfDetailsnc As New defectDetailnc()
@@ -269,12 +269,12 @@
                     Working_Pro.Enabled = True
                     Me.Close()
                 Else
-                    MsgBox("Please Check QTY.")
+                    'msgBox("Please Check QTY.")
                 End If
-                'MsgBox("-->")
-                'MsgBox("wi = " & wi)
-                'MsgBox("lot = " & lot)
-                'MsgBox("seq = " & seq)
+                ''msgBox("-->")
+                ''msgBox("wi = " & wi)
+                ''msgBox("lot = " & lot)
+                ''msgBox("seq = " & seq)
             ElseIf dfHome.dtType = "NG" Then
                 wi = LdfDetailsng.dtWino
                 lot = LdfDetailsng.dtLotNo
@@ -291,10 +291,10 @@
                     Working_Pro.Enabled = True
                     Me.Close()
                 End If
-                'MsgBox("-->")
-                'MsgBox("wi = " & wi)
-                'MsgBox("lot = " & lot)
-                'MsgBox("seq = " & seq)
+                ''msgBox("-->")
+                ''msgBox("wi = " & wi)
+                ''msgBox("lot = " & lot)
+                ''msgBox("seq = " & seq)
             End If
         End If
     End Sub
@@ -330,7 +330,7 @@
                         Working_Pro.ResetRed()
                         Me.Close()
                     Else
-                        MsgBox("Please Check QTY.")
+                        'msgBox("Please Check QTY.")
                     End If
                 ElseIf dfHome.dtType = "NG" Then
                     Dim rsCheck = ckInputqtyaddjust(tbAddjust.Text, lbMax.Text)
@@ -353,13 +353,13 @@
                         Working_Pro.ResetRed()
                         Me.Close()
                     Else
-                        MsgBox("Please Check QTY.")
+                        'msgBox("Please Check QTY.")
                     End If
 
 
                 End If
             Else
-                MsgBox("Please Check QTY.")
+                'msgBox("Please Check QTY.")
             End If
         Else ' Child Part
             Dim LdfDetailsnc As New defectDetailnc()
@@ -391,7 +391,7 @@
                     Working_Pro.Enabled = True
                     Me.Close()
                 Else
-                    MsgBox("Please Check QTY.")
+                    'msgBox("Please Check QTY.")
                 End If
             ElseIf dfHome.dtType = "NG" Then
                 wi = LdfDetailsng.dtWino
@@ -413,7 +413,7 @@
                     Working_Pro.Enabled = True
                     Me.Close()
                 Else
-                    MsgBox("Please Check QTY.")
+                    'msgBox("Please Check QTY.")
                 End If
             End If
         End If
@@ -463,27 +463,27 @@
                             '  ScanQRprod.lbTopices.Text = "Add Qr Product"
                             '  ScanQRprod.Visible = True
                             '  ScanQRprod.G_StatusAddCutDefect = "1"
-                            MsgBox("Please Check QTY")
+                            'msgBox("Please Check QTY")
                         End If
-                        ' MsgBox(dtQty & " = " & CDbl(Val(tbAddjust.Text)))
+                        ' 'msgBox(dtQty & " = " & CDbl(Val(tbAddjust.Text)))
                     Else
-                        MsgBox("Please Check QTY")
+                        'msgBox("Please Check QTY")
                     End If
                 Else
                     manageNg()
                 End If
             Else
                 manageNg()
-                End If
             End If
+        End If
         '  Me.Close()
     End Sub
     Public Shared Function setValuenc(Act As String, nc As String, ng As String, sNc As String, ipQty As Integer)
         Dim total = (nc - sNc) + ipQty
         If defectDetailnc.Types = "FG" Then
             Working_Pro.lb_nc_qty.Text = total
-            ' MsgBox("CDbl(Val(sNc))===>" & CDbl(Val(sNc)))
-            ' MsgBox("CDbl(Val(ipQty))===>" & CDbl(Val(ipQty)))
+            ' 'msgBox("CDbl(Val(sNc))===>" & CDbl(Val(sNc)))
+            ' 'msgBox("CDbl(Val(ipQty))===>" & CDbl(Val(ipQty)))
             Dim t
             If ipQty >= CDbl(Val(sNc)) Then
                 Dim rs = ipQty - CDbl(Val(sNc))
@@ -543,7 +543,7 @@
                 itemType = "2"
             End If
         End If
-        ' MsgBox("NG ITEM TYHPE ===>" & itemType)
+        ' 'msgBox("NG ITEM TYHPE ===>" & itemType)
         ' Dim rs = md.mUpdateaddjust(dtWino, dtLotNo, dtSeqno, dtType, dtCode, itemType, lbPart.Text)
         Dim rsSqlite = mdSqlite.mUpdateaddjust(dtWino, dtLotNo, dtSeqno, dtType, dtCode, itemType, lbPart.Text, source_code_supplier)
         'If rs Then
@@ -561,20 +561,20 @@
             End If
             dfRegister.insertDefectregister(dtWino, MainFrm.Label4.Text, dtItemcd, itemType, dtLotNo, dtSeqno, dtType, dtCode, tbAddjust.Text, dtMenu, dtActualdate, pwi_id, dfName, mainCP, source_code_supplier, defectHome.leaderConfrime)
         Else
-            MsgBox("Update Status Fiall Function updateAddjustqty in defectNumpadadjust.vb")
-            ' MsgBox("mUpdateaddjust rs===>" & rs)
+            'msgBox("Update Status Fiall Function updateAddjustqty in defectNumpadadjust.vb")
+            ' 'msgBox("mUpdateaddjust rs===>" & rs)
         End If
         Return 0
     End Function
     Public Function calNumpadadjustNc(Act As Integer, nc As Integer, ng As Integer, sNc As Integer)
         Dim totals = (Act - (nc + ng)) + sNc
-        '  MsgBox("total = " & totals)
-        'MsgBox("(" & Act & " - (" & nc & " + " & ng & ")) + " & sNc)
+        '  'msgBox("total = " & totals)
+        ''msgBox("(" & Act & " - (" & nc & " + " & ng & ")) + " & sNc)
         Return totals
     End Function
     Public Function calNumpadadjustNg(Act As Integer, nc As Integer, ng As Integer, sNg As Integer)
         Dim totals = (Act - (nc + ng)) + sNg
-        'MsgBox(Act & "-" & nc & "+" & ng & "-" & sNg)
+        ''msgBox(Act & "-" & nc & "+" & ng & "-" & sNg)
         Return totals
     End Function
     Public Function ckInputqtyaddjust(ipQty As Integer, maxQty As Integer)

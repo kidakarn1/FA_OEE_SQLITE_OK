@@ -328,7 +328,7 @@ Public Class numPadSetStartTime
         Dim text_to2 As String = tbAddjustM.Text
         Dim text_to1 As String = tbAddjustH.Text
         If text_to2.Length > 0 Then
-            'MsgBox(text_to2.Length)
+            ''msgBox(text_to2.Length)
             If text_to2.Length = 1 Then
                 Dim result_str As String = text_to2.Substring(1)
                 tbAddjustM.Text = result_str
@@ -339,7 +339,7 @@ Public Class numPadSetStartTime
         End If
         If text_to2.Length = 0 Then
             If text_to1.Length > 0 Then
-                'MsgBox(text_to2.Length)
+                ''msgBox(text_to2.Length)
                 If text_to1.Length = 1 Then
                     Dim result_str As String = text_to1.Substring(1)
                     tbAddjustH.Text = result_str
@@ -350,7 +350,7 @@ Public Class numPadSetStartTime
             End If
         End If
         'text_to2 = TextBox2.Text
-        'MsgBox(TextBox2.Text.Length)
+        ''msgBox(TextBox2.Text.Length)
         chk_ins()
     End Sub
 
@@ -369,24 +369,24 @@ Public Class numPadSetStartTime
                     End If
                 End If
                 dateStartAdjust = dateStartAdjust.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-                'MsgBox("dateStartAdjust===>" & dateStartAdjust)
+                ''msgBox("dateStartAdjust===>" & dateStartAdjust)
                 If dateStartAdjust <= DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") Then
                     If dateStartAdjust >= DateTimecompuerdown Then  'check condition about time 
                         SetStartTime.tbHour.Text = tbAddjustH.Text
                         SetStartTime.tbMin.Text = tbAddjustM.Text
                         Me.Close() ' OK
                     Else
-                        MsgBox("Please Check Time.")
+                        'msgBox("Please Check Time.")
                     End If
                 Else
-                    MsgBox("Please Check Time Current.")
+                    'msgBox("Please Check Time Current.")
                 End If
             Else
                 load_show.Show()
             End If
         Catch ex As Exception
             'load_show.Show()
-            MsgBox("Please Check Times.")
+            'msgBox("Please Check Times.")
         End Try
     End Sub
 End Class

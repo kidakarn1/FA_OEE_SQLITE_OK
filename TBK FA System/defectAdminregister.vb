@@ -141,7 +141,7 @@
         If rsCheck Then
             lbQtydefect.Text = CDbl(Val(lbQtydefect.Text)) + number
         Else
-            MsgBox("Please Check QTY Input")
+            'msgBox("Please Check QTY Input")
         End If
     End Sub
 
@@ -153,7 +153,7 @@
         If rsCheck Then
             lbQtydefect.Text = CDbl(Val(lbQtydefect.Text)) + number
         Else
-            MsgBox("Please Check QTY Input")
+            'msgBox("Please Check QTY Input")
         End If
     End Sub
     Private Sub tbQtydefectnc_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles lbQtydefect.Click, Panel1.Click
@@ -168,7 +168,7 @@
             Dim dfAlert As New defectAlertsuredefect
             dfAlert.Show()
         Else
-            MsgBox("Please Check QTY Input")
+            'msgBox("Please Check QTY Input")
         End If
     End Sub
     Public Function updateDefectdata(dtWino As String, dtLotNo As String, dtSeqno As String, dtType As String, dtCode As String, ItemCd As String, dtItemtype As String)
@@ -199,11 +199,11 @@
             If rsData Then
                 Return True
             Else
-                MsgBox("insertDefectregister FAILL Please Check rsData=" & rsData)
+                'msgBox("insertDefectregister FAILL Please Check rsData=" & rsData)
                 Return False
             End If
         Catch ex As Exception
-            MsgBox("insertDefectregister FAILL Please Check" & ex.Message)
+            'msgBox("insertDefectregister FAILL Please Check" & ex.Message)
             Return False
         End Try
     End Function

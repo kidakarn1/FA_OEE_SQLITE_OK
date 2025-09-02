@@ -28,7 +28,7 @@ Public Class Sel_prd_setup
                     Chang_Loss.Show()
                     Me.Hide()
                 Else
-                    MsgBox("Please Check Master Loss.")
+                    'msgBox("Please Check Master Loss.")
                 End If
             End If
         Catch ex As Exception
@@ -56,7 +56,7 @@ Public Class Sel_prd_setup
                     Change_Loss2.Show()
                     Me.Hide()
                 Else
-                    MsgBox("Please Check Master Loss.")
+                    'msgBox("Please Check Master Loss.")
                 End If
             Else
                 load_show.Show()
@@ -116,7 +116,7 @@ Public Class Sel_prd_setup
                 load_show.Show()
             End If
         Catch ex As Exception
-            'MsgBox("error==>" & ex.Message)
+            ''msgBox("error==>" & ex.Message)
             load_show.Show()
         End Try
     End Sub

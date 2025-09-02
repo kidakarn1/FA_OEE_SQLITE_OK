@@ -233,7 +233,7 @@ Public Class closeLotsummary
             If Not load_show.Visible Then
                 load_show.Show()
             End If
-            Console.WriteLine("⛔ ยังไม่มี Network หรือ Ping ไม่ผ่าน... รอ 1 วินาที")
+            'Console.WriteLine("⛔ ยังไม่มี Network หรือ Ping ไม่ผ่าน... รอ 1 วินาที")
             Await Task.Delay(1000)
         Loop
         If load_show.Visible Then
@@ -298,8 +298,8 @@ Public Class closeLotsummary
                             For Each item As Object In dFg
                                 stDatetime = item("st_time").ToString()
                                 eDatetime = item("end_time").ToString()
-                                'Console.WriteLine(stDatetime)
-                                'Console.WriteLine(eDatetime)
+                                ''Console.WriteLine(stDatetime)
+                                ''Console.WriteLine(eDatetime)
                             Next
                         End If
                     End If
@@ -338,8 +338,8 @@ Public Class closeLotsummary
                         For Each item As Object In dFg
                             stDatetime = item("st_time").ToString()
                             eDatetime = item("end_time").ToString()
-                            'Console.WriteLine(stDatetime)
-                            'Console.WriteLine(eDatetime)
+                            ''Console.WriteLine(stDatetime)
+                            ''Console.WriteLine(eDatetime)
                         Next
                     End If
                 End If
@@ -427,7 +427,7 @@ Public Class closeLotsummary
             '  MainFrm.Enabled = True
             '  MainFrm.Show()
             '  Me.Close() ' add on 
-            '  MsgBox("In Catch Function btnok In CloseLotSummary =>" & ex.Message)
+            '  'msgBox("In Catch Function btnok In CloseLotSummary =>" & ex.Message)
             checkNetColselot()
         End Try
     End Sub
@@ -550,14 +550,14 @@ Public Class closeLotsummary
         Dim defectAll = CDbl(Val(Working_Pro.lb_ng_qty.Text)) + CDbl(Val(Working_Pro.lb_nc_qty.Text))
         Dim result_mod As Double = (Integer.Parse(Working_Pro.lb_good.Text)) Mod Integer.Parse(Working_Pro.Label27.Text) 'Integer.Parse(_Edit_Up_0.Text) Mod Integer.Parse(Label27.Text)
         Dim result_total As Double = (Integer.Parse(Working_Pro.LB_COUNTER_SEQ.Text) - defectAll) Mod Integer.Parse(Working_Pro.Label27.Text) '(Integer.Parse(Working_Pro.LB_COUNTER_SEQ.Text) - defectAll) Mod Integer.Parse(Working_Pro.Label27.Text)
-        'Console.WriteLine("Working_Pro.LB_COUNTER_SEQ.Text===>" & Working_Pro.LB_COUNTER_SEQ.Text)
-        'Console.WriteLine("result_total===>" & result_total)
-        'Console.WriteLine("Working_Pro.Label10.Text===>" & Working_Pro.Label10.Text)
+        ''Console.WriteLine("Working_Pro.LB_COUNTER_SEQ.Text===>" & Working_Pro.LB_COUNTER_SEQ.Text)
+        ''Console.WriteLine("result_total===>" & result_total)
+        ''Console.WriteLine("Working_Pro.Label10.Text===>" & Working_Pro.Label10.Text)
         'If result_mod = "0" Then
         'If Backoffice_model.check_line_reprint() = "1" Then
         'If Working_Pro.LB_COUNTER_SEQ.Text > 0 Then
         'If CDbl(Val(Working_Pro.Label27.Text)) = 1 Or CDbl(Val(Working_Pro.Label27.Text)) = 999999 Then
-        'MsgBox("A1")
+        ''msgBox("A1")
         'Working_Pro.lb_box_count.Text = Working_Pro.lb_box_count.Text + 1
         'Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
         'Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
@@ -584,8 +584,8 @@ Public Class closeLotsummary
                     If rs <= Working_Pro.Label27.Text Then
                         cupprint = 1
                     Else
-                        '      MsgBox("rs ===>" & rs)
-                        '       MsgBox("CDbl(Val(Working_Pro.Label27.Text)) ===>" & CDbl(Val(Working_Pro.Label27.Text)))
+                        '      'msgBox("rs ===>" & rs)
+                        '       'msgBox("CDbl(Val(Working_Pro.Label27.Text)) ===>" & CDbl(Val(Working_Pro.Label27.Text)))
                         cupprint = rs / CDbl(Val(Working_Pro.Label27.Text))
                     End If
                 End If
@@ -606,7 +606,7 @@ Public Class closeLotsummary
                 Else
                     Working_Pro.GoodQty = Working_Pro.lb_good.Text
                     Working_Pro.tag_print()
-                    'MsgBox(Math.Ceiling(cupprint))
+                    ''msgBox(Math.Ceiling(cupprint))
                     'Backoffice_model.update_tagprintforDefect(sWi, "2", "1", Working_Pro.pwi_id, (CDbl(Val(Working_Pro.lb_box_count.Text)) - 1), Working_Pro.GoodQty, Math.Ceiling(cupprint))
                 End If
                 ' Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
@@ -674,7 +674,7 @@ Public Class closeLotsummary
             End If
         Catch ex As Exception
             transfer_flg = "0"
-            'MsgBox("error = > " & ex.Message)
+            ''msgBox("error = > " & ex.Message)
             If MainFrm.chk_spec_line = "2" Then
                 Dim GenSEQ As Integer = seq_no - MainFrm.ArrayDataPlan.ToArray.Length
                 Dim Iseq = GenSEQ

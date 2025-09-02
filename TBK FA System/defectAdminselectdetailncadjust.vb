@@ -26,7 +26,7 @@ Public Class defectAdminselectdetailncadjust
             defectAdminAdjustdetail.Show()
             Me.Hide()
         Else
-            MsgBox("PLEASE SELECT ROW.")
+            'msgBox("PLEASE SELECT ROW.")
         End If
 
     End Sub

@@ -482,7 +482,7 @@ Public Class print_back
                 Dim rs1 = Await model_api_sqlite.mas_Insert_tag_print_main(Working_Pro.wi_no.Text, qr_code, the_Label_bach, 1, plan_seq, Working_Pro.Label14.Text, check_tagprint_main(), Working_Pro.Label3.Text, Working_Pro.pwi_id, Working_Pro.tag_group_no, Working_Pro.Gobal_NEXT_PROCESS, "1", Working_Pro.Label18.Text)
                 ' Dim id_tag = Await api.Load_data("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GET_ID_PRINT_DETAIL_MAIN?qr_code=" & qr_code)
                 Dim url As String = "http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GET_ID_PRINT_DETAIL_MAIN?qr_code=" & qr_code
-                Console.WriteLine("Calling API GetPercenPlanned_OEE URL: " & url)
+                'Console.WriteLine("Calling API GetPercenPlanned_OEE URL: " & url)
                 ' ✅ แปลงให้ async โดยรันบน background thread
                 Dim id_tag As String = Await Task.Run(Function() api.Load_data(url))
                 'For K = 1 To MainFrm.ArrayDataPlan.ToArray.Length Step 1
@@ -533,7 +533,7 @@ Public Class print_back
     Public Sub oldM83_single(e)
         Dim aPen = New Pen(Color.Black)
         aPen.Width = 2.0F
-        'MsgBox(Label10.Text)
+        ''msgBox(Label10.Text)
         'vertical ตรง
         e.Graphics.DrawLine(aPen, 10, 10, 10, 290)
 
@@ -746,7 +746,7 @@ Public Class print_back
     End Sub
 
     Private Async Sub PrintDocument2_PrintPage(sender As Object, e As Printing.PrintPageEventArgs) Handles PrintDocument2.PrintPage
-        ' MsgBox("single")
+        ' 'msgBox("single")
         ' oldM83_single(e)
         Await newM83_single(e)
     End Sub
@@ -755,7 +755,7 @@ Public Class print_back
         Dim hasError As Boolean = False
 
         aPen.Width = 2.0F
-        'MsgBox(Label10.Text)
+        ''msgBox(Label10.Text)
         'vertical ตรง
         e.Graphics.DrawLine(aPen, 10, 10, 10, 290)
 

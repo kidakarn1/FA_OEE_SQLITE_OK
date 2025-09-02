@@ -25,9 +25,9 @@ Public Class defectSelectSupplier
     End Sub
     Public Sub getSupplier()
         Dim OEE = New OEE
-        'MsgBox(defectSelectcode.sPart)
+        ''msgBox(defectSelectcode.sPart)
         Dim rs = OEE.OEE_EXP_CHECK_SUPP(defectSelectcode.sPart)
-        'MsgBox(rs)
+        ''msgBox(rs)
         If rs <> "0" Then
             Dim dcResultdata As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(rs)
             Dim i As Integer = 1
@@ -41,7 +41,7 @@ Public Class defectSelectSupplier
             Next
             lvDefectact.Items(0).Selected = True
         Else
-            MsgBox("No Supplier")
+            'msgBox("No Supplier")
         End If
     End Sub
 

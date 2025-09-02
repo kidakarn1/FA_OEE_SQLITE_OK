@@ -19,12 +19,12 @@ Public Class LeaderConfirmDefect
                         Me.DialogResult = DialogResult.OK
                         Me.Close()
                     ElseIf rs = "2" Then
-                        MsgBox("Not Permission.")
+                        'msgBox("Not Permission.")
                         tbEmpCodeleader.Text = ""
                         defectHome.leaderConfrime = ""
                         tbEmpCodeleader.Select()
                     Else
-                        MsgBox("Not Permission.")
+                        'msgBox("Not Permission.")
                         tbEmpCodeleader.Text = ""
                         defectHome.leaderConfrime = ""
                         tbEmpCodeleader.Select()

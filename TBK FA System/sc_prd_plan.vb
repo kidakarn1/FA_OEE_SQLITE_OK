@@ -19,7 +19,7 @@ Public Class sc_prd_plan
         If e.KeyCode = Keys.Enter Then
             If TextBox1.Text.Length = 73 Then
                 Insert_list.ListView1.Items.Clear()
-                'MsgBox("OK")
+                ''msgBox("OK")
                 Dim line_cd As String = MainFrm.Label4.Text
                 Dim wi_cd As String = TextBox1.Text.Substring(63, 10)
                 Dim LoadSQL = Backoffice_model.get_prd_plan_fromsc(line_cd, wi_cd)
@@ -27,15 +27,15 @@ Public Class sc_prd_plan
                 Dim numberOfindex As Integer = 0
                 While LoadSQL.Read()
 
-                    'MsgBox(LoadSQL("WI").ToString())
-                    'MsgBox(LoadSQL("prd_flg").ToString())
+                    ''msgBox(LoadSQL("WI").ToString())
+                    ''msgBox(LoadSQL("prd_flg").ToString())
                     If LoadSQL("prd_flg").ToString() = 1 Then
-                        'MsgBox("Red")
+                        ''msgBox("Red")
                         Insert_list.ListView1.ForeColor = Color.Red
                         Insert_list.ListView1.Items.Add(LoadSQL("WI").ToString()).SubItems.AddRange(New String() {LoadSQL("ITEM_CD").ToString(), LoadSQL("ITEM_NAME").ToString(), LoadSQL("QTY").ToString(), LoadSQL("remain_qty").ToString()})
                         Insert_list.ListView1.Items(numberOfindex).ForeColor = Color.Red
                     Else
-                        'MsgBox("Blue")
+                        ''msgBox("Blue")
                         Insert_list.ListView1.ForeColor = Color.Blue
                         Insert_list.ListView1.Items.Add(LoadSQL("WI").ToString()).SubItems.AddRange(New String() {LoadSQL("ITEM_CD").ToString(), LoadSQL("ITEM_NAME").ToString(), LoadSQL("QTY").ToString(), LoadSQL("remain_qty").ToString()})
                         Insert_list.ListView1.Items(numberOfindex).ForeColor = Color.Blue
@@ -53,7 +53,7 @@ Public Class sc_prd_plan
                     'Insert_list.ListView1.Items.Add(LoadSQL("WI").ToString()).SubItems.AddRange(New String() {LoadSQL("ITEM_CD").ToString(), LoadSQL("ITEM_NAME").ToString(), LoadSQL("QTY").ToString(), LoadSQL("remain_qty").ToString()})
                     'line_id.Text = LoadSQL("line_id").ToString()
                 End While
-                'MsgBox(numberOfindex)
+                ''msgBox(numberOfindex)
 
                 If numberOfindex > 0 Then
                     Insert_list.ListView1.Items(0).Selected = True
@@ -66,13 +66,13 @@ Public Class sc_prd_plan
                     Working_Pro.Label29.Text = Prd_detail.Label2.Text
                     Working_Pro.Label14.Text = Prd_detail.Label12.Text.Substring(0, 1)
 
-                    'MsgBox(Prd_detail.Label12.Text.Substring(0, 1))
+                    ''msgBox(Prd_detail.Label12.Text.Substring(0, 1))
                     Dim numOfindex As Integer = Insert_list.ListView1.SelectedIndices(0)
-                    'MsgBox(ListView1.SelectedIndices(0))
-                    'MsgBox(ListView1.Items(10).Text.ToString)
-                    'MsgBox(ListView1.Items(10).SubItems(1).Text.ToString)
-                    'MsgBox(ListView1.Items(10).SubItems(2).Text.ToString)
-                    'MsgBox(ListView1.Items(numOfindex).SubItems(0).Text.ToString)
+                    ''msgBox(ListView1.SelectedIndices(0))
+                    ''msgBox(ListView1.Items(10).Text.ToString)
+                    ''msgBox(ListView1.Items(10).SubItems(1).Text.ToString)
+                    ''msgBox(ListView1.Items(10).SubItems(2).Text.ToString)
+                    ''msgBox(ListView1.Items(numOfindex).SubItems(0).Text.ToString)
                     Working_Pro.wi_no.Text = Insert_list.ListView1.Items(numOfindex).SubItems(0).Text.ToString
                     Working_Pro.Label3.Text = Insert_list.ListView1.Items(numOfindex).SubItems(1).Text.ToString
                     Working_Pro.Label12.Text = Insert_list.ListView1.Items(numOfindex).SubItems(2).Text.ToString
@@ -137,7 +137,7 @@ Public Class sc_prd_plan
 
                     Dim sum_progress As Integer = (Insert_list.ListView1.Items(numOfindex).SubItems(4).Text * 100) / Insert_list.ListView1.Items(numOfindex).SubItems(3).Text
                     sum_progress = 100 - sum_progress
-                    'MsgBox(sum_progress)
+                    ''msgBox(sum_progress)
 
                     Dim sum_act As Integer = Insert_list.ListView1.Items(numOfindex).SubItems(3).Text - Insert_list.ListView1.Items(numOfindex).SubItems(4).Text
                     Working_Pro.Label6.Text = sum_act
@@ -175,15 +175,15 @@ Public Class sc_prd_plan
 
                     Dim numberOfindex1 As Integer = 0
                     While LoadSQL2.Read()
-                        'MsgBox(LoadSQL("WI").ToString().Length)
-                        'MsgBox(LoadSQL("prd_flg").ToString())
+                        ''msgBox(LoadSQL("WI").ToString().Length)
+                        ''msgBox(LoadSQL("prd_flg").ToString())
                         If LoadSQL2("prd_flg").ToString() = 1 Then
-                            'MsgBox("Red")
+                            ''msgBox("Red")
                             Insert_list.ListView1.ForeColor = Color.Red
                             Insert_list.ListView1.Items.Add(LoadSQL2("WI").ToString()).SubItems.AddRange(New String() {LoadSQL2("ITEM_CD").ToString(), LoadSQL2("ITEM_NAME").ToString(), LoadSQL2("QTY").ToString(), LoadSQL2("remain_qty").ToString()})
                             Insert_list.ListView1.Items(numberOfindex).ForeColor = Color.Red
                         Else
-                            'MsgBox("Blue")
+                            ''msgBox("Blue")
                             Insert_list.ListView1.ForeColor = Color.Blue
                             Insert_list.ListView1.Items.Add(LoadSQL2("WI").ToString()).SubItems.AddRange(New String() {LoadSQL2("ITEM_CD").ToString(), LoadSQL2("ITEM_NAME").ToString(), LoadSQL2("QTY").ToString(), LoadSQL2("remain_qty").ToString()})
                             Insert_list.ListView1.Items(numberOfindex).ForeColor = Color.Blue
@@ -203,7 +203,7 @@ Public Class sc_prd_plan
                     End While
 
                     Insert_list.Enabled = True
-                    MsgBox("This production plan not found in the system.")
+                    'msgBox("This production plan not found in the system.")
                     TextBox1.Text = ""
                 End If
 
@@ -216,7 +216,7 @@ Public Class sc_prd_plan
 
             Else
                 Insert_list.Enabled = True
-                MsgBox("Please Scan QR code on Instruction tag card only!")
+                'msgBox("Please Scan QR code on Instruction tag card only!")
                 TextBox1.Text = ""
 
             End If
@@ -231,11 +231,11 @@ Public Class sc_prd_plan
         Dim sc_type As String = MainFrm.lb_scanner_port.Text
 
         If sc_type = "USB" Then
-            'MsgBox("Data")
+            ''msgBox("Data")
         Else
             If MainFrm.lb_ctrl_sc_flg.Text = "prdlist" Then
                 Try
-                    'MsgBox("sc prd")
+                    ''msgBox("sc prd")
                     SerialPort1.PortName = sc_type
                     SerialPort1.BaudRate = 9600
                     SerialPort1.Parity = IO.Ports.Parity.None
@@ -253,7 +253,7 @@ Public Class sc_prd_plan
 
     Private Sub SerialPort1_DataReceived(ByVal sender As Object, ByVal e As System.IO.Ports.SerialDataReceivedEventArgs) Handles SerialPort1.DataReceived
         'If MainFrm.lb_ctrl_sc_flg.Text = "prdlist" Then
-        'MsgBox("prdlist")
+        ''msgBox("prdlist")
         ReceivedText(SerialPort1.ReadExisting())
         'End If
         'SerialPort1.Close()
@@ -261,14 +261,14 @@ Public Class sc_prd_plan
     End Sub
 
     Private Sub ReceivedText(ByVal [text] As String)
-        'MsgBox([text])
+        ''msgBox([text])
         Dim countss As Integer = 0
         If Me.TextBox1.InvokeRequired Then
             Dim x As New SetTextCallback(AddressOf ReceivedText)
             Me.Invoke(x, New Object() {(text)})
         Else
             Me.TextBox1.Text &= [text]
-            'MsgBox(MainFrm.lb_ctrl_sc_flg.Text)
+            ''msgBox(MainFrm.lb_ctrl_sc_flg.Text)
             Dim temp_str As String = [text]
 
             lb_text_buffer.Text = lb_text_buffer.Text + temp_str
@@ -278,29 +278,29 @@ Public Class sc_prd_plan
             If MainFrm.lb_ctrl_sc_flg.Text = "prdlist" Then
 
                 If lb_text_buffer.Text.Length > 70 Then
-                    'MsgBox("jing")
+                    ''msgBox("jing")
 
                     If TextBox1.Text.Length = "74" Then
-                        'MsgBox("Tag jing")
+                        ''msgBox("Tag jing")
                         Dim wi_cd As String = TextBox1.Text.Substring(63, 10)
                         Dim line_cd As String = MainFrm.Label4.Text
-                        'MsgBox(wi_cd)
-                        'MsgBox(line_cd)
+                        ''msgBox(wi_cd)
+                        ''msgBox(line_cd)
                         Dim LoadSQL = Backoffice_model.get_prd_plan_fromsc(line_cd, wi_cd)
 
                         Dim numberOfindex As Integer = 0
                         While LoadSQL.Read()
 
-                            MsgBox(LoadSQL("WI").ToString())
-                            MsgBox(LoadSQL("prd_flg").ToString())
+                            'msgBox(LoadSQL("WI").ToString())
+                            'msgBox(LoadSQL("prd_flg").ToString())
 
                             If LoadSQL("prd_flg").ToString() = 1 Then
-                                'MsgBox("Red")
+                                ''msgBox("Red")
                                 Insert_list.ListView1.ForeColor = Color.Red
                                 Insert_list.ListView1.Items.Add(LoadSQL("WI").ToString()).SubItems.AddRange(New String() {LoadSQL("ITEM_CD").ToString(), LoadSQL("ITEM_NAME").ToString(), LoadSQL("QTY").ToString(), LoadSQL("remain_qty").ToString()})
                                 Insert_list.ListView1.Items(numberOfindex).ForeColor = Color.Red
                             Else
-                                'MsgBox("Blue")
+                                ''msgBox("Blue")
                                 Insert_list.ListView1.ForeColor = Color.Blue
                                 Insert_list.ListView1.Items.Add(LoadSQL("WI").ToString()).SubItems.AddRange(New String() {LoadSQL("ITEM_CD").ToString(), LoadSQL("ITEM_NAME").ToString(), LoadSQL("QTY").ToString(), LoadSQL("remain_qty").ToString()})
                                 Insert_list.ListView1.Items(numberOfindex).ForeColor = Color.Blue
@@ -330,13 +330,13 @@ Public Class sc_prd_plan
                             Working_Pro.Label29.Text = Prd_detail.Label2.Text
                             Working_Pro.Label14.Text = Prd_detail.Label12.Text.Substring(0, 1)
 
-                            'MsgBox(Prd_detail.Label12.Text.Substring(0, 1))
+                            ''msgBox(Prd_detail.Label12.Text.Substring(0, 1))
                             Dim numOfindex As Integer = Insert_list.ListView1.SelectedIndices(0)
-                            'MsgBox(ListView1.SelectedIndices(0))
-                            'MsgBox(ListView1.Items(10).Text.ToString)
-                            'MsgBox(ListView1.Items(10).SubItems(1).Text.ToString)
-                            'MsgBox(ListView1.Items(10).SubItems(2).Text.ToString)
-                            'MsgBox(ListView1.Items(numOfindex).SubItems(0).Text.ToString)
+                            ''msgBox(ListView1.SelectedIndices(0))
+                            ''msgBox(ListView1.Items(10).Text.ToString)
+                            ''msgBox(ListView1.Items(10).SubItems(1).Text.ToString)
+                            ''msgBox(ListView1.Items(10).SubItems(2).Text.ToString)
+                            ''msgBox(ListView1.Items(numOfindex).SubItems(0).Text.ToString)
                             Working_Pro.wi_no.Text = Insert_list.ListView1.Items(numOfindex).SubItems(0).Text.ToString
                             Working_Pro.Label3.Text = Insert_list.ListView1.Items(numOfindex).SubItems(1).Text.ToString
                             Working_Pro.Label12.Text = Insert_list.ListView1.Items(numOfindex).SubItems(2).Text.ToString
@@ -402,7 +402,7 @@ Public Class sc_prd_plan
 
                             Dim sum_progress As Integer = (Insert_list.ListView1.Items(numOfindex).SubItems(4).Text * 100) / Insert_list.ListView1.Items(numOfindex).SubItems(3).Text
                             sum_progress = 100 - sum_progress
-                            'MsgBox(sum_progress)
+                            ''msgBox(sum_progress)
 
                             Dim sum_act As Integer = Insert_list.ListView1.Items(numOfindex).SubItems(3).Text - Insert_list.ListView1.Items(numOfindex).SubItems(4).Text
                             Working_Pro.Label6.Text = sum_act
@@ -445,15 +445,15 @@ Public Class sc_prd_plan
 
                             Dim numberOfindex1 As Integer = 0
                             While LoadSQL2.Read()
-                                'MsgBox(LoadSQL("WI").ToString().Length)
-                                'MsgBox(LoadSQL("prd_flg").ToString())
+                                ''msgBox(LoadSQL("WI").ToString().Length)
+                                ''msgBox(LoadSQL("prd_flg").ToString())
                                 If LoadSQL2("prd_flg").ToString() = 1 Then
-                                    'MsgBox("Red")
+                                    ''msgBox("Red")
                                     Insert_list.ListView1.ForeColor = Color.Red
                                     Insert_list.ListView1.Items.Add(LoadSQL2("WI").ToString()).SubItems.AddRange(New String() {LoadSQL2("ITEM_CD").ToString(), LoadSQL2("ITEM_NAME").ToString(), LoadSQL2("QTY").ToString(), LoadSQL2("remain_qty").ToString()})
                                     Insert_list.ListView1.Items(numberOfindex).ForeColor = Color.Red
                                 Else
-                                    'MsgBox("Blue")
+                                    ''msgBox("Blue")
                                     Insert_list.ListView1.ForeColor = Color.Blue
                                     Insert_list.ListView1.Items.Add(LoadSQL2("WI").ToString()).SubItems.AddRange(New String() {LoadSQL2("ITEM_CD").ToString(), LoadSQL2("ITEM_NAME").ToString(), LoadSQL2("QTY").ToString(), LoadSQL2("remain_qty").ToString()})
                                     Insert_list.ListView1.Items(numberOfindex).ForeColor = Color.Blue
@@ -473,14 +473,14 @@ Public Class sc_prd_plan
                             End While
 
                             Insert_list.Enabled = True
-                            MsgBox("This production plan not found in the system.")
+                            'msgBox("This production plan not found in the system.")
                             TextBox1.Text = ""
                         End If
                     ElseIf TextBox1.Text.Length = "14" Then
-                        'MsgBox("14")
+                        ''msgBox("14")
                     Else
                         'Insert_list.Enabled = True
-                        MsgBox("Please Scan QR code on Instruction tag card only!")
+                        'msgBox("Please Scan QR code on Instruction tag card only!")
                         TextBox1.Text = ""
 
                     End If

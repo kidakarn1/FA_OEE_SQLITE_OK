@@ -34,7 +34,7 @@ Public Class Print_Defact
         'Dim day As String = LB_Hide_QR_FA_SCAN.Substring(14, 2)
         WASHING_DATE_NG = DateTime.Now.ToString("yyyy/MM/dd")
         'WASHING_DATE_NG = Year() & "/" & mouth & "/" & Day
-        'MsgBox("default = " & LB_Hide_QR_FA_SCAN)
+        ''msgBox("default = " & LB_Hide_QR_FA_SCAN)
         Dim iden_cd As String
         If MainFrm.Label6.Text = "K1PD01" Then
             iden_cd = "GA"
@@ -97,7 +97,7 @@ Public Class Print_Defact
         Dim aPen = New Pen(Color.Black)
         aPen.Width = 3.0F  'border 
 
-        'MsgBox(Label10.Text)
+        ''msgBox(Label10.Text)
 
         'vertical
 

@@ -25,10 +25,10 @@ Public Class Scan_reprint
         date_now_end = date2.ToString(format2)
 
         'If TextBox1.Text.Length = 10 Then
-        'MsgBox("OK")
+        ''msgBox("OK")
         'Dim line_cd As String = MainFrm.Label4.Text
         date_reprint = Date_start_reprint.Value
-        'MsgBox(wi_cd)
+        ''msgBox(wi_cd)
         Tag_reprint.Label2.Text = Adm_manage.Label2.Text
         Tag_reprint.Label3.Text = Adm_manage.Label3.Text
         Show_reprint_wi.Show()
@@ -37,7 +37,7 @@ Public Class Scan_reprint
         Adm_manage.Hide()
         Me.Close()
         'Else
-        'MsgBox("Please input WI plan")
+        ''msgBox("Please input WI plan")
         'End If
     End Sub
 

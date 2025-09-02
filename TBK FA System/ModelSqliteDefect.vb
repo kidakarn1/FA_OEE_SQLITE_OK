@@ -11,7 +11,7 @@ Public Class ModelSqliteDefect
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             Return jsonData
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect In Function cancelCloselotStatusUpdate")
+            'msgBox("Error Files ModelSqliteDefect In Function cancelCloselotStatusUpdate")
         End Try
     End Function
     Public Shared Function UpdateStatusCloselotSqlite(status As String, pwi_id As String)
@@ -21,13 +21,13 @@ Public Class ModelSqliteDefect
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             Return jsonData
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect In Function UpdateStatusCloselotSqlite")
+            'msgBox("Error Files ModelSqliteDefect In Function UpdateStatusCloselotSqlite")
         End Try
     End Function
     Public Shared Function mSqliteGetDataQuality(line_cd As String, lot_no As String, startTimeFrith As String)
         Dim api As New api
         startTimeFrith = Convert.ToDateTime(startTimeFrith).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-        'Console.WriteLine("startTimeFrith ===>" & startTimeFrith)
+        ''Console.WriteLine("startTimeFrith ===>" & startTimeFrith)
         Try
             Dim Sql = "Select dt_code , sum(dt_qty) AS TotalQ,
                         (SELECT SUM(dt_qty)
@@ -37,17 +37,17 @@ Public Class ModelSqliteDefect
 	                         ) AS AllDefect
                          from defect_transactions where dt_line_cd ='" & line_cd & "' and dt_lot_no ='" & lot_no & "' and dt_main_cp = '1' and dt_type ='1' and dt_status_flg = '1' and dt_created_date >= '" & startTimeFrith & "' and dt_status_close_lot != '2'  
                         GROUP by dt_code order by sum(dt_qty) Desc LIMIT 3;"
-            'Console.WriteLine(Sql)
+            ''Console.WriteLine(Sql)
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             Return jsonData
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect In Function mSqliteGetDataQuality")
+            'msgBox("Error Files ModelSqliteDefect In Function mSqliteGetDataQuality")
         End Try
     End Function
     Public Shared Function mSqliteGetDataQualityOverAllNG(line_cd As String, lot_no As String, startTimeFrith As String)
         Dim api As New api
         startTimeFrith = Convert.ToDateTime(startTimeFrith).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-        'Console.WriteLine("startTimeFrith ===>" & startTimeFrith)
+        ''Console.WriteLine("startTimeFrith ===>" & startTimeFrith)
         Try
             Dim Sql = "Select dt_code , sum(dt_qty) AS TotalQ,
                         (SELECT SUM(dt_qty)
@@ -57,11 +57,11 @@ Public Class ModelSqliteDefect
 	                         ) AS AllDefect
                          from defect_transactions where dt_line_cd ='" & line_cd & "' and dt_lot_no ='" & lot_no & "' and  dt_type ='1' and dt_status_flg = '1' and dt_created_date >= '" & startTimeFrith & "' and dt_status_close_lot != '2' 
                         GROUP by dt_code order by sum(dt_qty) Desc LIMIT 3;"
-            Console.WriteLine(Sql)
+            'Console.WriteLine(Sql)
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             Return jsonData
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect In Function mSqliteGetDataQuality")
+            'msgBox("Error Files ModelSqliteDefect In Function mSqliteGetDataQuality")
         End Try
     End Function
 
@@ -78,7 +78,7 @@ Public Class ModelSqliteDefect
                           AND dt_created_date >= '" & startFrist & "' 
                           AND dt_item_type = '1' 
                           AND dt_type  = '1';"
-            'Console.WriteLine(Sql)
+            ''Console.WriteLine(Sql)
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             If jsonData <> "0" Then
                 Dim dcResultdata As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(jsonData)
@@ -89,7 +89,7 @@ Public Class ModelSqliteDefect
                 Return "0"
             End If
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect In Function mSqlieGetDataNGbyWILot")
+            'msgBox("Error Files ModelSqliteDefect In Function mSqlieGetDataNGbyWILot")
         End Try
     End Function
     Public Shared Function mSqliteGetDataNG_BYHOUR(line_cd As String, lot_no As String)
@@ -100,12 +100,12 @@ Public Class ModelSqliteDefect
         Try
             Dim Sql = "Select   sum(dt_qty) AS TotalNGByHour
                          from defect_transactions where dt_line_cd ='" & line_cd & "' and dt_lot_no ='" & lot_no & "' and dt_item_type = '1' and dt_type ='1' and dt_status_flg = '1' and dt_created_date between '" & dateTimeCurr & "'and '" & dateTimeEND & "'"
-            'Console.WriteLine(Sql)
+            ''Console.WriteLine(Sql)
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             Return jsonData
 
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect In Function mSqliteGetDataNG_BYHOUR")
+            'msgBox("Error Files ModelSqliteDefect In Function mSqliteGetDataNG_BYHOUR")
         End Try
     End Function
     Public Function mSqliteGetdatachildpartsummaryfg(dtWino As String, dtSeq As String, dtLot As String)
@@ -148,7 +148,7 @@ Public Class ModelSqliteDefect
                 Return "0"
             End If
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect In Function mSqliteGetdatachildpartsummaryfg")
+            'msgBox("Error Files ModelSqliteDefect In Function mSqliteGetdatachildpartsummaryfg")
         End Try
         ' No need to close the connection here; it's already closed after exiting the Using block
         Return 0
@@ -185,7 +185,7 @@ Public Class ModelSqliteDefect
 					ORDER BY
 						dt.dt_item_type ASC
 "
-            'Console.WriteLine(Sql)
+            ''Console.WriteLine(Sql)
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             If jsonData <> "0" Then
                 Return jsonData
@@ -193,7 +193,7 @@ Public Class ModelSqliteDefect
                 Return "0"
             End If
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect In Function mSqliteGetdatachildpartsummarychild")
+            'msgBox("Error Files ModelSqliteDefect In Function mSqliteGetdatachildpartsummarychild")
         End Try
         ' No need to close the connection here; it's already closed after exiting the Using block
         Return 0
@@ -249,7 +249,7 @@ Public Class ModelSqliteDefect
 					ORDER BY
 						dt.dt_item_type ASC
             "
-            'Console.WriteLine(sql)
+            ''Console.WriteLine(sql)
             Dim jsonData As String = api.Load_dataSQLite(sql)
             If jsonData <> "0" Then
                 Return jsonData
@@ -257,7 +257,7 @@ Public Class ModelSqliteDefect
                 Return "0"
             End If
         Catch ex As Exception
-            MsgBox("connect Api Faill Please check ModelSqliteDefect in Function mSqliteGetdatachildpartsummaryfgSpc = " & ex.Message)
+            'msgBox("connect Api Faill Please check ModelSqliteDefect in Function mSqliteGetdatachildpartsummaryfgSpc = " & ex.Message)
             Return "0"
         End Try
     End Function
@@ -314,7 +314,7 @@ Public Class ModelSqliteDefect
 					ORDER BY
 						dt.dt_item_type ASC
             "
-            'Console.WriteLine(sql)
+            ''Console.WriteLine(sql)
             Dim jsonData As String = api.Load_dataSQLite(sql)
             If jsonData <> "0" Then
                 Return jsonData
@@ -322,7 +322,7 @@ Public Class ModelSqliteDefect
                 Return "0"
             End If
         Catch ex As Exception
-            MsgBox("connect Api Faill Please check modelSqliteDefect in Function mSqliteGetdatachildpartsummarychildSpc = " & ex.Message)
+            'msgBox("connect Api Faill Please check modelSqliteDefect in Function mSqliteGetdatachildpartsummarychildSpc = " & ex.Message)
             Return "0"
         End Try
         Return "0"
@@ -373,7 +373,7 @@ Public Class ModelSqliteDefect
 					                    dt_wi_no,
 					                    dt_seq_no
             "
-            'Console.WriteLine(sql)
+            ''Console.WriteLine(sql)
             Dim jsonData As String = api.Load_dataSQLite(sql)
             If jsonData <> "0" Then
                 Return jsonData
@@ -381,7 +381,7 @@ Public Class ModelSqliteDefect
                 Return "0"
             End If
         Catch ex As Exception
-            MsgBox("connect Api Faill Please check ModelSqliteDefect in Function mSqlitegroupDataWiSpc = " & ex.Message)
+            'msgBox("connect Api Faill Please check ModelSqliteDefect in Function mSqlitegroupDataWiSpc = " & ex.Message)
             Return "0"
         End Try
         Return "0"
@@ -402,7 +402,7 @@ Public Class ModelSqliteDefect
 				AND dt.dt_type = '" & Type & "' 
 				And dt.dt_status_flg = '1'
 				AND dt.dt_item_cd = '" & PartNo & "'"
-            'Console.WriteLine(sql)
+            ''Console.WriteLine(sql)
             Dim jsonData As String = api.Load_dataSQLite(sql)
             If jsonData <> "0" Then
                 Dim dcResultdata As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(jsonData)
@@ -414,7 +414,7 @@ Public Class ModelSqliteDefect
             End If
             ' No need to close the connection here; it's already closed after exiting the Using block
         Catch ex As Exception
-            MsgBox("connect Api Faill Please check ModelSqliteDefect in Function mSqliteGetdefectdetailncPartno = " & ex.Message)
+            'msgBox("connect Api Faill Please check ModelSqliteDefect in Function mSqliteGetdefectdetailncPartno = " & ex.Message)
             Return False
         End Try
     End Function
@@ -489,12 +489,12 @@ Public Class ModelSqliteDefect
                     '" & mainCP & "',
                     '" & source_cd_supplier & "')
             "
-            Console.WriteLine(cmd.CommandText)
+            'Console.WriteLine(cmd.CommandText)
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
             sqliteConn.Close()
             Return True
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact System System [Function mInsertDefectTransection] In File ModelSqliteDefect.")
+            'msgBox("SQLite Database connect failed. Please contact System System [Function mInsertDefectTransection] In File ModelSqliteDefect.")
             sqliteConn.Close()
             Return False
         End Try
@@ -513,19 +513,19 @@ Public Class ModelSqliteDefect
             Dim cmd As New SQLiteCommand
             cmd.Connection = sqliteConn
             cmd.CommandText = " update defect_transactions set dt_status_flg = '5' where dt_wi_no='" & dtWino & "' and dt_lot_no = '" & dtLotNo & "' and dt_seq_no = '" & dtSeqno & "' and dt_type = '" & dtType & "' and dt_code = '" & dtCode & "' and dt_item_type = '" & ItemType & "' and dt_item_cd = '" & PartNo & "' and dt_supplier_code = '" & supplier_cd & "'"
-            'Console.WriteLine(cmd.CommandText)
+            ''Console.WriteLine(cmd.CommandText)
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
             sqliteConn.Close()
             Return True
         Catch ex As Exception
-            '  MsgBox("SQLite Database connect failed. Please contact System System [Function mUpdateaddjust] In File ModelSqliteDefect.")
+            '  'msgBox("SQLite Database connect failed. Please contact System System [Function mUpdateaddjust] In File ModelSqliteDefect.")
             Return False
         End Try
     End Function
     Public Shared Function mSqliteGetdefectdetailnc(dfWi As String, dfSeq As String, dfLot As String, dfType As String)
         Dim api As New api
         Try
-            'Console.WriteLine("--------------------------->")
+            ''Console.WriteLine("--------------------------->")
             Dim Sql = "SELECT dt.dt_item_cd, dt.dt_code, SUM(dt.dt_qty) AS total_nc, dt.dt_name_en ,  dt.dt_item_type, dt.dt_wi_no as dt_wi_no , dt.dt_main_cp as dt_main_cp , dt.dt_supplier_code as dt_supplier_code " &
           "FROM defect_transactions as dt " &
           "WHERE dt.dt_wi_no = '" & dfWi & "' " &
@@ -535,12 +535,12 @@ Public Class ModelSqliteDefect
           "AND dt.dt_status_flg = '1' " &
           "GROUP BY dt.dt_item_cd, dt.dt_name_en , dt.dt_code, dt.dt_item_type, dt.dt_wi_no  , dt.dt_main_cp  , dt.dt_supplier_code " &
           "ORDER BY dt.dt_item_type ASC"
-            'Console.WriteLine(Sql)
-            'Console.WriteLine("-------------77777777-------------->")
+            ''Console.WriteLine(Sql)
+            ''Console.WriteLine("-------------77777777-------------->")
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             Return jsonData
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect In Function  nc")
+            'msgBox("Error Files ModelSqliteDefect In Function  nc")
         End Try
         ' No need to close the connection here; it's already closed after exiting the Using block
         Return 0
@@ -548,7 +548,7 @@ Public Class ModelSqliteDefect
     Public Shared Async Function mSqliteGetdefectdetail(dfWi As String, dfSeq As String, dfLot As String, dfType As String, item_cd As String, dtCode As String) As Task(Of String)
         Dim api As New api
         Try
-            'Console.WriteLine("--------------------------->")
+            ''Console.WriteLine("--------------------------->")
             Dim Sql = "SELECT dt.dt_item_cd, dt.dt_code, SUM(dt.dt_qty) AS total_nc, dt.dt_name_en ,  dt.dt_item_type, dt.dt_wi_no as dt_wi_no , dt.dt_main_cp as dt_main_cp , dt.dt_supplier_code as dt_supplier_code " &
           "FROM defect_transactions as dt " &
           "WHERE dt.dt_wi_no = '" & dfWi & "' " &
@@ -560,11 +560,11 @@ Public Class ModelSqliteDefect
           "AND dt.dt_status_flg = '1' " &
           "GROUP BY dt.dt_item_cd, dt.dt_name_en , dt.dt_code, dt.dt_item_type, dt.dt_wi_no  , dt.dt_main_cp  , dt.dt_supplier_code " &
           "ORDER BY dt.dt_item_type ASC"
-            'Console.WriteLine(Sql)
+            ''Console.WriteLine(Sql)
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             Return jsonData
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect In Function mSqliteGetdefectdetail")
+            'msgBox("Error Files ModelSqliteDefect In Function mSqliteGetdefectdetail")
         End Try
         ' No need to close the connection here; it's already closed after exiting the Using block
         Return 0
@@ -573,7 +573,7 @@ Public Class ModelSqliteDefect
     Public Shared Async Function mSqliteGetdefectdetailLeaderConFirm(dfWi As String, dfSeq As String, dfLot As String, dfType As String, item_cd As String, dtCode As String) As Task(Of String)
         Dim api As New api
         Try
-            'Console.WriteLine("--------------------------->")
+            ''Console.WriteLine("--------------------------->")
             Dim Sql = "SELECT dt.dt_line_cd , dt.dt_item_cd, dt.dt_code, SUM(dt.dt_qty) AS total_nc, dt.dt_name_en ,  dt.dt_item_type, dt.dt_wi_no as dt_wi_no , dt.dt_main_cp as dt_main_cp , dt.dt_supplier_code as dt_supplier_code  , dt.dt_created_by " &
           "FROM defect_transactions as dt " &
           "WHERE dt.dt_wi_no = '" & dfWi & "' " &
@@ -585,11 +585,11 @@ Public Class ModelSqliteDefect
           "AND dt.dt_status_flg = '1' " &
           "GROUP BY dt.dt_line_cd , dt.dt_item_cd, dt.dt_name_en , dt.dt_code, dt.dt_item_type, dt.dt_wi_no  , dt.dt_main_cp  , dt.dt_supplier_code  , dt.dt_created_by " &
           " ORDER BY dt.dt_item_type ASC"
-            Console.WriteLine("mSqliteGetdefectdetailLeaderConFirm===>" & Sql)
+            'Console.WriteLine("mSqliteGetdefectdetailLeaderConFirm===>" & Sql)
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             Return jsonData
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect In Function mSqliteGetdefectdetailLeaderConFirm")
+            'msgBox("Error Files ModelSqliteDefect In Function mSqliteGetdefectdetailLeaderConFirm")
         End Try
         ' No need to close the connection here; it's already closed after exiting the Using block
         Return 0
@@ -621,7 +621,7 @@ SELECT
             requestFunction("PartNo") = PartNo
             requestFunction("dfWiSel") = dfWiSel
             requestFunction("dfSeqSel") = dfSeqSel
-            'Console.WriteLine(sql)
+            ''Console.WriteLine(sql)
             Dim jsonData As String = api.Load_dataSQLite(sql)
             If jsonData <> "0" Then
                 Dim dcResultdata As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(jsonData)
@@ -632,7 +632,7 @@ SELECT
                 Return "0"
             End If
         Catch ex As Exception
-            MsgBox("connect Api Faill Please check modelDefect in Function mSqliteGetdefectdetailncPartnoSpc = " & ex.Message)
+            'msgBox("connect Api Faill Please check modelDefect in Function mSqliteGetdefectdetailncPartnoSpc = " & ex.Message)
             Return False
         End Try
     End Function
@@ -696,7 +696,7 @@ SELECT
 				dt.dt_main_cp,
 				dt.dt_supplier_code
 				order by dt.dt_item_type asc"
-            'Console.WriteLine(Sql)
+            ''Console.WriteLine(Sql)
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             If jsonData <> "0" Then
                 Return jsonData
@@ -704,14 +704,14 @@ SELECT
                 Return "0"
             End If
 
-            ' 'Console.WriteLine(rsData)
+            ' ''Console.WriteLine(rsData)
             ' If rsData <> "0" Then
             ' Return rsData
             ' Else
             ' Return False
             '  End If
         Catch ex As Exception
-            MsgBox("Error Files ModelSqliteDefect in Function mSqliteGetdefectdetailncSpc = " & ex.Message)
+            'msgBox("Error Files ModelSqliteDefect in Function mSqliteGetdefectdetailncSpc = " & ex.Message)
             Return False
         End Try
     End Function
@@ -719,11 +719,11 @@ SELECT
         Try
             Dim api = New api()
             Dim sql = "update defect_transactions set dt_status_flg = '5' where dt_wi_no='" & dtWino & "' and dt_lot_no = '" & dtLotNo & "' and dt_seq_no = '" & dtSeqno & "' and dt_type = '" & dtType & "' and dt_code = '" & dtCode & "' and dt_item_type = '" & ItemType & "' and dt_item_cd = '" & PartNo & "'"
-            'Console.WriteLine(sql)
+            ''Console.WriteLine(sql)
             Dim jsonData As String = api.Load_dataSQLite(sql)
             Return jsonData
         Catch ex As Exception
-            MsgBox("connect Api Faill Please check modelDefect in Function mSqliteUpdateaddjust = " & ex.Message)
+            'msgBox("connect Api Faill Please check modelDefect in Function mSqliteUpdateaddjust = " & ex.Message)
             Return False
         End Try
     End Function
@@ -749,7 +749,7 @@ SELECT
 						dt.dt_item_type
 					ORDER BY
 						dt.dt_item_type ASC"
-            Console.WriteLine(sql)
+            Console.WriteLine("mSqliteGetdatachildpartsummarychildgrouppart==>" & sql)
             Dim jsonData As String = api.Load_dataSQLite(sql)
             If jsonData <> "0" Then
                 Return jsonData
@@ -757,7 +757,7 @@ SELECT
                 Return "0"
             End If
         Catch ex As Exception
-            MsgBox("connect Api Faill Please check modelDefect in Function mSqliteGetdatachildpartsummarychildgrouppart = " & ex.Message)
+            'msgBox("connect Api Faill Please check modelDefect in Function mSqliteGetdatachildpartsummarychildgrouppart = " & ex.Message)
             Return False
         End Try
     End Function
@@ -783,7 +783,7 @@ SELECT
 						dt.dt_item_type
 					ORDER BY
 						dt.dt_item_type ASC"
-            'Console.WriteLine(sql)
+            Console.WriteLine("mSqliteGetdatachildpartsummaryfggrouppart ===>" & sql)
             Dim jsonData As String = api.Load_dataSQLite(sql)
             If jsonData <> "0" Then
                 Return jsonData
@@ -791,7 +791,7 @@ SELECT
                 Return "0"
             End If
         Catch ex As Exception
-            MsgBox("connect Api Faill Please check modelDefect in Function mSqliteGetdatachildpartsummaryfggrouppart = " & ex.Message)
+            'msgBox("connect Api Faill Please check modelDefect in Function mSqliteGetdatachildpartsummaryfggrouppart = " & ex.Message)
             Return False
         End Try
     End Function
@@ -825,7 +825,7 @@ SELECT
                 Return "0"
             End If
         Catch ex As Exception
-            MsgBox("connect Api Faill Please check modelSqliteDefect in Function mSqliteGetdatachildpartsummarychildgrouppartAdminAdjust = " & ex.Message)
+            'msgBox("connect Api Faill Please check modelSqliteDefect in Function mSqliteGetdatachildpartsummarychildgrouppartAdminAdjust = " & ex.Message)
             Return False
         End Try
     End Function

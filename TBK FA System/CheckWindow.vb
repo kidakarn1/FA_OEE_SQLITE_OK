@@ -12,7 +12,7 @@ Public Class CheckWindow
             Working_Pro.rsWindow = rsWindows
             Return rsWindows
         Catch ex As Exception
-            MsgBox("[Per_CheckCounter] " & ex.Message)
+            'msgBox("[Per_CheckCounter] " & ex.Message)
             Return False
         End Try
     End Function
@@ -24,7 +24,7 @@ Public Class CheckWindow
                     Try
                         digitalReadTask_new_dio.Dispose()
                     Catch ex As Exception
-                        Console.WriteLine("[Dispose Task Error] " & ex.Message)
+                        'Console.WriteLine("[Dispose Task Error] " & ex.Message)
                     End Try
                 End If
 
@@ -36,7 +36,7 @@ Public Class CheckWindow
                     digitalReadTask_new_dio.DIChannels.CreateChannel(
                         "Dev1/port0", "port0", ChannelLineGrouping.OneChannelForAllLines)
                 Catch ex As Exception
-                    '  MsgBox("[CreateChannel] " & ex.Message)
+                    '  'msgBox("[CreateChannel] " & ex.Message)
                     Return "Fail to create channel"
                 End Try
 
@@ -44,7 +44,7 @@ Public Class CheckWindow
                 Try
                     reader_new_dio = New DigitalSingleChannelReader(digitalReadTask_new_dio.Stream)
                 Catch ex As Exception
-                    'MsgBox("[Reader Init] " & ex.Message)
+                    ''msgBox("[Reader Init] " & ex.Message)
                     Return "Fail to create reader"
                 End Try
                 ' ✅ เริ่ม Timer
@@ -54,7 +54,7 @@ Public Class CheckWindow
                 Return "Not Supported on this OS"
             End If
         Catch ex As Exception
-            '  MsgBox("[count_NIMAX] " & ex.Message)
+            '  'msgBox("[count_NIMAX] " & ex.Message)
             Return "Please Check USB DIO"
         End Try
     End Function

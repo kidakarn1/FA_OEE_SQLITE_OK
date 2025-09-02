@@ -12,7 +12,7 @@ Public Class Sc
         myPort = IO.Ports.SerialPort.GetPortNames()
         Dim sc_type As String = MainFrm.lb_scanner_port.Text
         If sc_type = "USB" Or sc_type = "NO DEVICE" Then
-            'MsgBox("Data")
+            ''msgBox("Data")
         Else
             If MainFrm.lb_ctrl_sc_flg.Text = "emp" Then
                 Try
@@ -39,7 +39,7 @@ Public Class Sc
                     Label1.Text = textlist
                     Panel1.BringToFront()
                     PictureBox5.Visible = True
-                    'MsgBox("Please check the USB cable or contact administrator!")
+                    ''msgBox("Please check the USB cable or contact administrator!")
                 End Try
 
             End If
@@ -64,8 +64,8 @@ Public Class Sc
                                     checkEmp()
                                 End Sub)
                 Else
-                    'MsgBox("Incorrected")
-                    MsgBox("Please scan employee card only!!!")
+                    ''msgBox("Incorrected")
+                    'msgBox("Please scan employee card only!!!")
                     TextBox2.Text = ""
                     List_Emp.Enabled = True
                     'List_Emp.Show()
@@ -109,7 +109,7 @@ recheck:
                 If total < List_Emp.MaxManPower Then
                     TextBox2.Text = TextBox2.Text.ToUpper()
                     If Ck_dup(List_Emp.ListBox2, TextBox2.Text) Then
-                        'MsgBox("คุณลงทะเบียนไว้เรียบร้อยแล้ว")
+                        ''msgBox("คุณลงทะเบียนไว้เรียบร้อยแล้ว")
                         Button1.Enabled = False
                         PictureBox3.Enabled = False
                         PictureBox1.Enabled = False
@@ -176,7 +176,7 @@ recheck:
                                     '    Next
                                     '  If target = resultTarget Then
                                     ' If emp_name = "" Then
-                                    'MsgBox("Please Register User Or Skill of user")
+                                    ''msgBox("Please Register User Or Skill of user")
                                     'Else
                                     List_Emp.ListBox2.Items.Add(Trim(TextBox2.Text))
                                     List_Emp.ListView1.View = View.Details
@@ -195,7 +195,7 @@ recheck:
                                     'List_Emp.Button4.Visible = True
                                     Me.Hide()
                                     ' Else
-                                    ' MsgBox("You need more skill for this production line")
+                                    ' 'msgBox("You need more skill for this production line")
                                     ' TextBox2.Text = ""
                                     ' 'List_Emp.Enabled = True
                                     ' List_Emp.Show()
@@ -223,7 +223,7 @@ recheck:
                                     PictureBox5.Visible = True
                                     Panel1.Visible = True
                                     Label1.Visible = True
-                                    ' MsgBox("คุณไม่มีสิทธิ์ในการเดินไลน์การผลิต")
+                                    ' 'msgBox("คุณไม่มีสิทธิ์ในการเดินไลน์การผลิต")
                                     TextBox2.Text = ""
                                 End If
                             Else
@@ -271,7 +271,7 @@ recheck:
                 Else
                     Dim bf = New Backoffice_model
                     List_Emp.MaxManPower = bf.Get_MaxManPower(MainFrm.Label4.Text)
-                    MsgBox("ไลน์นี้มีพนักงานเดินไลน์ได้ " & List_Emp.MaxManPower & " คนเท่านั้น")
+                    'msgBox("ไลน์นี้มีพนักงานเดินไลน์ได้ " & List_Emp.MaxManPower & " คนเท่านั้น")
                 End If
             Else
                 load_show.Show()
@@ -301,11 +301,11 @@ recheck:
         Try
             ' Loop over IEnumerable.
             For Each value As String In argument
-                'Console.WriteLine("Value: {0}" & value)
+                ''Console.WriteLine("Value: {0}" & value)
             Next
-            'Console.WriteLine()
+            ''Console.WriteLine()
         Catch ex As Exception
-            MsgBox(ex.Message)
+            'msgBox(ex.Message)
         End Try
     End Sub
     Private Function Ck_dup(ByVal Lis As ListBox, ByVal Str As String)
@@ -316,7 +316,7 @@ recheck:
             End If
 
             'Lit = ListBox1.Items.Count - 1
-            'MsgBox("Code is : " & ListBox1.Items(0).ToString, 0, "Show")
+            ''msgBox("Code is : " & ListBox1.Items(0).ToString, 0, "Show")
             'ListBox1.Items.RemoveAt(0)
         Next
         Return False

@@ -139,7 +139,7 @@ Public Class defectAdminselectcodenc
             defectAdminregister.Show()
             Me.Hide()
         Else
-            MsgBox("PLEASE SELECT ROW.")
+            'msgBox("PLEASE SELECT ROW.")
         End If
     End Sub
 End Class

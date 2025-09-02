@@ -38,11 +38,11 @@
     End Sub
 
     Private Sub PictureBox4_Click(sender As Object, e As EventArgs) Handles PictureBox4.Click
-        'MsgBox("Delete")
+        ''msgBox("Delete")
         Dim del_number As Integer = ListView1.SelectedIndices(0)
         Dim created_emp_cd As String = Label3.Text.Substring(1, 5)
-        'MsgBox(del_number)
-        'MsgBox(ListView1.Items(del_number).Text.ToString)
+        ''msgBox(del_number)
+        ''msgBox(ListView1.Items(del_number).Text.ToString)
         Backoffice_model.del_user(ListView1.Items(del_number).Text.ToString, created_emp_cd)
 
         Me.Enabled = False
@@ -51,7 +51,7 @@
     End Sub
 
     Private Sub PictureBox5_Click(sender As Object, e As EventArgs) Handles PictureBox5.Click
-        'MsgBox("Edit")
+        ''msgBox("Edit")
         Dim sel_number As Integer = ListView1.SelectedIndices(0)
         Dim LoadSQL = Backoffice_model.get_user_detail(ListView1.Items(sel_number).Text.ToString)
         Dim dep_id As Integer

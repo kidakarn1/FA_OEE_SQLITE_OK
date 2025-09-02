@@ -8,12 +8,12 @@ Public Class OEE_SQLITE
         Dim dateTimeEnd = dateCurr + " " + TimeCurr
         Try
             Dim Sql = "SELECT top 1 * from production_actual_detail where st_time between '" & dateTimestart & "' and '" & dateTimeEnd & "' and item_cd = '" & line_cd & "'"
-            Console.WriteLine(Sql)
+            'Console.WriteLine(Sql)
             Dim jsonData As String = api.Load_dataSQLite(Sql)
             load_show_OEE.Close()
             Return jsonData
         Catch ex As Exception
-            '' MsgBox("Error Files OEE_SQLITE In Function GetTimeWorkingByModel")
+            '' 'msgBox("Error Files OEE_SQLITE In Function GetTimeWorkingByModel")
             Try
                 If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                     load_show_OEE.Show()
@@ -58,7 +58,7 @@ Public Class OEE_SQLITE
             load_show_OEE.Close()
             Return results
         Catch ex As Exception
-            'MsgBox("ERROR OEE FUNCTION OEE_GET_Data_AccTarget Please Check API")
+            ''msgBox("ERROR OEE FUNCTION OEE_GET_Data_AccTarget Please Check API")
             Try
                 If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                     load_show_OEE.Show()
@@ -73,10 +73,10 @@ Public Class OEE_SQLITE
     End Function
     Public Shared Function mas_GetDataProgressbarA(st_shift As String, end_shift As String, line_cd As String, dateTimeswmodel As String, statusSwitchModel As String, IsOnlyone As String, SpecFlgLine As String)
         Try
-            ' MsgBox("special  ==>" & SpecFlgLine)
-            Console.WriteLine("dateTimeswmodel= ==>" & dateTimeswmodel)
-            Console.WriteLine("IsOnlyone ===>" & IsOnlyone)
-            Console.WriteLine("statusSwitchModel ===>" & statusSwitchModel)
+            ' 'msgBox("special  ==>" & SpecFlgLine)
+            'Console.WriteLine("dateTimeswmodel= ==>" & dateTimeswmodel)
+            'Console.WriteLine("IsOnlyone ===>" & IsOnlyone)
+            'Console.WriteLine("statusSwitchModel ===>" & statusSwitchModel)
             Dim api = New api()
             Dim date_now_date As Date = DateTime.Now.ToString("yyyy-MM-dd")
             ' Dim time As Date = TimeOfDay.ToString("HH:mm:ss") 'DateTime.Now.ToString("HH:mm:ss")
@@ -104,13 +104,13 @@ Public Class OEE_SQLITE
             End If
             If SpecFlgLine = 2 Then ' for K1M083
                 dateTimestart = date_st & " " & st_shift & ":00"
-                '     MsgBox("special dateTimestart==>" & dateTimestart)
+                '     'msgBox("special dateTimestart==>" & dateTimestart)
             End If
             Try ' สำคัญ
                 dateTimestart = ConvertFormatDate(dateTimestart) 'Add เพราะ Format Date Query ไม่ได้ '28/03/25 20:00:00 สำคัญ
             Catch ex As Exception ' สำคัญ
             End Try
-            Console.WriteLine("F mas_GetDataProgressbarA dateTimestart===>" & dateTimestart)
+            'Console.WriteLine("F mas_GetDataProgressbarA dateTimestart===>" & dateTimestart)
             date_Crr = Convert.ToDateTime(date_Crr).ToString("yyyy-MM-dd")
             dateTimeend = date_Crr & " " & end_shift & ":00"
             If String.Compare(end_shift, "00:00") >= 0 AndAlso String.Compare(end_shift, "08:00") <= 0 Then
@@ -166,7 +166,7 @@ Public Class OEE_SQLITE
                             AND la.start_loss BETWEEN '" & dateTimestart & "' AND'" & dateTimeend & "'
                             AND slm.loss_cd IN ('A', 'B', 'T', 'D', 'P1', 'X' , 'E1');"
             End If
-            Console.WriteLine(SqlString)
+            'Console.WriteLine(SqlString)
             Dim jsonData As String = api.Load_dataSQLite(SqlString)
             '  If jsonData <> "0" Then
             Dim dcResultdata As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(jsonData)
@@ -203,14 +203,14 @@ Public Class OEE_SQLITE
                             AND slm.loss_cd NOT IN ('A', 'B', 'T', 'D', 'P1', 'X', 'E1')
                             AND la.flg_control = '1';"
             End If
-            Console.WriteLine(SqlString2)
+            'Console.WriteLine(SqlString2)
             Dim jsonData2 As String = api.Load_dataSQLite(SqlString2)
             Dim OperatingTime As Integer = 0
             ' If jsonData2 <> "0" Then
             Dim dcResultdata2 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(jsonData2)
             For Each items As Object In dcResultdata2
-                'MsgBox("loadingTime ===>" & loadingTime)
-                'MsgBox("totalLoss ===>" & items("totalLoss").ToString())
+                ''msgBox("loadingTime ===>" & loadingTime)
+                ''msgBox("totalLoss ===>" & items("totalLoss").ToString())
                 OperatingTime = loadingTime - items("totalLoss").ToString()
             Next
             ' End If
@@ -239,7 +239,7 @@ Public Class OEE_SQLITE
     End Function
     Public Shared Function ConvertFormatDate(dateFormat As String)
         Dim ConvertDate = DateTime.ParseExact(dateFormat, "dd/MM/yy HH:mm:ss", Globalization.CultureInfo.InvariantCulture).ToString("yyyy-MM-dd HH:mm:ss")
-        Console.WriteLine("ConvertFormatDate ====>" & ConvertDate)
+        'Console.WriteLine("ConvertFormatDate ====>" & ConvertDate)
         Return ConvertDate
     End Function
     Public Shared Function OEE_GET_Data_LOSS(line_cd As String, lot_no As String, shift As String, dateStart As String, dateTimeswModel As String, statusSwitchModel As String, IsOnlyone As String, SpecFlgLine As String)
@@ -253,7 +253,7 @@ Public Class OEE_SQLITE
             If time_now >= "00:00:00 AM" And time_now <= "08:00:00 AM" Then
                 dateStart = date_now_date.AddDays(-1)
             End If
-            Console.WriteLine("OEE_GET_Data_LOSS > statusSwitchModel===>" & statusSwitchModel)
+            'Console.WriteLine("OEE_GET_Data_LOSS > statusSwitchModel===>" & statusSwitchModel)
             If statusSwitchModel = 0 Then
                 start_dateTime = dateStart & " " & st_shift
             ElseIf statusSwitchModel = 1 Or statusSwitchModel = 2 Then
@@ -263,7 +263,7 @@ Public Class OEE_SQLITE
                     start_dateTime = dateTimeswModel
                 End If
             End If
-            Console.WriteLine("ready format date ")
+            'Console.WriteLine("ready format date ")
             If SpecFlgLine = 2 Then 'for K1M083
                 start_dateTime = dateStart & " " & st_shift
             End If
@@ -328,7 +328,7 @@ Public Class OEE_SQLITE
         LIMIT 3;"
             End If
             Dim api = New api()
-            Console.WriteLine(sqlQuery)
+            'Console.WriteLine(sqlQuery)
             Dim jsonData2 As String = api.Load_dataSQLite(sqlQuery)
             ' If jsonData2 <> "0" Then
             load_show_OEE.Close()
@@ -373,7 +373,7 @@ Public Class OEE_SQLITE
                          LIMIT 1), 
                          strftime('%Y-%m-%d %H:%M:%S', 'now', '+7 hours')
                     ) AS result_time;"
-            Console.WriteLine("mas_OEE_getDateTimeStart sqlString====>" & sqlString)
+            'Console.WriteLine("mas_OEE_getDateTimeStart sqlString====>" & sqlString)
             Dim jsonData3 As String = api.Load_dataSQLite(sqlString)
             Dim dcResultdata3 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(jsonData3)
             Dim rs As String = ""
@@ -382,7 +382,7 @@ Public Class OEE_SQLITE
             Next
             load_show_OEE.Close()
             Return rs
-            Console.WriteLine("jsonData3 =====>" & jsonData3)
+            'Console.WriteLine("jsonData3 =====>" & jsonData3)
         Catch ex As Exception
             ' GoTo ReConnect
             Try
@@ -422,7 +422,7 @@ Public Class OEE_SQLITE
                         AND line_cd = '{line_cd}'
                         GROUP BY item_cd, seq_no, wi_plan, pwi_id
                         ORDER BY st_time DESC;"
-            Console.WriteLine("mas_OEE_getDataGetWorkingTimeModel sqlString===>" & sqlString)
+            'Console.WriteLine("mas_OEE_getDataGetWorkingTimeModel sqlString===>" & sqlString)
 
             Try
                 Dim jsonData3 As String = api.Load_dataSQLite(sqlString)
@@ -640,8 +640,8 @@ Public Class OEE_SQLITE
             Dim convertDateCrr = Convert.ToDateTime(date_now_date).ToString("yyyy-MM-dd")
             Dim convertDateEnd = Convert.ToDateTime(date_end).ToString("yyyy-MM-dd")
             Dim convertnewDateMinutes = Convert.ToDateTime(newDateMinutes).ToString("yyyy-MM-dd HH:mm:ss")
-            '  MsgBox("convertDateCrr======>" & convertDateCrr)
-            '  MsgBox("convertnewDateMinutes======>" & convertnewDateMinutes)
+            '  'msgBox("convertDateCrr======>" & convertDateCrr)
+            '  'msgBox("convertnewDateMinutes======>" & convertnewDateMinutes)
             Dim st_time = Prd_detail.Label12.Text.Substring(3, 5) & ":00"
             Dim end_time = Prd_detail.Label12.Text.Substring(11, 5) & ":00"
             Dim convertdateTimestart = convertDateStart + " " + st_time
@@ -680,22 +680,22 @@ Public Class OEE_SQLITE
     Public Shared Function mas_getProduction_actual_detailByHour(line_cd As String, minSwitchModel As Integer, start_date As String, partNo As String, special_line As String)
         ' Try
         Dim api = New api()
-            Dim date_now_date As Date = DateTime.Now.ToString("yyyy-MM-dd")
-            ' Dim time As Date = TimeOfDay.ToString("HH:mm:ss") 'DateTime.Now.ToString("HH:mm:ss")
-            Dim time As String = DateTime.Now.ToString("HH:mm:ss")
-            Dim date_st = DateTime.Now.ToString("yyyy-MM-dd")
-            Dim date_end = DateTime.Now.ToString("yyyy-MM-dd")
-            Dim time_now As String = DateTime.Now.ToString("HH:mm:ss tt")
-            If time_now >= "00:00:00 AM" And time_now <= "08:00:00 AM" Then
-                date_st = date_now_date.AddDays(-1)
-            End If
-            date_st = date_st
-            Dim dateTimeend As Date
-            dateTimeend = date_end & " " & time
-            '  Dim newDateMinutes As DateTime = dateTimeend.AddMinutes(-60)
-            Dim newDateMinutes As DateTime = start_date 'dateTimeend.AddMinutes(-minSwitchModel)
-            'MsgBox("start Date ======>" & start_date)
-            Dim convertDateStart = Convert.ToDateTime(date_st).ToString("yyyy-MM-dd")
+        Dim date_now_date As Date = DateTime.Now.ToString("yyyy-MM-dd")
+        ' Dim time As Date = TimeOfDay.ToString("HH:mm:ss") 'DateTime.Now.ToString("HH:mm:ss")
+        Dim time As String = DateTime.Now.ToString("HH:mm:ss")
+        Dim date_st = DateTime.Now.ToString("yyyy-MM-dd")
+        Dim date_end = DateTime.Now.ToString("yyyy-MM-dd")
+        Dim time_now As String = DateTime.Now.ToString("HH:mm:ss tt")
+        If time_now >= "00:00:00 AM" And time_now <= "08:00:00 AM" Then
+            date_st = date_now_date.AddDays(-1)
+        End If
+        date_st = date_st
+        Dim dateTimeend As Date
+        dateTimeend = date_end & " " & time
+        '  Dim newDateMinutes As DateTime = dateTimeend.AddMinutes(-60)
+        Dim newDateMinutes As DateTime = start_date 'dateTimeend.AddMinutes(-minSwitchModel)
+        ''msgBox("start Date ======>" & start_date)
+        Dim convertDateStart = Convert.ToDateTime(date_st).ToString("yyyy-MM-dd")
             Dim convertDateCrr = Convert.ToDateTime(date_now_date).ToString("yyyy-MM-dd")
             Dim convertnewDateMinutes = Convert.ToDateTime(newDateMinutes).ToString("yyyy-MM-dd HH:mm:ss")
             Dim datebefores As String = convertnewDateMinutes.Split(" "c)(0)
@@ -745,18 +745,18 @@ Public Class OEE_SQLITE
                 Dim date_st_special As String = DateTime.Now.Date.AddDays(-1).ToString("yyyy-MM-dd")
                 ' ประกอบ datetime string
                 dateTimeString_special2 = $"{date_st_special} {timeWithoutSeconds}:00"
-                Console.WriteLine("Special datetime string: " & dateTimeString)
+                'Console.WriteLine("Special datetime string: " & dateTimeString)
             Else ' Normal 
                 dateTimeString_special2 = dateTimeString
             End If
             sqlGetDataByHore = "SELECT COALESCE(SUM(qty), 0) / 5 AS TotalByHour FROM act_ins WHERE line_cd = '" & line_cd & "' AND st_time BETWEEN '" & dateTimeString_special2 & "' AND '" & rsdtConvertCrr & "'"
         End If
-            Console.WriteLine("sqlGetDataByHore =====>" & sqlGetDataByHore)
+            'Console.WriteLine("sqlGetDataByHore =====>" & sqlGetDataByHore)
         Dim jsonData4 As String = api.Load_dataSQLite(sqlGetDataByHore)
             Dim dict3 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(jsonData4)
             For Each item As Object In dict3
             TotalByHour = item("TotalByHour")
-            Console.WriteLine("actual P TotalByHour===>" & TotalByHour)
+            'Console.WriteLine("actual P TotalByHour===>" & TotalByHour)
         Next
             Return TotalByHour
             'Catch ex As Exception

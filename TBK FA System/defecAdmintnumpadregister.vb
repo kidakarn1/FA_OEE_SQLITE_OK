@@ -64,7 +64,7 @@ Public Class defecAdmintnumpadregister
             Me.Close()
             defectAdminregister.Show()
         Else
-            MsgBox("Please Check QTY Input")
+            'msgBox("Please Check QTY Input")
         End If
     End Sub
     Public Shared Function calNumpadregister(rtQty As Integer, maxQty As Integer)
@@ -127,7 +127,7 @@ Public Class defecAdmintnumpadregister
         If maxQty < 0 Then
             maxQty = actTotal
         End If
-        'MsgBox(actTotal & " - " & "(" & ncTotal & " + " & ngTotal & ") = " & maxQty)
+        ''msgBox(actTotal & " - " & "(" & ncTotal & " + " & ngTotal & ") = " & maxQty)
         Return maxQty
     End Function
 

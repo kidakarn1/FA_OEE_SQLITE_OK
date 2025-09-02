@@ -81,7 +81,7 @@ Public Class defectAdmindetailng
             dfAdminselecttype2.Show()
             Me.Close()
         Catch ex As Exception
-            MsgBox("Please Click Back.")
+            'msgBox("Please Click Back.")
         End Try
     End Sub
 

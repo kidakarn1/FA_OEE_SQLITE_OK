@@ -82,7 +82,7 @@ Public Class Line_conf
         End While
         load_sqlite_master_line.close()
         If load_defeult_master_server(line_cd) <> "0" Then 'load data on server
-            ' MsgBox("HAVE")
+            ' 'msgBox("HAVE")
             load_data_defeult_master_server(line_cd)
             Load_PD()
             Load_Line()
@@ -95,7 +95,7 @@ Public Class Line_conf
             Load_delay()
             Load_TowerLamp()
         Else ' load data on sqlite
-            '   MsgBox("NO HAVE")
+            '   'msgBox("NO HAVE")
             Load_PD()
             Load_Line()
             Load_COUNTER()
@@ -359,7 +359,7 @@ Public Class Line_conf
             MainFrm.lb_printer_port.Text = sqlss("printer_port").ToString()
             MainFrm.lb_dio_port.Text = sqlss("dio_port").ToString()
             Backoffice_model.SCANNER_PORT = sqlss("scanner_port").ToString()
-            'MsgBox(sqlss("pd").ToString())
+            ''msgBox(sqlss("pd").ToString())
         End While
         sqlss.close
         If Backoffice_model.SCANNER_PORT <> "" And Backoffice_model.SCANNER_PORT <> "USB" Then
@@ -370,7 +370,7 @@ Public Class Line_conf
         Dim total_delay As Integer = (CDbl(Val(delay_sec.Text)) * 10)
         Dim api = New api()
         Dim result_data As String = api.Load_data("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/INSERT_COTROL_MASTER?line_cd=" & ComboBox2.Text & "&ComboBox_master_device=" & ComboBox_master_device.Text & "&device_dio_port_id=" & dio_port & "&printer=" & printer.Text & "&typ_counter=" & type_counter.Text & "&cavity=" & combo_cavity.Text & "&total_delay=" & total_delay & "&scanner=" & scanner.Text & "&TowerLamp=" & tower_lamp.Text)
-        'Console.WriteLine("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/INSERT_COTROL_MASTER?line_cd=" & ComboBox2.Text & "&ComboBox_master_device=" & ComboBox_master_device.Text & "&device_dio_port_id=" & dio_port & "&printer=" & printer.Text & "&typ_counter=" & type_counter.Text & "&cavity=" & combo_cavity.Text & "&total_delay=" & total_delay & "&scanner=" & scanner.Text & "&TowerLamp=" & tower_lamp.Text)
+        ''Console.WriteLine("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/INSERT_COTROL_MASTER?line_cd=" & ComboBox2.Text & "&ComboBox_master_device=" & ComboBox_master_device.Text & "&device_dio_port_id=" & dio_port & "&printer=" & printer.Text & "&typ_counter=" & type_counter.Text & "&cavity=" & combo_cavity.Text & "&total_delay=" & total_delay & "&scanner=" & scanner.Text & "&TowerLamp=" & tower_lamp.Text)
         ' Button1.Enabled = False
         'btn_start.Enabled = False
         'btn_back.Enabled = False
@@ -391,7 +391,7 @@ Public Class Line_conf
         MainFrm.LB_Number_worker.Text = 0
         List_Emp.ListView1.Items.Clear()
         List_Emp.ListBox2.Items.Clear()
-        'MsgBox("Update Success.")
+        ''msgBox("Update Success.")
     End Sub
     Private Sub menu3_Click(sender As Object, e As EventArgs)
         Me.Enabled = False
@@ -400,9 +400,9 @@ Public Class Line_conf
             If My.Computer.Network.Ping("192.168.161.102") Then
                 Dim webClient As New System.Net.WebClient
                 Dim result As String = webClient.DownloadString("http://192.168.161.102/exp_api3party/Api_sync_newfa/update_line_mst")
-                MsgBox("Synchronous completed")
+                'msgBox("Synchronous completed")
             Else
-                MsgBox("Synchronous not completed")
+                'msgBox("Synchronous not completed")
             End If
         Catch ex As Exception
 
@@ -438,11 +438,11 @@ Public Class Line_conf
         'Command.CommandTimeout = 30
         'Reader = Command.ExecuteReader()
         Dim LoadSQL = Backoffice_model.GetLine_mst()
-        'MsgBox("test")
+        ''msgBox("test")
         ' While LoadSQL.Read()
         'Label6.Text = LoadSQL("pd").ToString()
         'Label4.Text = LoadSQL("line_cd").ToString()
-        'MsgBox(LoadSQL("dep_cd").ToString())
+        ''msgBox(LoadSQL("dep_cd").ToString())
         'End While
         If LoadSQL.HasRows = True Then
             While LoadSQL.Read()
@@ -485,7 +485,7 @@ Public Class Line_conf
             ComboBox2.Items.Clear()
             Load_Line()
         Catch ex As Exception
-            MsgBox(ex.Message)
+            'msgBox(ex.Message)
         End Try
 
     End Sub

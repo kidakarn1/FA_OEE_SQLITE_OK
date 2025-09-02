@@ -17,12 +17,12 @@ recheck:
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
             LoadSQL.Close()
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function insMaintenance] In file maintenance" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function insMaintenance] In file maintenance" & ex.Message)
             sqliteConn.Close()
             GoTo recheck
         End Try
         '    Dim result_api_checkper = api.Load_data("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/insDataLossByLine?LineCd=" & lineCd & "&op=" & op & "&shift=" & shift & "&brakTime_down=" & st_datetime2)
-        'MsgBox(result_api_checkper)
+        ''msgBox(result_api_checkper)
     End Sub
 
     Public Shared Sub updMaintenanceSqlite()
@@ -39,7 +39,7 @@ recheck:
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
             LoadSQL.Close()
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function updMaintenance] In file maintenance" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function updMaintenance] In file maintenance" & ex.Message)
             sqliteConn.Close()
             GoTo recheck
         End Try

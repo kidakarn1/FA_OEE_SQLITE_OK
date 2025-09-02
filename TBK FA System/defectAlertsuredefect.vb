@@ -15,7 +15,7 @@ Public Class defectAlertsuredefect
         End If
     End Sub
     Public Sub manage_Adjust()
-        'MsgBox("defectAdminregister.tbQtydefect.Text = " & defectAdminregister.tbQtydefect.Text)
+        ''msgBox("defectAdminregister.tbQtydefect.Text = " & defectAdminregister.tbQtydefect.Text)
         Dim dfAdminHome As New defectAdminhome
         Dim dfAdminRegister As New defectAdminregister
         If defectAdminAdjustnumpadadjust.tbAddjust.Text < 0 Then
@@ -30,7 +30,7 @@ Public Class defectAlertsuredefect
             dfType = "1"
         End If
         Dim dtActualdate = DateTime.Now.ToString("yyyy-MM-dd H:m:s")
-        'MsgBox("defectAdminregister.dtQty = " & defectAdminregister.dtQty)
+        ''msgBox("defectAdminregister.dtQty = " & defectAdminregister.dtQty)
         Dim clSumarry As New closeLotsummary()
         Dim trFlg As String = "1"
         Dim dFlg As String = "0"
@@ -49,7 +49,7 @@ Public Class defectAlertsuredefect
         Me.Close()
     End Sub
     Public Sub manage_Register()
-        'MsgBox("defectAdminregister.tbQtydefect.Text = " & defectAdminregister.tbQtydefect.Text)
+        ''msgBox("defectAdminregister.tbQtydefect.Text = " & defectAdminregister.tbQtydefect.Text)
         Dim dfAdminHome As New defectAdminhome
         Dim dfAdminRegister As New defectAdminregister
         If defectAdminregister.lbQtydefect.Text < 0 Then
@@ -62,7 +62,7 @@ Public Class defectAlertsuredefect
         If dfAdminHome.dfType = "NC" Then
             dfType = "2"
             Apiw_id = defectAdmindetailnc.Apwi_id
-            ' MsgBox("Apiw_id === > " & Apiw_id)
+            ' 'msgBox("Apiw_id === > " & Apiw_id)
         ElseIf dfAdminHome.dfType = "NG" Then
             dfType = "1"
             Apiw_id = defectAdmindetailng.Apwi_id

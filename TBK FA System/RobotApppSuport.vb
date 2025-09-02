@@ -14,10 +14,10 @@ Public Class RobotApppSuport
         ' List available voices and their supported languages
         For Each voice As InstalledVoice In synth.GetInstalledVoices()
             Dim voiceInfo As VoiceInfo = voice.VoiceInfo
-            'Console.WriteLine("Name: " & voiceInfo.Name)
-            'Console.WriteLine("Culture: " & voiceInfo.Culture.ToString())
-            'Console.WriteLine("Description: " & voiceInfo.Description)
-            'Console.WriteLine()
+            ''Console.WriteLine("Name: " & voiceInfo.Name)
+            ''Console.WriteLine("Culture: " & voiceInfo.Culture.ToString())
+            ''Console.WriteLine("Description: " & voiceInfo.Description)
+            ''Console.WriteLine()
         Next
         ' Select a Thai voice
         synth.SelectVoiceByHints(VoiceGender.Female, VoiceAge.Adult, 0, New CultureInfo("th-TH"))
@@ -39,19 +39,19 @@ Public Class RobotApppSuport
         ' richTextBox1.AppendText("ผู้ใช้พูด: " & e.Result.Text & vbCrLf)
         If Not String.IsNullOrEmpty(e.Result.Text) Or e.Result.Text.Trim() <> "F" Then
             synth.SpeakAsync(e.Result.Text)
-            'Console.WriteLine(e.Result.Text)
+            ''Console.WriteLine(e.Result.Text)
             If e.Result.Text.ToString() = "e" Or e.Result.Text.ToString() = "E" Then
                 Application.Exit()
             End If
         End If
-        ' 'Console.WriteLine("SUCCESS")
+        ' ''Console.WriteLine("SUCCESS")
     End Sub
     Public Async Function realTimeRequest() As Task
         Task.Delay(10000).ContinueWith(Sub(task)
                                            Try
                                                Dim NumberTopices As Integer = 1
                                                Dim iir_title = backofficeRobot.loadRequest()
-                                               'Console.WriteLine(iir_title)
+                                               ''Console.WriteLine(iir_title)
                                                If iir_title <> "0" Then
                                                    Dim dict2 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(iir_title)
                                                    For Each item As Object In dict2
@@ -60,9 +60,9 @@ Public Class RobotApppSuport
                                                        Dim solutionData = backofficeRobot.loadsolution(item("iir_title").ToString())
                                                        If solutionData <> "0" Then
                                                            synth.SpeakAsync("ทางแก้ไขปัญหามีดังนี้")
-                                                           'Console.WriteLine("ready1")
-                                                           'Console.WriteLine(solutionData)
-                                                           'Console.WriteLine("ready2")
+                                                           ''Console.WriteLine("ready1")
+                                                           ''Console.WriteLine(solutionData)
+                                                           ''Console.WriteLine("ready2")
                                                            Dim dict3 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(solutionData)
                                                            For Each itemSolution As Object In dict3
                                                                synth.SpeakAsync("1")

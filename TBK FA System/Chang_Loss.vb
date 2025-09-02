@@ -91,7 +91,7 @@ Public Class Chang_Loss
                         End If
                     Catch ex As Exception
                         status_loss = 1
-                        MsgBox(ex.Message)
+                        'msgBox(ex.Message)
                         load_show.Show()
                     End Try
                     Loss_reg.ComboBox1.Visible = True
@@ -214,7 +214,7 @@ Public Class Chang_Loss
         Try
             ListView2.Items(0).Selected = True
         Catch ex As Exception
-            MsgBox("Please Check Loss Master.")
+            'msgBox("Please Check Loss Master.")
         End Try
         Timer1.Start()
     End Sub

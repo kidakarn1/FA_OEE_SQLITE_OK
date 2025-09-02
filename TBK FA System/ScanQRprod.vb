@@ -31,7 +31,7 @@ Public Class ScanQRprod
                     End If
                 Else
                     load_show.Show()
-                    'MsgBox("No Internet")
+                    ''msgBox("No Internet")
                 End If
             Catch ex As Exception
                 load_show.Show()
@@ -184,7 +184,7 @@ Public Class ScanQRprod
                             End If
                         End Using
                     Catch ex As Exception
-                        MsgBox("Error downloading the image: " & ex.Message)
+                        'msgBox("Error downloading the image: " & ex.Message)
                     End Try
                     GoTo Outloop
                 End If
@@ -308,7 +308,7 @@ Outloop:
                             End If
                         End Using
                     Catch ex As Exception
-                        MsgBox("Error downloading the image: " & ex.Message)
+                        'msgBox("Error downloading the image: " & ex.Message)
                     End Try
                     GoTo Outloop
                 End If
@@ -393,9 +393,9 @@ Outloop:
                     'Dim PK_iqp_id = api_Scan.M_getDatainfo_qr_product(tb_QrProm.Text)
                     Dim newItem As New ListViewItem(Working_Pro.pwi_id)
                     newItem.SubItems.Add(tb_QrProm.Text)
-                        newItem.SubItems.Add("NO DATA")
-                        newItem.SubItems.Add("2")
-                        Working_Pro.lvQrProduct.Items.Add(newItem)
+                    newItem.SubItems.Add("NO DATA")
+                    newItem.SubItems.Add("2")
+                    Working_Pro.lvQrProduct.Items.Add(newItem)
                     Dim rs As Integer
                     If Working_Pro.RemainScanDmcAddQty > 0 Then
                         rs = (CDbl(Val(Working_Pro.RemainScanDmcAddQty)) - 1)
@@ -472,7 +472,7 @@ Outloop:
                             End If
                         End Using
                     Catch ex As Exception
-                        MsgBox("Error downloading the image: " & ex.Message)
+                        'msgBox("Error downloading the image: " & ex.Message)
                     End Try
                     GoTo Outloop
                 End If
@@ -611,7 +611,7 @@ Outloop:
                             End If
                         End Using
                     Catch ex As Exception
-                        MsgBox("Error downloading the image: " & ex.Message)
+                        'msgBox("Error downloading the image: " & ex.Message)
                     End Try
                     GoTo Outloop
                 End If
@@ -738,7 +738,7 @@ Outloop:
                             End If
                         End Using
                     Catch ex As Exception
-                        MsgBox("Error downloading the image: " & ex.Message)
+                        'msgBox("Error downloading the image: " & ex.Message)
                     End Try
                     GoTo Outloop
                 End If
@@ -821,7 +821,7 @@ Outloop:
                             '  If result = DialogResult.OK Then
                             '  Me.Enabled = True ' เปิดใช้งานฟอร์มต่อ
                             'End If
-                            '  MsgBox("QR DOUBLE")
+                            '  'msgBox("QR DOUBLE")
                             '  tb_QrProm.Text = ""
                             '  GoTo Outloop
                         End If
@@ -896,7 +896,7 @@ nextStep:
                             End If
                         End Using
                     Catch ex As Exception
-                        MsgBox("Error downloading the image: " & ex.Message)
+                        'msgBox("Error downloading the image: " & ex.Message)
                     End Try
                     GoTo Outloop
                 End If

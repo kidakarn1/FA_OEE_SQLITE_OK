@@ -23,8 +23,8 @@ Public Class api
                 re_data = data.ReadToEnd
                 Dim JSONString As String = ""
                 JSONString = JsonConvert.SerializeObject(re_data)
-                'MsgBox("re_data" & re_data)
-                'MsgBox(data.ReadToEnd)
+                ''msgBox("re_data" & re_data)
+                ''msgBox(data.ReadToEnd)
                 '  For Each key In data.ReadToEnd
                 're_data &= key
                 ' Next 'return to json '
@@ -32,7 +32,7 @@ Public Class api
 
             _WebResponse.Close()
         Catch _Exception As Exception
-            'MsgBox("FALL WOW")
+            ''msgBox("FALL WOW")
             Return Nothing
         End Try
         Return re_data
@@ -48,7 +48,7 @@ Public Class api
                 End Using
             End Using
         Catch ex As Exception
-            Console.WriteLine("Failed to enable WAL mode: " & ex.Message)
+            'Console.WriteLine("Failed to enable WAL mode: " & ex.Message)
         End Try
     End Sub
     Public Async Function Load_dataSQLiteAsyncLoaddata(ByVal Sql As String) As Task(Of String)
@@ -63,14 +63,14 @@ Public Class api
 
                 Using cmd As New SQLiteCommand(sql, conn)
                     Dim affected As Integer = Await cmd.ExecuteNonQueryAsync()
-                    Console.WriteLine($"✅ SQLite Executed: {sql} => {affected} row(s) affected")
+                    'Console.WriteLine($"✅ SQLite Executed: {sql} => {affected} row(s) affected")
                     Return affected.ToString()
                 End Using
             End Using
 
         Catch ex As Exception
             Dim functionName = New StackTrace().GetFrame(0).GetMethod().Name
-            Console.WriteLine($"❌ Error in {functionName}: {ex.Message}")
+            'Console.WriteLine($"❌ Error in {functionName}: {ex.Message}")
             Return "0"
         End Try
     End Function
@@ -94,7 +94,7 @@ Public Class api
                     End Using
                 End Using
             Catch ex As Exception
-                Console.WriteLine("Error in Load_dataSQLite: " & ex.Message)
+                'Console.WriteLine("Error in Load_dataSQLite: " & ex.Message)
                 Throw
             End Try
         End SyncLock
@@ -131,7 +131,7 @@ Public Class api
             _WebResponse.Close()
         Catch _Exception As Exception
             ' Error
-            'Console.WriteLine("Exception caught in process: {0}", _Exception.ToString())
+            ''Console.WriteLine("Exception caught in process: {0}", _Exception.ToString())
             Return Nothing
         End Try
 

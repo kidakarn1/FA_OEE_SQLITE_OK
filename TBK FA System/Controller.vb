@@ -12,10 +12,10 @@ Public Class Controller
             sConnect = "Server=" & Backoffice_model.svDatabase & "\PCSDBSV;Initial Catalog=test_new_fa01;User ID=sa;Password=Te@m1nw;"
             myConnection.ConnectionString = sConnect ' คำสั่งติดต่อฐานข้อมูล
             myConnection.Open()
-            'MsgBox("Database connect successfully")
+            ''msgBox("Database connect successfully")
         Catch ex As Exception
-            MsgBox("Database connect failed. Please contact PC System")
-			myConnection.Close()
+            'msgBox("Database connect failed. Please contact PC System")
+            myConnection.Close()
 			Application.Exit()
 		End Try
 	End Sub

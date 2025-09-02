@@ -26,7 +26,7 @@ Public Class Show_reprint_wi
                 i += 1
             End While
         Catch ex As Exception
-            MsgBox("NO DATA REPRINT")
+            'msgBox("NO DATA REPRINT")
         End Try
     End Sub
     Private Sub PictureBox2_Click(sender As Object, e As EventArgs) Handles pcBack.Click

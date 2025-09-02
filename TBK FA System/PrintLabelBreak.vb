@@ -43,7 +43,7 @@ Public Class PrintLabelBreak
             printDocument2.PrinterSettings.PrinterName = "Citizen Label"
             printDocument2.Print()
         Catch ex As Exception
-            MsgBox("Please Check Printer Label. = >")
+            'msgBox("Please Check Printer Label. = >")
         End Try
     End Sub
     Private Sub PrintDocument31_PrintPage_1(sender As Object, e As PrintPageEventArgs) Handles printDocument2.PrintPage
@@ -69,7 +69,7 @@ Public Class PrintLabelBreak
             e.Graphics.DrawString(G_countqty, lbButton.Font, Brushes.Black, 232, 105)
             Me.Close()
         Catch ex As Exception
-            MsgBox("error ===>" & ex.Message)
+            'msgBox("error ===>" & ex.Message)
         End Try
     End Sub
 End Class

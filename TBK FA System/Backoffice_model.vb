@@ -72,10 +72,10 @@ Public Class Backoffice_model
         Dim elapsedSec As Double = sw.Elapsed.TotalSeconds
 
         If isStable Then
-            Console.WriteLine("check Network : " & $"✅ Network เสถียร พร้อมใช้งาน{vbCrLf}⏱ เวลา: {elapsedSec:F2} วินาที")
+            'Console.WriteLine("check Network : " & $"✅ Network เสถียร พร้อมใช้งาน{vbCrLf}⏱ เวลา: {elapsedSec:F2} วินาที")
             Return True
         Else
-            Console.WriteLine($"⚠️ Network ไม่เสถียร หรือเชื่อมต่อไม่ได้{vbCrLf}⏱ เวลา: {elapsedSec:F2} วินาที")
+            'Console.WriteLine($"⚠️ Network ไม่เสถียร หรือเชื่อมต่อไม่ได้{vbCrLf}⏱ เวลา: {elapsedSec:F2} วินาที")
             Return False
         End If
     End Function
@@ -113,16 +113,16 @@ Public Class Backoffice_model
                 'temp2Str = "test"
                 'temp_stre = "Server=" & LoadSQL("ipaddress").ToString() & ";Initial Catalog=" & LoadSQL("db_name").ToString() & ";User ID=" & LoadSQL("username").ToString() & ";Password=" & LoadSQL("passwd").ToString() & ";"
                 ' temp_stre = "Server=0.tcp.ap.ngrok.io,13414;Initial Catalog=gemba_db;User ID=sa;Password=Te@m1nw;"
-                ''Console.WriteLine("Server=0.tcp.ap.ngrok.io,13414;Initial Catalog=gemba_db;User ID=sa;Password=Te@m1nw;")
+                '''Console.WriteLine("Server=0.tcp.ap.ngrok.io,13414;Initial Catalog=gemba_db;User ID=sa;Password=Te@m1nw;")
                 temp_stre = "Server=" & LoadSQL("ipaddress").ToString() & ";Initial Catalog=" & LoadSQL("db_name").ToString() & ";User ID=" & LoadSQL("username").ToString() & ";Password=" & LoadSQL("passwd").ToString() & ";"
-                '   'Console.WriteLine(temp_stre)
+                '   ''Console.WriteLine(temp_stre)
                 svDatabase = LoadSQL("ip_database").ToString()
             End While
             sqlConnect = temp_stre
             '  model_api_sqlite.UpdateStatus_tag_print_detail()
             Return temp2Str
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function sqlite_conn_dbsv]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function sqlite_conn_dbsv]")
             sqliteConn.Close()
         End Try
     End Function
@@ -144,7 +144,7 @@ Public Class Backoffice_model
             Dim api = New api()
             ' Fetch data from the API
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GetTimeAutoBreakTime?lineCd=" & MainFrm.Label4.Text & "&shift=" & shift)
-            ' Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GetTimeAutoBreakTime?lineCd=" & MainFrm.Label4.Text & "&shift=" & shift)
+            ' 'Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GetTimeAutoBreakTime?lineCd=" & MainFrm.Label4.Text & "&shift=" & shift)
             If GetData <> "0" Then
                 ' Deserialize JSON response into a list of objects
                 Dim dcResultdata As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(GetData)
@@ -159,7 +159,7 @@ Public Class Backoffice_model
             End If
         Catch ex As Exception
             ' Handle exceptions
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function GetTimeAutoBreakTime]" & ex.Message)
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function GetTimeAutoBreakTime]" & ex.Message)
         End Try
         Return result
     End Function
@@ -184,7 +184,7 @@ Public Class Backoffice_model
             End While
             svApi = sva_ip_address
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function GetLocalServerAPI]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function GetLocalServerAPI]")
             sqliteConn.Close()
         End Try
     End Sub
@@ -205,7 +205,7 @@ Public Class Backoffice_model
             svOEE = svo_ip_address
             'svOEE = "192.168.161.78:3000"
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function GetLocalServerOEE]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function GetLocalServerOEE]")
             sqliteConn.Close()
         End Try
     End Sub
@@ -226,7 +226,7 @@ Public Class Backoffice_model
             svp_ping = tmpsvp_ping
             'svp_ping = "192.168.161.101"
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function svp_ping]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function svp_ping]")
             sqliteConn.Close()
         End Try
     End Sub
@@ -261,7 +261,7 @@ Public Class Backoffice_model
             sqliteConn.Close()
             Return LoadSQL
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function Clear_sqlite]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function Clear_sqlite]" & ex.Message)
             sqliteConn.Dispose()
             'sqliteConn.Close()
             sqliteConn = Nothing
@@ -270,7 +270,7 @@ Public Class Backoffice_model
     Public Shared Function load_config_master_database()
         Dim api = New api()
         Dim check_tag_type = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/JOIN_CHECK_LINE_MASTER?line_cd=" & MainFrm.Label4.Text)
-        'Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/JOIN_CHECK_LINE_MASTER?line_cd=" & MainFrm.Label4.Text)
+        ''Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/JOIN_CHECK_LINE_MASTER?line_cd=" & MainFrm.Label4.Text)
         Return check_tag_type
     End Function
     Public Shared Function F_NEXT_PROCESS(ITEM_CD As String)
@@ -317,7 +317,7 @@ Public Class Backoffice_model
                 "Delete FROM production_working_info where pwi_created_date BETWEEN '" & convert_date_start & "' AND '" & convert_del_2_week & "'"
             }
         For i = 0 To command_data.Length - 1
-            '  Console.WriteLine(command_data(i))
+            '  'Console.WriteLine(command_data(i))
             Check_connect_sqlite()
             Dim sqliteConn As New SQLiteConnection(sqliteConnect)
             Try
@@ -333,7 +333,7 @@ Public Class Backoffice_model
                 Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
                 sqliteConn.Close()
             Catch ex As Exception
-                MsgBox("SQLite Database connect failed. Please contact PC System [Function Clear_sqlite]" & ex.Message)
+                'msgBox("SQLite Database connect failed. Please contact PC System [Function Clear_sqlite]" & ex.Message)
                 sqliteConn.Dispose()
                 'sqliteConn.Close()
                 sqliteConn = Nothing
@@ -385,12 +385,12 @@ Public Class Backoffice_model
                     date_time_end_check_date_paralell_linet = DateTime.Now.ToString("yyyy-MM-dd") & " " & coles_lot_end_shift
                 End If
                 'Else
-                'MsgBox("ไม่มีข้อมูลกะการผลิต")
+                ''msgBox("ไม่มีข้อมูลกะการผลิต")
                 'End If
             End While
             reader.Close()
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function Get_close_lot_time]" & ex.Message)
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function Get_close_lot_time]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -418,7 +418,7 @@ Public Class Backoffice_model
             reader.Close()
             Return result
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function check_time]" & ex.Message)
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function check_time]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -442,7 +442,7 @@ Public Class Backoffice_model
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_new_information]" & ex.Message)
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function get_new_information]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -469,7 +469,7 @@ Public Class Backoffice_model
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function INSERT_LOG_PRINT_DEFACT_NC]" & ex.Message)
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function INSERT_LOG_PRINT_DEFACT_NC]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -493,7 +493,7 @@ Public Class Backoffice_model
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function LOAD_QTY_DEFACT]" & ex.Message)
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function LOAD_QTY_DEFACT]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -517,7 +517,7 @@ Public Class Backoffice_model
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function GET_QTY_DEFACT_NC]" & ex.Message)
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function GET_QTY_DEFACT_NC]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -540,7 +540,7 @@ Public Class Backoffice_model
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_data_wi_reprint]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function get_data_wi_reprint]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -559,7 +559,7 @@ Public Class Backoffice_model
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_data_wi_reprint]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function get_data_wi_reprint]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -577,7 +577,7 @@ Public Class Backoffice_model
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_list_rm_scan]" & ex.Message)
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function get_list_rm_scan]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -607,7 +607,7 @@ Public Class Backoffice_model
             reader = SQLCmd.ExecuteReader()
             reader.Close()
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_Rm_Scan]" & ex.Message)
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_Rm_Scan]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -625,7 +625,7 @@ Public Class Backoffice_model
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function GET_QTY_SEQ]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function GET_QTY_SEQ]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -641,7 +641,7 @@ Public Class Backoffice_model
             SQLConn.Open()
             SQLCmd.Connection = SQLConn
             SQLCmd.CommandText = "EXEC [dbo].[CHECK_TRANSCETION_PRODUCTION_DETAIL] @line_cd = '" & line_cd & "' , @date_start = '" & date_start & "' , @date_end = '" & date_end & "'"
-            'Console.WriteLine(SQLCmd.CommandText)
+            ''Console.WriteLine(SQLCmd.CommandText)
             reader = SQLCmd.ExecuteReader()
             Dim id As String = ""
             While reader.Read()
@@ -651,10 +651,10 @@ Public Class Backoffice_model
             If id = "" Then
                 id = 0
             End If
-            'Console.WriteLine(id)
+            ''Console.WriteLine(id)
             Return id
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function CHECK_TRANSCETION_PRODUCTION_DETAIL]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function CHECK_TRANSCETION_PRODUCTION_DETAIL]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -673,7 +673,7 @@ Public Class Backoffice_model
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function INSERT_DATA_RM_SCAN]" & ex.Message)
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function INSERT_DATA_RM_SCAN]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -703,7 +703,7 @@ Public Class Backoffice_model
             Return tmp_result
             'Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function GET_CHECK_LOSS]" & ex.Message)
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function GET_CHECK_LOSS]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -723,7 +723,7 @@ Public Class Backoffice_model
             reader.Close()
             SQLConn.Close()
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function INSERT_REWORK_ACTUAL]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function INSERT_REWORK_ACTUAL]")
             SQLConn.Close()
             load_show.Show()
             ' Application.Exit()
@@ -754,7 +754,7 @@ re_insert_rework_act:
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
             sqliteConn.Close()
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function ConnectDBSQLite]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function ConnectDBSQLite]")
             sqliteConn.Close()
             GoTo re_insert_rework_act
         End Try
@@ -787,7 +787,7 @@ re_insert_rework_act:
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function INSERT_tmp_planseq]" & ex.Message)
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function INSERT_tmp_planseq]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -799,7 +799,7 @@ re_insert_rework_act:
             Dim result_update_count_pro = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/GET_DATA_PRODUCTION_WORKING_INFO?ind_row=" & ind_row & "&pwi_lot_no=" & pwi_lot_no & "&pwi_seq_no=" & pwi_seq_no)
             Return result_update_count_pro
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function GET_DATA_PRODUCTION_WORKING_INFO]" & ex.Message)
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function GET_DATA_PRODUCTION_WORKING_INFO]" & ex.Message)
         End Try
     End Function
     Public Shared Function INSERT_production_working_info(ind_row, pwi_lot_no, pwi_seq_no, pwi_shift)
@@ -808,7 +808,7 @@ re_insert_rework_act:
             Dim result_update_count_pro = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/INSERT_production_working_info?ind_row=" & ind_row & "&pwi_lot_no=" & pwi_lot_no & "&pwi_seq_no=" & pwi_seq_no & "&pwi_shift=" & pwi_shift)
             Return result_update_count_pro
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function INSERT_production_working_info]" & ex.Message)
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function INSERT_production_working_info]" & ex.Message)
         End Try
     End Function
 
@@ -848,7 +848,7 @@ re_insert_rework_act:
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function GET_SEQ_PLAN_current]" & ex.Message)
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function GET_SEQ_PLAN_current]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -903,11 +903,11 @@ re_insert_rework_act:
             reader.Close()
             'SQLCmd.CommandText = "update tmp_planseq set tmp_last_sequence = '" & Update_seq & "' , tmp_updated_date = '" & date_end & "' where tmp_line_cd = '" & line_cd & "' and tmp_created_date BETWEEN  '" & date_start & "' and '" & date_end & "'"
             SQLCmd.CommandText = "update tmp_planseq set tmp_last_sequence = '" & Update_seq & "' , tmp_updated_date = '" & date_end & "' where tmp_id = '" & tmp_id & "'"
-            'Console.WriteLine(SQLCmd.CommandText)
+            ''Console.WriteLine(SQLCmd.CommandText)
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function GET_SEQ_PLAN_current]" & ex.Message)
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function GET_SEQ_PLAN_current]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -925,7 +925,7 @@ re_insert_rework_act:
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function GET_QTY_SHIFT_NO_WI]" & ex.Message)
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function GET_QTY_SHIFT_NO_WI]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -944,7 +944,7 @@ re_insert_rework_act:
             reader = SQLCmd.ExecuteReader()
             reader.Close()
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_production_emp_detail_realtime]" & ex.Message)
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_production_emp_detail_realtime]" & ex.Message)
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -954,7 +954,7 @@ re_insert_rework_act:
         Await updated_data_to_dbsvr(parentForm, "1")
         Dim api = New api()
         Dim result_update_count_pro = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/TESTAPITRANFER/Get_detail_act?line_cd=" & MainFrm.Label4.Text)
-        'Console.WriteLine(result_update_count_pro)
+        ''Console.WriteLine(result_update_count_pro)
         Return result_update_count_pro
     End Function
     Public Shared Async Function Check_detail_actual_insert_act_no_api(parentForm As Form) As Task(Of String)
@@ -974,7 +974,7 @@ recheck:
             'Return reader
             reader.Close()
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function update_qty_seq]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function update_qty_seq]")
             SQLConn.Close()
             load_show.Show()
             GoTo recheck
@@ -993,7 +993,7 @@ recheck:
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function GET_NEXT_PROCESS]")
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function GET_NEXT_PROCESS]")
             SQLConn.Close()
             'Application.Exit()
         End Try
@@ -1013,13 +1013,13 @@ re_up_date_data:
             cmd.Connection = sqliteConn
             cmd.CommandText = "UPDATE close_lot_act set act_qty = '" & result_qty & "' ,  transfer_flg = '" & tr_status & "' where  wi = '" & WI & "' and seq_no = '" & SEQ & "'"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             'Return LoadSQL
             'sqliteConn.Dispose()
             sqliteConn.Close()
             'sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function update_qty_seq_sqlite]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function update_qty_seq_sqlite]" & ex.Message)
             sqliteConn.Dispose()
             'sqliteConn.Close()
             sqliteConn = Nothing
@@ -1039,7 +1039,7 @@ re_up_date_data:
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function GET_QTY_SEQ_ACTUAL_DESC]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function GET_QTY_SEQ_ACTUAL_DESC]")
             SQLConn.Close()
             load_show.Show()
             ' Application.Exit()
@@ -1066,13 +1066,13 @@ where
   seq_no = '" & SEQ & "'
 "
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function GET_QTY_SEQ_ACTUAL_DESC_SQLITE]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function GET_QTY_SEQ_ACTUAL_DESC_SQLITE]" & ex.Message)
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
@@ -1086,9 +1086,9 @@ where
 
             SQLConn.ConnectionString = sqlConnect 'Set the Connection String
             SQLConn.Open()
-            'MsgBox("Database connect successfully")
+            ''msgBox("Database connect successfully")
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function ConnectDB]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function ConnectDB]")
             SQLConn.Close()
             load_show.Show()
             ' Application.Exit()
@@ -1107,7 +1107,7 @@ where
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            '  MsgBox("MSSQL Database connect failed. Please contact PC System [Function GetLine_mst]")
+            '  'msgBox("MSSQL Database connect failed. Please contact PC System [Function GetLine_mst]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -1124,7 +1124,7 @@ where
             SQLConn.Open()
             SQLCmd.Connection = SQLConn
             SQLCmd.CommandText = "SELECT * FROM tag_print_detail WHERE wi = '" & wi & "' and seq_no = '" & seq_plan & "' and box_no = '" & seq_box1 & "' AND TRIM(SUBSTRING(qr_detail, 53, 6)) = '" & qty & "'"
-            ' 'Console.WriteLine("update===>" & SQLCmd.CommandText)
+            ' ''Console.WriteLine("update===>" & SQLCmd.CommandText)
             reader = SQLCmd.ExecuteReader()
             Dim print_count As Integer = 0
             Dim id As Integer = 0
@@ -1143,7 +1143,7 @@ where
             End If
             ins_log_print(MainFrm.Label4.Text, table_created, id)
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function GetLine_mst]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function GetLine_mst]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -1161,7 +1161,7 @@ where
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_information]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function get_information]")
             SQLConn.Close()
             load_show.Show()
             ' Application.Exit()
@@ -1184,7 +1184,7 @@ where
             SQLConn.Close()
             SQLConn = Nothing
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function inf_update]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function inf_update]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -1205,7 +1205,7 @@ where
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function Get_User_Line_detail]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function Get_User_Line_detail]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -1216,10 +1216,10 @@ where
             Dim api = New api()
             Dim result_api_checkper As String = ""
             result_api_checkper = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/Api_Get_plan_production?line_cd=" & GET_LINE_PRODUCTION())
-            'Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/Api_Get_plan_production?line_cd=" & GET_LINE_PRODUCTION())
+            ''Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/Api_Get_plan_production?line_cd=" & GET_LINE_PRODUCTION())
             Return result_api_checkper
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function Get_prd_plan_new]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function Get_prd_plan_new]")
             load_show.Show()
             'Application.Exit()
         End Try
@@ -1237,10 +1237,10 @@ where
             cmd.Connection = sqliteConn
             cmd.CommandText = "INSERT INTO sc_inc_tag(wi,seq_no,qty,created_date,ref_key) VALUES ('" & wi_plan & "','" & seq_no & "','" & qty & "','" & currdated & "','" & ref_key & "')"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function Tag_seq_rec_sqlite]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function Tag_seq_rec_sqlite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -1287,12 +1287,12 @@ where
                             SQLConn.Open()
                             Try
                                 insertId = Convert.ToInt32(SQLCmd.ExecuteScalar())
-                                Console.WriteLine("Try insertId ==>" & insertId)
+                                'Console.WriteLine("Try insertId ==>" & insertId)
                             Catch exTimeout As SqlException
                                 If exTimeout.Number = -2 OrElse exTimeout.Message.Contains("Timeout") Then
-                                    Console.WriteLine("⚠️ Timeout detected. Trying to recover inserted ID...")
+                                    'Console.WriteLine("⚠️ Timeout detected. Trying to recover inserted ID...")
                                     '  insertId = GetInsertedIdFromData(pd, line_cd, wi_plan, seq_no)
-                                    Console.WriteLine("catch insertId ==>" & insertId)
+                                    'Console.WriteLine("catch insertId ==>" & insertId)
                                 Else
                                     Throw
                                 End If
@@ -1300,7 +1300,7 @@ where
                         End Using
                     End Using
                 Catch ex As Exception
-                    Console.WriteLine("❌ Error inserting data: " & ex.Message)
+                    'Console.WriteLine("❌ Error inserting data: " & ex.Message)
                     insertId = 0
                 End Try
             End If
@@ -1329,7 +1329,7 @@ where
         Do
             ' ✅ Check network
             If Not My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
-                Console.WriteLine("⛔ Network unavailable... retrying in 2 sec")
+                'Console.WriteLine("⛔ Network unavailable... retrying in 2 sec")
                 Await Task.Delay(2000)
                 Continue Do
             End If
@@ -1363,19 +1363,22 @@ where
                         insertId = Convert.ToInt32(Await SQLCmd.ExecuteScalarAsync())
                     End Using
                 End Using
+                Console.WriteLine("Status Record flg ===>" & insertId)
                 If insertId > 0 Then
                     ' ✅ สำเร็จ → update SQLite
                     Dim sqlUpdate = $"UPDATE act_ins SET tr_status = '1', updated_date = '{currdated}' WHERE id = '{id_sqlite}'"
                     Await api.Load_dataSQLiteAsync(sqlUpdate)
-
+                    Console.WriteLine("function Insert_prd_detail_main => " & sqlUpdate)
+                    'msgBox("function Insert_prd_detail_main => " & sqlUpdate)
                     File.AppendAllText(logPath, $"{Now:yyyy-MM-dd HH:mm:ss} | ✅ Insert Success | ID={id_sqlite} | SQL_ID={insertId}{Environment.NewLine}")
                     Exit Do
                 Else
+                    'msgBox("function insertId => " & insertId)
                     File.AppendAllText(logPath, $"{Now:yyyy-MM-dd HH:mm:ss} | ⚠️ Insert Failed (ID=0) | Retry={retryCount + 1} | ID={id_sqlite}{Environment.NewLine}")
                 End If
             Catch ex As Exception
                 Dim functionName As String = New StackTrace().GetFrame(0).GetMethod().Name
-                Console.WriteLine($"❌ Insert Error ({functionName}): {ex.Message}")
+                'Console.WriteLine($"❌ Insert Error ({functionName}): {ex.Message}")
                 File.AppendAllText(logPath, $"{Now:yyyy-MM-dd HH:mm:ss} | ❌ Error ({functionName}) | Retry={retryCount + 1} | ID={id_sqlite} | Msg={ex.Message}{Environment.NewLine}")
             End Try
             retryCount += 1
@@ -1392,7 +1395,7 @@ where
         Try
             Dim api = New api()
             Dim result As String = Await api.Load_dataSQLiteAsync(sql)
-            Console.WriteLine($"🔄 ResetTransferTimeout executed via API | Result: {result}" & sql)
+            'Console.WriteLine($"🔄 ResetTransferTimeout executed via API | Result: {result}" & sql)
             ' 🔍 Optional: Logging
             Dim logDir = "C:\sqlite3\logs"
             Directory.CreateDirectory(logDir)
@@ -1402,7 +1405,7 @@ where
 
         Catch ex As Exception
             Dim functionName = New StackTrace().GetFrame(0).GetMethod().Name
-            Console.WriteLine($"❌ Error in {functionName}: {ex.Message}")
+            'Console.WriteLine($"❌ Error in {functionName}: {ex.Message}")
 
             ' ❗ Log Error
             Dim logPath = "C:\sqlite3\logs\reset_timeout_error.log"
@@ -1430,7 +1433,7 @@ where
                 End Using
             End Using
         Catch ex As Exception
-            Console.WriteLine("⚠️ Error while checking inserted ID: " & ex.Message)
+            'Console.WriteLine("⚠️ Error while checking inserted ID: " & ex.Message)
         End Try
         Return 0
     End Function
@@ -1452,7 +1455,7 @@ where
             'SQLConn.Close()
             'SQLConn = Nothing
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function work_complete_offline]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function work_complete_offline]")
             '  SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -1467,10 +1470,10 @@ where
         Dim reader As SqlDataReader
         Dim SQLConn As New SqlConnection() 'The SQL Connection
         Dim SQLCmd As New SqlCommand()
-        'MsgBox(st_time.ToString("dd'/'MM'/'yyyy H':'m':'ss"))
+        ''msgBox(st_time.ToString("dd'/'MM'/'yyyy H':'m':'ss"))
         Dim st_time2 As String = st_time.ToString("yyyy/MM/dd H:m:s")
         Dim end_time2 As String = end_time.ToString("yyyy/MM/dd H:m:s")
-        'MsgBox("INSERT INTO production_actual_detail(pd,line_cd,wi_plan,item_cd,item_name,staff_no,seq_no,qty,st_time,end_time,use_time,updated_date) VALUES ('" & pd & "','" & line_cd & "','" & wi_plan & "','" & item_cd & "','" & item_name & "','" & staff_no & "','" & seq_no & "','" & qty & "','" & st_time & "','" & end_time & "','" & use_time & "','" & currdated & "')")
+        ''msgBox("INSERT INTO production_actual_detail(pd,line_cd,wi_plan,item_cd,item_name,staff_no,seq_no,qty,st_time,end_time,use_time,updated_date) VALUES ('" & pd & "','" & line_cd & "','" & wi_plan & "','" & item_cd & "','" & item_name & "','" & staff_no & "','" & seq_no & "','" & qty & "','" & st_time & "','" & end_time & "','" & use_time & "','" & currdated & "')")
         Try
             Check_connect_sqlite()
             SQLConn.ConnectionString = sqlConnect 'Set the Connection String
@@ -1480,12 +1483,12 @@ where
             'SQLCmd.CommandText = "INSERT INTO production_actual_detail(pd,line_cd,st_time,updated_date) VALUES ('" & pd & "','" & line_cd & "','" & st_time2 & "','" & currdated & "')"
             SQLCmd.CommandText = "INSERT INTO production_defect_detail(pd,line_cd,wi_plan,item_cd,item_name,staff_no,seq_no,qty,st_time,end_time,use_time,updated_date,number_qty , flg_defact , defact_id ) VALUES ('" & pd & "','" & line_cd & "','" & wi_plan & "','" & item_cd & "','" & item_name & "','" & staff_no & "','" & seq_no & "','" & qty & "','" & st_time2 & "','" & end_time2 & "','" & use_time & "','" & currdated & "','" & number_qty & "' , '" & flg_defact & "' , '" & defact_id & "')"
             reader = SQLCmd.ExecuteReader()
-            'MsgBox(reader)
+            ''msgBox(reader)
             'Return reader
             reader.Close()
             Check_connect_sqlite()
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_prd_detail_defact]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_prd_detail_defact]")
             SQLConn.Close()
             Check_connect_sqlite()
             'Application.Exit()
@@ -1498,7 +1501,7 @@ where
         Dim SQLCmd As New SqlCommand()
         Dim st_time2 As String = st_time.ToString("yyyy/MM/dd H:m:s")
         Dim end_time2 As String = end_time.ToString("yyyy/MM/dd H:m:s")
-        'MsgBox("INSERT INTO production_actual_detail(pd,line_cd,wi_plan,item_cd,item_name,staff_no,seq_no,qty,st_time,end_time,use_time,updated_date) VALUES ('" & pd & "','" & line_cd & "','" & wi_plan & "','" & item_cd & "','" & item_name & "','" & staff_no & "','" & seq_no & "','" & qty & "','" & st_time & "','" & end_time & "','" & use_time & "','" & currdated & "')")
+        ''msgBox("INSERT INTO production_actual_detail(pd,line_cd,wi_plan,item_cd,item_name,staff_no,seq_no,qty,st_time,end_time,use_time,updated_date) VALUES ('" & pd & "','" & line_cd & "','" & wi_plan & "','" & item_cd & "','" & item_name & "','" & staff_no & "','" & seq_no & "','" & qty & "','" & st_time & "','" & end_time & "','" & use_time & "','" & currdated & "')")
         Try
             SQLConn.ConnectionString = sqlConnect 'Set the Connection String
             SQLConn.Open()
@@ -1507,10 +1510,10 @@ where
             'SQLCmd.CommandText = "INSERT INTO production_actual_detail(pd,line_cd,st_time,updated_date) VALUES ('" & pd & "','" & line_cd & "','" & st_time2 & "','" & currdated & "')"
             SQLCmd.CommandText = "INSERT INTO line_status_detail(line_id,st_time,end_time,st_type,comp_flg,loss_id,updated_date,efficientcy,wi_plan) VALUES ('" & line_id & "','" & st_time2 & "','" & end_time2 & "','" & st_type & "','" & comp_flg & "','" & loss_id & "','" & currdated & "','" & efficiancy & "','" & wi_plan & "')"
             reader = SQLCmd.ExecuteReader()
-            'MsgBox(reader)
+            ''msgBox(reader)
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function line_status_ins]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function line_status_ins]")
             SQLConn.Close()
             load_show.Show()
             ' Application.Exit()
@@ -1525,13 +1528,13 @@ where
             cmd.Connection = sqliteConn
             cmd.CommandText = "INSERT INTO line_status_detail(line_id,st_time,end_time,st_type,comp_flg,loss_id,updated_date,efficientcy,wi_plan) VALUES ('" & line_id & "','" & st_time2 & "','" & end_time2 & "','" & st_type & "','" & comp_flg & "','" & loss_id & "','" & currdated & "','" & efficiancy & "','" & wi_plan & "')"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function line_status_ins_sqlite]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function line_status_ins_sqlite]" & ex.Message)
             sqliteConn.Close()
         End Try
     End Function
@@ -1551,7 +1554,7 @@ where
             SQLConn.Close()
             SQLConn = Nothing
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function line_status_upd]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function line_status_upd]")
             SQLConn.Close()
             'Application.Exit()
         End Try
@@ -1575,7 +1578,7 @@ where
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function ConnectDBSQLite]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function ConnectDBSQLite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -1629,10 +1632,10 @@ where
 		                                    AND del_flg = '0'
 	                                    )"
             reader = SQLCmd.ExecuteReader()
-            'MsgBox(reader)
+            ''msgBox(reader)
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function Get_Last_part]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function Get_Last_part]")
             SQLConn.Close()
             load_show.Show()
             ' Application.Exit()
@@ -1650,10 +1653,10 @@ where
             'Dim line_cd As String = "K1A027"
             SQLCmd.CommandText = "SELECT * FROM sys_line_mst WHERE line_cd = '" & line_cd & "'"
             reader = SQLCmd.ExecuteReader()
-            'MsgBox(reader)
+            ''msgBox(reader)
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function Get_Line_id]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function Get_Line_id]")
             SQLConn.Close()
             load_show.Show()
             '  Application.Exit()
@@ -1671,10 +1674,10 @@ where
             'Dim line_cd As String = "K1A027"
             SQLCmd.CommandText = "SELECT * FROM sys_skill_line_detail WHERE line_id = '" & line_id & "' AND enable = 1 "
             reader = SQLCmd.ExecuteReader()
-            'MsgBox(reader)
+            ''msgBox(reader)
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function Get_Line_skill_id]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function Get_Line_skill_id]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -1691,7 +1694,7 @@ where
             Dim rsData As String = Await Task.Run(Function() api.Load_data(url))
             Return rsData
         Catch ex As Exception
-            MsgBox("❗ connect Api Fail in GetPermissionLeader = " & ex.Message)
+            'msgBox("❗ connect Api Fail in GetPermissionLeader = " & ex.Message)
             Return "0"
         End Try
     End Function
@@ -1710,7 +1713,7 @@ where
             ' reader = SQLCmd.ExecuteReader()
             ' Return reader
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function chk_user_skill_line]")
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function chk_user_skill_line]")
             '    SQLConn.Close()
             '   Application.Exit()
         End Try
@@ -1727,7 +1730,7 @@ where
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_all_skill]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function get_all_skill]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -1745,7 +1748,7 @@ where
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_department]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function get_department]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -1765,7 +1768,7 @@ where
             'Return reader
             Dim api = New api()
             Dim result = api.Load_data("http://" & svApi & "/apiShopfloor/index.php/updateDatadefect/update_tagprint_detail?wi=" & wi & "&flgUpdate=" & flgUpdate & "&conditionflg=" & conditionflg)
-            'Console.WriteLine("http://" & svApi & "/apiShopfloor/index.php/updateDatadefect/update_tagprint_detail?wi=" & wi & "&flgUpdate=" & flgUpdate & "&conditionflg=" & conditionflg)
+            ''Console.WriteLine("http://" & svApi & "/apiShopfloor/index.php/updateDatadefect/update_tagprint_detail?wi=" & wi & "&flgUpdate=" & flgUpdate & "&conditionflg=" & conditionflg)
             Return result
         Catch ex As Exception
             '  SQLConn.Close()
@@ -1785,7 +1788,7 @@ where
             '  reader.Close()
             'Return reader
             Dim mdDefect = New modelDefect
-            'Console.WriteLine("http: //" & svApi & "/apiShopfloor/index.php/updateDatadefect/update_tagprint_detailforDefect?wi=" & wi & "&flgUpdate=" & flgUpdate & "&conditionflg=" & conditionflg & "&pwi_id=" & pwi_id & "&BoxNo=" & BoxNo & "&goodQty=" & goodQty & "&cupprint=" & cupprint)
+            ''Console.WriteLine("http: //" & svApi & "/apiShopfloor/index.php/updateDatadefect/update_tagprint_detailforDefect?wi=" & wi & "&flgUpdate=" & flgUpdate & "&conditionflg=" & conditionflg & "&pwi_id=" & pwi_id & "&BoxNo=" & BoxNo & "&goodQty=" & goodQty & "&cupprint=" & cupprint)
             If mdDefect.mGetDataEnableFGPart(MainFrm.Label4.Text) = "1" Then
                 Dim api = New api()
                 Dim result = api.Load_data("http://" & svApi & "/apiShopfloor/index.php/updateDatadefect/update_tagprint_detailforDefect?wi=" & wi & "&flgUpdate=" & flgUpdate & "&conditionflg=" & conditionflg & "&pwi_id=" & pwi_id & "&BoxNo=" & BoxNo & "&goodQty=" & goodQty & "&cupprint=" & cupprint)
@@ -1828,7 +1831,7 @@ where
             '   reader = SQLCmd.ExecuteReader()
             '   reader.Close()
             Dim api = New api()
-            'Console.WriteLine("http://" & svApi & "/apiShopfloor/index.php/updateDatadefect/update_tagprint_main?wi=" & wi & "&flgUpdate=" & flgUpdate & "&conditionflg=" & conditionflg)
+            ''Console.WriteLine("http://" & svApi & "/apiShopfloor/index.php/updateDatadefect/update_tagprint_main?wi=" & wi & "&flgUpdate=" & flgUpdate & "&conditionflg=" & conditionflg)
             Dim result = api.Load_data("http://" & svApi & "/apiShopfloor/index.php/updateDatadefect/update_tagprint_main?wi=" & wi & "&flgUpdate=" & flgUpdate & "&conditionflg=" & conditionflg)
             Return result
             'Return reader
@@ -1880,10 +1883,10 @@ where
             If errorOccured Then
                 retryCount += 1
                 If retryCount >= maxRetries Then
-                    Console.WriteLine($"❌ Trasnfer_tag_print_detail failed after {maxRetries} retries: {exMsg}")
+                    'Console.WriteLine($"❌ Trasnfer_tag_print_detail failed after {maxRetries} retries: {exMsg}")
                     Return 0
                 Else
-                    Console.WriteLine($"⚠️ Trasnfer_tag_print_detail error, retry {retryCount}/{maxRetries}: {exMsg}")
+                    'Console.WriteLine($"⚠️ Trasnfer_tag_print_detail error, retry {retryCount}/{maxRetries}: {exMsg}")
                     Await Task.Delay(baseDelay * retryCount)
                 End If
             End If
@@ -1897,7 +1900,7 @@ where
         Dim SQLConn As New SqlConnection()
         Dim SQLCmd As New SqlCommand()
         Try
-            ' Console.WriteLine("F1")
+            ' 'Console.WriteLine("F1")
             ' กำหนดค่าเริ่มต้นให้ tag_group_no ถ้ามันเป็น Nothing หรือ ว่างเปล่า
             ' Set the connection string and open the connection
             SQLConn.ConnectionString = sqlConnect
@@ -1920,27 +1923,27 @@ where
             SQLCmd.Parameters.AddWithValue("@flg_control", flg_control)
             SQLCmd.Parameters.AddWithValue("@pwi_id", pwi_id)
             SQLCmd.Parameters.AddWithValue("@tag_group_no", "1") ' ✅ ใช้ค่า param ป้องกัน null
-            'Console.WriteLine("F221")
+            ''Console.WriteLine("F221")
             ' Execute the query and get the insert id
             Try
                 If My.Computer.Network.Ping(svp_ping) Then
                     model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "1")
                     Dim insertId As Integer = Convert.ToInt32(SQLCmd.ExecuteScalar())
-                    ' Console.WriteLine("F1333")
+                    ' 'Console.WriteLine("F1333")
                     Return insertId
                 Else
                     model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "0")
                     Return 0
                 End If
             Catch ex As Exception
-                'Console.WriteLine("catch TRY ===>" & ex.Message)
+                ''Console.WriteLine("catch TRY ===>" & ex.Message)
                 model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "0")
                 Return 0
             End Try
         Catch ex As Exception
-            ' Console.WriteLine("F555555")
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_tag_print]")
-            '  Console.WriteLine("Error tag_print_detail: " & ex.Message)
+            ' 'Console.WriteLine("F555555")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_tag_print]")
+            '  'Console.WriteLine("Error tag_print_detail: " & ex.Message)
             model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "0")
             Return 0 ' Return 0 in case of error
         Finally
@@ -1961,7 +1964,7 @@ where
     End Function
     Public Shared Async Function Trasnfer_tag_print_main(tag_ref_str_id As String, tag_ref_end_id As String, line_cd As String, tag_qr_detail As String, tag_batch_no As String, tag_next_proc As String, flg_control As String, created_date As String, updated_date As String, wi As String, pwi_no As String, tag_group_no As String, tr_status As String, seq_no As String, lot_no As String) As Task(Of Integer)
         Dim currdated As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
-        ' Console.WriteLine("Transfer_tag_print_main ====>")
+        ' 'Console.WriteLine("Transfer_tag_print_main ====>")
         ' อัปเดตค่าใน tag_print
         update_tagprint(wi, "2", "0")
         update_tagprint_main(wi, "2", "0")
@@ -1990,10 +1993,10 @@ where
                 Try
                     SQLConn.Open()
                     insertedId = Convert.ToInt32(SQLCmd.ExecuteScalar()) ' รับค่า PK ที่ insert กลับมา
-                    Console.WriteLine("Inserted ID: " & insertedId)
+                    'Console.WriteLine("Inserted ID: " & insertedId)
                     Return insertedId
                 Catch ex As Exception
-                    ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function Transfer_tag_print_main]" & vbCrLf & ex.Message)
+                    ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function Transfer_tag_print_main]" & vbCrLf & ex.Message)
                     Return insertedId
                 End Try
             End Using
@@ -2017,20 +2020,20 @@ where
             SQLCmd.CommandText = "INSERT INTO tag_print_detail_main(tag_ref_str_id ,tag_ref_end_id , line_cd , tag_qr_detail , tag_batch_no , tag_next_proc , flg_control , created_date , updated_date , tag_wi_no , pwi_id , tag_group_no) VALUES ('" & start_id & "','" & end_id & "','" & MainFrm.Label4.Text & "','" & qr_detail & "' ,'" & batch_no & "' ,'" & F_NEXT_PROCESS(item_cd) & "','" & flg_control & "','" & currdated & "','" & currdated & "','" & wi & "','" & pwi_id & "' ,'" & tag_group_no & "')"
             reader = SQLCmd.ExecuteReader()
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_tag_print_main]")
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_tag_print_main]")
             SQLConn.Close()
         End Try
         Return 1
     End Function
     Public Shared Function Get_ref_start_id(wi As String, seq_no As String, lot_no As String)
         Dim api = New api()
-        'Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_ref_start_id?wi=" & wi & "&seq_no=" & seq_no & "&lot_no=" & lot_no)
+        ''Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_ref_start_id?wi=" & wi & "&seq_no=" & seq_no & "&lot_no=" & lot_no)
         Dim result = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_ref_start_id?wi=" & wi & "&seq_no=" & seq_no & "&lot_no=" & lot_no)
         Return result
     End Function
     Public Shared Function Get_ref_end_id(wi As String, seq_no As String, lot_no As String)
         Dim api = New api()
-        'Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_ref_end_id?wi=" & wi & "&seq_no=" & seq_no & "&lot_no=" & lot_no)
+        ''Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_ref_end_id?wi=" & wi & "&seq_no=" & seq_no & "&lot_no=" & lot_no)
         Dim result = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_ref_end_id?wi=" & wi & "&seq_no=" & seq_no & "&lot_no=" & lot_no)
         Return result
     End Function
@@ -2047,7 +2050,7 @@ where
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_qr_detail_sub]")
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function get_qr_detail_sub]")
             SQLConn.Close()
         End Try
     End Function
@@ -2064,7 +2067,7 @@ where
             SQLCmd.CommandText = "INSERT INTO tag_print_detail_sub(tag_ref_id , line_cd , tag_qr_detail , flg_control , created_date , updated_date , tag_wi_no , tag_group_no) VALUES ('" & tag_print_detail_id & "','" & line_cd & "','" & tag_qr_detail & "' ,'1' , '" & currdated & "' , '" & currdated & "' , '" & wi & "' , '" & tag_group_no & "')"
             reader = SQLCmd.ExecuteReader()
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_tag_print_sub]")
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_tag_print_sub]")
             SQLConn.Close()
         End Try
     End Function
@@ -2079,10 +2082,10 @@ where
             SQLConn.Open()
             SQLCmd.Connection = SQLConn
             SQLCmd.CommandText = "INSERT INTO tag_print_detail_sub(tag_ref_id , line_cd , tag_qr_detail , flg_control , created_date , updated_date , tag_wi_no , tag_group_no) VALUES ('" & ref_id & "','" & line & "','" & qr_code & "' ,'" & print_back.check_tagprint_main() & "' , '" & currdated & "' , '" & currdated & "' , '" & wi & "' , '" & tag_group_no & "')"
-            Console.WriteLine(SQLCmd.CommandText)
+            'Console.WriteLine(SQLCmd.CommandText)
             reader = SQLCmd.ExecuteReader()
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_tag_print_sub]")
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_tag_print_sub]")
             SQLConn.Close()
         End Try
         Return 1
@@ -2392,7 +2395,7 @@ where
             SQLConn.Open()
             SQLCmd.Connection = SQLConn
             SQLCmd.CommandText = "select count(id) as c_id from tag_print_detail where qr_detail = '" & qr_code & "'"
-            'Console.WriteLine("SQLCmd.CommandText===>" & SQLCmd.CommandText)
+            ''Console.WriteLine("SQLCmd.CommandText===>" & SQLCmd.CommandText)
             Dim LoadSQL As SqlDataReader = SQLCmd.ExecuteReader()
             Dim check_status As Integer = 0
             While LoadSQL.Read()
@@ -2480,7 +2483,7 @@ where
             LoadSQL1.Close()
             ins_log_print(MainFrm.Label4.Text, "3", id)
         Catch
-            MsgBox("error function update_data_new_qr_detail_main == ")
+            'msgBox("error function update_data_new_qr_detail_main == ")
         End Try
     End Function
     Public Shared Function get_tag_reprint_detail_genarate(wi As String)
@@ -2602,7 +2605,7 @@ where
             SQLConn.Close()
             SQLConn = Nothing
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function del_line_skill_old]")
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function del_line_skill_old]")
             SQLConn.Close()
             load_show.Show()
         End Try
@@ -2779,7 +2782,7 @@ where
             Return reader
             SQLConn.Close()
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_prd_plan]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function get_prd_plan]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -2798,26 +2801,26 @@ where
             SQLCmd.CommandText = "Select sw.WI,sw.ITEM_CD,sw.ITEM_NAME,sw.QTY,sw.qty - SUM (ISNULL(pa.act_qty, 0 )) as 'remain_qty',ISNULL(pa.prd_flg , 0 ) as 'prd_flg',sw.WORK_ODR_DLV_DATE AS 'DLV_DATE', sw.LOCATION_PART,sw.PS_UNIT_NUMERATOR,sw.CT,COUNT(pa.seq_no) AS seq_count,sw.MODEL , sw.PRODUCT_TYP  from sup_work_plan_supply_dev as sw full outer JOIN production_actual as pa on sw.WI = pa.wi WHERE sw.LINE_CD = '" & line_cd & "' and sw.LVL = '1' and (pa.comp_flg <> '1' or pa.comp_flg is NULL) AND sw.wi = '" & wi_cd & "' GROUP BY sw.wi,sw.ITEM_CD,sw.ITEM_NAME,sw.QTY,pa.prd_flg,sw.WORK_ODR_DLV_DATE, sw.LOCATION_PART,sw.PS_UNIT_NUMERATOR,sw.CT,sw.MODEL,sw.PRODUCT_TYP"
             'SQLCmd.CommandText = "select * from sup_work_plan_supply_dev where LINE_CD = '" & line_cd & "' AND LVL = '1'"
             reader = SQLCmd.ExecuteReader()
-            'MsgBox("tet efsdf")
-            'MsgBox(reader.Read)
+            ''msgBox("tet efsdf")
+            ''msgBox(reader.Read)
             'SQLCmd.CommandText = "select * from production_actual where wi = '5100131123'"
             'reader = SQLCmd.ExecuteReader()
-            'MsgBox(reader.Read)
-            'MsgBox(reader("wi").ToString())
+            ''msgBox(reader.Read)
+            ''msgBox(reader("wi").ToString())
             'While reader.Read()
             'SQLCmd.CommandText = "select * from production_actual where wi = '" & reader("wi").ToString() & "'"
             'reader2 = SQLCmd.ExecuteReader()
-            'MsgBox(reader2.Read)
+            ''msgBox(reader2.Read)
             'If reader2.Read = False Then
-            'MsgBox("dai naa")
+            ''msgBox("dai naa")
             'End If
-            'MsgBox(reader("wi").ToString())
+            ''msgBox(reader("wi").ToString())
             'List_Emp.ListBox1.Items.Add(LoadSQLskill("sk_id").ToString())
             'End While
-            'MsgBox(reader)
+            ''msgBox(reader)
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_prd_plan]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function get_prd_plan]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -2841,7 +2844,7 @@ where
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_loss_mst]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function get_loss_mst]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -2862,7 +2865,7 @@ where
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_defect_mst]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function get_defect_mst]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -2880,7 +2883,7 @@ where
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
             Return LoadSQL
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function ConnectDBSQLite]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function ConnectDBSQLite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -2896,7 +2899,7 @@ where
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
             Return LoadSQL
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function ConnectDBSQLite]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function ConnectDBSQLite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -2917,7 +2920,7 @@ where
             LoadSQL.Close()
             Return pd
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function Get_default_pd_detail_PD]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function Get_default_pd_detail_PD]")
             sqliteConn.Close()
         End Try
     End Function
@@ -2933,10 +2936,10 @@ where
             cmd.CommandText = "select * from line_detail"
 
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function ConnectDBSQLite]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function ConnectDBSQLite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -2950,10 +2953,10 @@ where
             cmd.Connection = sqliteConn
             cmd.CommandText = "select * from sc_inc_tag where ref_key = '" & ref_key & "' "
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function Check_sc_inc_dup]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function Check_sc_inc_dup]")
             sqliteConn.Close()
         End Try
     End Function
@@ -2975,10 +2978,10 @@ where
             cmd.CommandText = "UPDATE line_detail SET pd = '" & pd & "', line_cd = '" & line_cd & "', updated_date = '" & currdated & "', count_type = '" & count_type & "', cavity = '" & cavity & "', scanner_port = '" & scanner_port & "', printer_port = '" & printer_port & "', dio_port = '" & dio_port & "'WHERE id = 1 "
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
             LoadSQL.Close()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function saveLineConfig] = " & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function saveLineConfig] = " & ex.Message)
             sqliteConn.Close()
         End Try
     End Function
@@ -2998,10 +3001,10 @@ where
             cmd.CommandText = "UPDATE line_detail SET line_cd = '" & line_cd & "', updated_date = '" & currdated & "' WHERE id = 1 "
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
             LoadSQL.Close()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function UpdateLineConfig] = " & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function UpdateLineConfig] = " & ex.Message)
             sqliteConn.Close()
         End Try
     End Function
@@ -3040,7 +3043,7 @@ re_insert_data:
             sqliteConn.Close()
             Return insertedId ' ✅ คืนค่า Primary Key
         Catch ex As Exception
-            MsgBox("SQLite Insert Record failed. Please contact PC System [Function insPrdDetail_sqlite]: " & ex.Message)
+            'msgBox("SQLite Insert Record failed. Please contact PC System [Function insPrdDetail_sqlite]: " & ex.Message)
             sqliteConn.Close()
             GoTo re_insert_data
         End Try
@@ -3053,7 +3056,7 @@ re_insert_data:
         Dim currdated As String = DateTime.Now.ToString("yyyy/MM/dd")
         'st_time = Date.st_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
         Dim sqliteConn As New SQLiteConnection(sqliteConnect)
-        'MsgBox(st_time)
+        ''msgBox(st_time)
         Try
             sqliteConn.Open()
         Catch ex As Exception
@@ -3068,13 +3071,13 @@ re_insert_data:
             cmd1.CommandText = "INSERT INTO production_defect_detail(pd,line_cd,wi_plan,item_cd,item_name,staff_no,seq_no,qty,number_qty,st_time,end_time,use_time,tr_status,updated_date , flg_defact , defact_id) VALUES ('" & pd & "','" & line_cd & "','" & wi_plan & "','" & item_cd & "','" & item_name & "','" & staff_no & "','" & seq_no & "','" & qty & "','" & number_qty & "','" & st_time & "','" & end_time & "','" & use_time & "','" & tr_status & "','" & currdated & "' , '" & flg_defact & "', '" & NC & "')"
             'cmd1.CommandText = "select * from act_ins"
             Dim LoadSQL As SQLiteDataReader = cmd1.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             'Return LoadSQL
             'sqliteConn.Dispose()
             sqliteConn.Close()
             ' sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Insert Reccord failed. Please contact PC System [Function insPrdDetail_sqlite_defact]" & ex.Message)
+            'msgBox("SQLite Insert Reccord failed. Please contact PC System [Function insPrdDetail_sqlite_defact]" & ex.Message)
             sqliteConn.Close()
             'GoTo re_insert_data
         End Try
@@ -3093,7 +3096,7 @@ re_insert_data:
             reader = SQLCmd.ExecuteReader()
             Return reader
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function chkLogin]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function chkLogin]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -3121,7 +3124,7 @@ re_insert_data:
             reader.Close()
             Return data
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function chkLogin]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function chkLogin]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -3188,7 +3191,7 @@ re_insert_data:
                                          Dim status_sqlite = "0"
                                          Check_connect_sqlite()
                                          '  Dim check_rs = checkTransection(pwi_id, number_qty, st_time) ' ตรวจสอบว่าเข้า DB ไปรึยัง
-                                         ' MsgBox(check_rs)
+                                         ' 'msgBox(check_rs)
                                          '  If check_rs = "1" Then
                                          Dim rsInsertid = Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, qty, st_time, end_time, use_time, number_qty, pwi_id, status_sqlite)
                                          If rsInsertid <> 0 Then
@@ -3278,14 +3281,14 @@ re_insert_data:
                                                                End Sub)
                                      End If
                                  End If
-                                 ''Console.WriteLine(array_id(2))
+                                 '''Console.WriteLine(array_id(2))
                                  'Dim array() As Object = arr_list.ToArray()
                                  'For Each element In array
                                  '    ' Cast object to string.
                                  '    Dim value As String = element
-                                 '    'Console.WriteLine(value)
+                                 '    ''Console.WriteLine(value)
                                  'Next
-                                 'MsgBox(arr_id(0))
+                                 ''msgBox(arr_id(0))
                              End Sub)
                 Else
                     If objTranferData IsNot Nothing Then
@@ -3338,7 +3341,7 @@ re_insert_data:
             ' ❌ หยุดถ้า statusCheckData = 2 และไม่มี Network
             Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
             If statusCheckData = "2" AndAlso (rsNetwork = False) Then
-                Console.WriteLine("❌ ไม่มี Network และ statusCheckData = 2 → ยกเลิก Transfer")
+                 Console.WriteLine("❌ ไม่มี Network และ statusCheckData = 2 → ยกเลิก Transfer")
                 Exit Function
             End If
             rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
@@ -3371,7 +3374,7 @@ re_insert_data:
                             objTransferData.Show()
                         End If
                     End If
-                    statusTransfer = 1
+                    'statusTransfer = 1
                     ' เรียกฟังก์ชัน Transfer หลัก
                     Await DoTransferWork(parentForm, objTransferData, LoadSQL, LoadSQLcl, statusCheckData)
                 End If
@@ -3417,23 +3420,23 @@ re_insert_data:
                 Dim api = New api
                 If Not retryMap.ContainsKey(id) Then retryMap(id) = 0
                 If statusCheckData = "2" AndAlso retryMap(id) >= 3 Then
-                    Console.WriteLine($"🔴 ข้าม ID={id} เพราะ Retry ครบ 3 ครั้งแล้ว (statusCheckData=2)")
+                    'Console.WriteLine($"🔴 ข้าม ID={id} เพราะ Retry ครบ 3 ครั้งแล้ว (statusCheckData=2)")
                     File.AppendAllText("logs\reserve_fail.log", $"{Now:yyyy-MM-dd HH:mm:ss} | ID={id} | Retry=3 | Reserve Fail{Environment.NewLine}")
                     Continue While
                 End If
                 Dim curruntTime As String = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
                 Dim reserveSql = $"UPDATE act_ins SET tr_status = 2, updated_date = '" & curruntTime & "' WHERE id = " & id & " AND tr_status = 0"
-                Console.WriteLine(reserveSql)
+                Console.WriteLine("update sqlite filg 2 ====>" & reserveSql)
                 Try
                     Dim result = Await api.Load_dataSQLiteAsync(reserveSql)
                     If result = "0" Then
                         retryMap(id) += 1
-                        Console.WriteLine($"⛔ จองข้อมูลไม่สำเร็จ (ID={id}) รอบที่ {retryMap(id)}" & reserveSql)
+                        'Console.WriteLine($"⛔ จองข้อมูลไม่สำเร็จ (ID={id}) รอบที่ {retryMap(id)}" & reserveSql)
                         Continue While
                     End If
                 Catch ex As Exception
                     Dim functionName As String = New StackTrace().GetFrame(0).GetMethod().Name
-                    Console.WriteLine($"❌ Error ({functionName}) while reserving: {ex.Message}")
+                    'Console.WriteLine($"❌ Error ({functionName}) while reserving: {ex.Message}")
                     retryMap(id) += 1
                     Continue While
                 End Try
@@ -3527,9 +3530,9 @@ re_insert_data:
             Catch ex As Exception
                 Return 0
             End Try
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function check_rework_actual]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function check_rework_actual]" & ex.Message)
             sqliteConn.Close()
         End Try
     End Function
@@ -3558,13 +3561,13 @@ recheck:
                 LoadSQL.Close()
                 update_flg_rework_act_sqlite()
             Catch ex As Exception
-                MsgBox("error function Get_data_rework_actual == > " & ex.Message)
+                'msgBox("error function Get_data_rework_actual == > " & ex.Message)
                 Check_connect_sqlite()
                 GoTo recheck
             End Try
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function Get_data_rework_actual]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function Get_data_rework_actual]" & ex.Message)
             sqliteConn.Close()
         End Try
     End Function
@@ -3576,13 +3579,13 @@ recheck:
             cmd.Connection = sqliteConn
             cmd.CommandText = "update rework_actual set tr_status = '1'"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            'MsgBox("SQLite Database connect failed. Please contact PC System [Function update_flg_rework_act_sqlite]")
+            ''msgBox("SQLite Database connect failed. Please contact PC System [Function update_flg_rework_act_sqlite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -3596,13 +3599,13 @@ recheck:
             cmd.Connection = sqliteConn
             cmd.CommandText = "update loss_actual set transfer_flg = '1'"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            '  MsgBox("SQLite Database connect failed. Please contact PC System [Function update_flg_loss_atc_sqlite]")
+            '  'msgBox("SQLite Database connect failed. Please contact PC System [Function update_flg_loss_atc_sqlite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -3615,13 +3618,13 @@ recheck:
             cmd.Connection = sqliteConn
             cmd.CommandText = "update production_defect_detail  set tr_status = '1'"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function update_flg_defact_sqlite]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function update_flg_defact_sqlite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -3635,13 +3638,13 @@ recheck:
             cmd.Connection = sqliteConn
             cmd.CommandText = "select count(id) as c_id from close_lot_act where wi = '" & wi & "' and seq_no = '" & seq_no & "'"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            '  MsgBox("SQLite Database connect failed. Please contact PC System [Function check_data_sqlite]")
+            '  'msgBox("SQLite Database connect failed. Please contact PC System [Function check_data_sqlite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -3673,7 +3676,7 @@ recheck:
                 Return 0
             End Try
         Catch ex As Exception
-            'MsgBox("MSSQL Database connect failed. Please contact PC System [Function chkLogin]")
+            ''msgBox("MSSQL Database connect failed. Please contact PC System [Function chkLogin]")
             SQLConn.Close()
             load_show.Show()
             ' Application.Exit()
@@ -3697,7 +3700,7 @@ recheck:
                 'sqliteConn.Close()
                 'sqliteConn = Nothing
                 If CDbl(Val(plan_qty)) > get_qty_sqlite Then
-                    'MsgBox("0" & "plan_qty = " & plan_qty & "-->total_act_qty = " & get_qty_sqlite)
+                    ''msgBox("0" & "plan_qty = " & plan_qty & "-->total_act_qty = " & get_qty_sqlite)
                     Return 0
                 Else
                     Return 1
@@ -3706,7 +3709,7 @@ recheck:
                 Return 0
             End Try
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function check_completed_plan]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function check_completed_plan]" & ex.Message)
             sqliteConn.Close()
         End Try
     End Function
@@ -3719,7 +3722,6 @@ recheck:
             sqliteConn.Close()
         End Try
     End Function
-
     Public Shared Function update_tr_status_load(id As Integer)
         Check_connect_sqlite()
         Dim currdated As String = DateTime.Now.ToString("yyyy/MM/dd")
@@ -3729,16 +3731,16 @@ recheck:
             sqliteConn.Open()
             Dim cmd As New SQLiteCommand
             cmd.Connection = sqliteConn
-            cmd.CommandText = "UPDATE act_ins SET tr_status = '1', updated_date = '" & currdated & "' WHERE id = '" & id & "' "
+            cmd.CommandText = "UPDATE act_ins SET tr_status = '1', updated_date = '" & currdated & "' WHERE id = '" & id & "'"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             'Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
             'Check_connect_sqlite()
         Catch ex As Exception
-            'MsgBox("SQLite Database connect failed. Please contact PC System [Function update_tr_status]")
+            ''msgBox("SQLite Database connect failed. Please contact PC System [Function update_tr_status]")
             'Check_connect_sqlite()
             'GoTo recheck_update
             sqliteConn.Close()
@@ -3768,7 +3770,7 @@ recheck:
             Dim Sql = " UPDATE act_ins SET tr_status = '1', updated_date = '" & currdated & "' WHERE id = '" & id & "'"
             Dim jsonData As String = api.Load_dataSQLite(Sql)
         Catch ex As Exception
-            ' MsgBox("Error Files Backoffice_model In Function update_tr_status")
+            ' 'msgBox("Error Files Backoffice_model In Function update_tr_status")
         End Try
     End Function
 
@@ -3782,13 +3784,13 @@ recheck:
             cmd.Connection = sqliteConn
             cmd.CommandText = "UPDATE close_lot_act SET transfer_flg = '1', updated_date = '" & currdated & "' WHERE id = '" & id & "' "
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            ' MsgBox("SQLite Database connect failed. Please contact PC System [Function update_tr_close_lot_status]")
+            ' 'msgBox("SQLite Database connect failed. Please contact PC System [Function update_tr_close_lot_status]")
             sqliteConn.Close()
             Check_connect_sqlite()
             GoTo recheck
@@ -3805,13 +3807,13 @@ recheck:
             cmd.Connection = sqliteConn
             cmd.CommandText = "SELECT * FROM act_ins WHERE tr_status =0"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function get_trdata_sqlite]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function get_trdata_sqlite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -3826,13 +3828,13 @@ recheck:
             cmd.Connection = sqliteConn
             cmd.CommandText = "SELECT * FROM close_lot_act where transfer_flg = '0'"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function get_tr_closelot_flg_sqlite]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function get_tr_closelot_flg_sqlite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -3845,13 +3847,13 @@ recheck:
             cmd.Connection = sqliteConn
             cmd.CommandText = "SELECT * FROM tag_print_detail where tr_status = '0'"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function get_tr_tag_print_detail]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function get_tr_tag_print_detail]")
             sqliteConn.Close()
         End Try
     End Function
@@ -3865,13 +3867,13 @@ recheck:
             cmd.Connection = sqliteConn
             cmd.CommandText = "SELECT * FROM defect_tag_information where dti_tranfer_flg = '0'"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function get_tr_tag_print_detail]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function get_tr_tag_print_detail]")
             sqliteConn.Close()
         End Try
     End Function
@@ -3885,13 +3887,13 @@ recheck:
             cmd.Connection = sqliteConn
             cmd.CommandText = "SELECT * FROM tag_print_detail_main where tr_status = '0'"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function get_tr_tag_print_detail_main]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function get_tr_tag_print_detail_main]")
             sqliteConn.Close()
         End Try
     End Function
@@ -3905,13 +3907,13 @@ recheck:
             cmd.Connection = sqliteConn
             cmd.CommandText = "SELECT * FROM tag_print_detail_sub where tr_status = '0'"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function tag_print_detail_sub]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function tag_print_detail_sub]")
             sqliteConn.Close()
         End Try
     End Function
@@ -3925,13 +3927,13 @@ recheck:
             cmd.CommandText = "SELECT * FROM close_lot_act WHERE transfer_flg = 0 "
 
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function get_trdata_sqlite]")
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function get_trdata_sqlite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -3961,17 +3963,17 @@ recheck:
             SQLConn.Close()
             Return True
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_prd_close_lot]", ex.Message)
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_prd_close_lot]", ex.Message)
             SQLConn.Close()
             GoTo recheck
         End Try
         '  Try
         '   Dim api = New api()
         '    Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/InsertProductionActualAppFA?wi=" & wi_plan & "&line_cd=" & line_cd & "&item_cd=" & item_cd & "&plan_qty=" & plan_qty & "&act_qty=" & act_qty & "&seq_no=" & seq_no & "&shift_prd=" & shift_prd & "&manpower_no=" & manpower_no & "&st_time=" & st_time & "&end_time=" & end_time & "&lot_no=" & lot_no & "&comp_flg=" & comp_flg & "&transfer_flg=" & transfer_flg & "&del_flg=" & del_flg & "&prd_flg=" & prd_flg & "&close_lot_flg=" & close_lot_flg & "&avarage_eff=" & avarage_eff & "&avarage_act_prd_time=" & avarage_act_prd_time & "&prd_st_date=" & st_datetime2 & "&prd_st_time=" & st_time2 & "&prd_end_date=" & end_datetime2 & "&prd_end_time=" & end_time2 & "&updated_date=" & currdated)
-        '    Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/InsertProductionActualAppFA?wi=" & wi_plan & "&line_cd=" & line_cd & "&item_cd=" & item_cd & "&plan_qty=" & plan_qty & "&act_qty=" & act_qty & "&seq_no=" & seq_no & "&shift_prd=" & shift_prd & "&manpower_no=" & manpower_no & "&st_time=" & st_time & "&end_time=" & end_time & "&lot_no=" & lot_no & "&comp_flg=" & comp_flg & "&transfer_flg=" & transfer_flg & "&del_flg=" & del_flg & "&prd_flg=" & prd_flg & "&close_lot_flg=" & close_lot_flg & "&avarage_eff=" & avarage_eff & "&avarage_act_prd_time=" & avarage_act_prd_time & "&prd_st_date=" & st_datetime2 & "&prd_st_time=" & st_time2 & "&prd_end_date=" & end_datetime2 & "&prd_end_time=" & end_time2 & "&updated_date=" & currdated)
+        '    'Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/InsertProductionActualAppFA?wi=" & wi_plan & "&line_cd=" & line_cd & "&item_cd=" & item_cd & "&plan_qty=" & plan_qty & "&act_qty=" & act_qty & "&seq_no=" & seq_no & "&shift_prd=" & shift_prd & "&manpower_no=" & manpower_no & "&st_time=" & st_time & "&end_time=" & end_time & "&lot_no=" & lot_no & "&comp_flg=" & comp_flg & "&transfer_flg=" & transfer_flg & "&del_flg=" & del_flg & "&prd_flg=" & prd_flg & "&close_lot_flg=" & close_lot_flg & "&avarage_eff=" & avarage_eff & "&avarage_act_prd_time=" & avarage_act_prd_time & "&prd_st_date=" & st_datetime2 & "&prd_st_time=" & st_time2 & "&prd_end_date=" & end_datetime2 & "&prd_end_time=" & end_time2 & "&updated_date=" & currdated)
         '     Return GetData
         '     Catch ex As Exception
-        'MsgBox("Error Function Get_Plan_All_By_Line_LOSS_A In Backoffice_model")
+        ''msgBox("Error Function Get_Plan_All_By_Line_LOSS_A In Backoffice_model")
         '    GoTo recheck
         '   End Try
     End Function
@@ -3995,13 +3997,13 @@ recheck:
             'cmd.CommandText = "INSERT INTO act_ins (pd,line_cd,wi_plan,item_cd,item_name,tr_status) VALUES ('pd123','line123','wi123','item123','nm123','1');"
             cmd.CommandText = "INSERT INTO close_lot_act (wi,line_cd,item_cd,plan_qty,act_qty,seq_no,shift_prd,manpower_no,prd_st_date,prd_st_time,prd_end_date,prd_end_time,lot_no,comp_flg,transfer_flg,del_flg,updated_date,prd_flg,close_lot_flg,avarage_eff,avarage_act_prd_time) VALUES ('" & wi_plan & "','" & line_cd & "','" & item_cd & "','" & plan_qty & "','" & act_qty & "','" & seq_no & "','" & shift_prd & "','" & manpower_no & "','" & st_datetime2 & "','" & st_time2 & "','" & end_datetime2 & "','" & end_time2 & "','" & lot_no & "','" & comp_flg & "','" & transfer_flg & "','" & del_flg & "','" & currdated & "','" & prd_flg & "','" & close_lot_flg & "','" & avarage_eff & "','" & avarage_act_prd_time & "')"
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
             Return LoadSQL
             sqliteConn.Dispose()
             sqliteConn.Close()
             sqliteConn = Nothing
         Catch ex As Exception
-            MsgBox("SQLite Insert Reccord failed. Please contact PC System [Function insPrdDetail_sqlite]")
+            'msgBox("SQLite Insert Reccord failed. Please contact PC System [Function insPrdDetail_sqlite]")
             sqliteConn.Close()
         End Try
     End Function
@@ -4022,15 +4024,15 @@ recheck:
             SQLCmd.CommandText = "INSERT INTO production_emp_detail (wi_plan,staff_cd,prd_seq_no,updated_date) VALUES ('" & wi_plan & "','" & staff_cd & "','" & prd_seq & "','" & currdated & "')"
 
             reader = SQLCmd.ExecuteReader()
-            ''Console.WriteLine("INSERT INTO production_emp_detail (wi_plan,staff_cd,prd_seq_no,updated_date) VALUES ('" & wi_plan & "','" & staff_cd & "','" & prd_seq & "','" & currdated & "')")
-            'MsgBox("INSERT INTO production_emp_detail (wi_plan,staff_cd,prd_seq_no,updated_date) VALUES ('" & wi_plan & "','" & staff_cd & "','" & prd_seq & "','" & currdated & "')")
+            '''Console.WriteLine("INSERT INTO production_emp_detail (wi_plan,staff_cd,prd_seq_no,updated_date) VALUES ('" & wi_plan & "','" & staff_cd & "','" & prd_seq & "','" & currdated & "')")
+            ''msgBox("INSERT INTO production_emp_detail (wi_plan,staff_cd,prd_seq_no,updated_date) VALUES ('" & wi_plan & "','" & staff_cd & "','" & prd_seq & "','" & currdated & "')")
 
             Return reader
             SQLConn.Dispose()
             SQLConn.Close()
             SQLConn = Nothing
         Catch ex As Exception
-            ' MsgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_emp_cd]")
+            ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_emp_cd]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -4053,7 +4055,7 @@ recheck:
             Dim result_api_checkper = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/getOpLineProduxtion?LineCd=" & lind_cd)
             Return result_api_checkper
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function get_loss_op_mst]")
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function get_loss_op_mst]")
             'SQLConn.Close()
             'Application.Exit()
         End Try
@@ -4078,7 +4080,7 @@ re_insert_rework_act:
             Dim result_api_checkper = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/getOpLineProduxtion?LineCd=" & lind_cd)
             Return result_api_checkper
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function get_loss_op_mst_sqlite]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function get_loss_op_mst_sqlite]" & ex.Message)
             sqliteConn.Close()
             GoTo re_insert_rework_act
         End Try
@@ -4101,8 +4103,8 @@ re_insert_rework_act:
         Dim SQLCmd As New SqlCommand()
         Dim st_datetime2 As String = st_time.ToString("yyyy/MM/dd H:m:s")
         Dim end_datetime2 As String = end_time.ToString("yyyy/MM/dd H:m:s")
-        ''Console.WriteLine("INSERT INTO loss_actual (wi,line_cd,item_cd,seq_no,shift_prd,start_loss,end_loss,loss_time,updated_date,loss_type,loss_cd_id,line_op_id,pd,transfer_flg) VALUES ('" & wi_plan & "','" & line_cd & "','" & item_cd & "','" & seq_no & "','" & shift_prd & "','" & st_datetime2 & "','" & end_datetime2 & "','" & loss_time & "','" & currdated & "','" & loss_type & "','" & loss_id & "','" & op_id & "','" & pd & "','" & transfer_flg & "')")
-        'MsgBox("INSERT INTO loss_actual (wi,line_cd,item_cd,seq_no,shift_prd,start_loss,end_loss,loss_time,updated_date,loss_type,loss_cd_id,line_op_id,pd,transfer_flg) VALUES ('" & wi_plan & "','" & line_cd & "','" & item_cd & "','" & seq_no & "','" & shift_prd & "','" & st_datetime2 & "','" & end_datetime2 & "','" & loss_time & "','" & currdated & "','" & loss_type & "','" & loss_id & "','" & op_id & "','" & pd & "','" & transfer_flg & "')")
+        '''Console.WriteLine("INSERT INTO loss_actual (wi,line_cd,item_cd,seq_no,shift_prd,start_loss,end_loss,loss_time,updated_date,loss_type,loss_cd_id,line_op_id,pd,transfer_flg) VALUES ('" & wi_plan & "','" & line_cd & "','" & item_cd & "','" & seq_no & "','" & shift_prd & "','" & st_datetime2 & "','" & end_datetime2 & "','" & loss_time & "','" & currdated & "','" & loss_type & "','" & loss_id & "','" & op_id & "','" & pd & "','" & transfer_flg & "')")
+        ''msgBox("INSERT INTO loss_actual (wi,line_cd,item_cd,seq_no,shift_prd,start_loss,end_loss,loss_time,updated_date,loss_type,loss_cd_id,line_op_id,pd,transfer_flg) VALUES ('" & wi_plan & "','" & line_cd & "','" & item_cd & "','" & seq_no & "','" & shift_prd & "','" & st_datetime2 & "','" & end_datetime2 & "','" & loss_time & "','" & currdated & "','" & loss_type & "','" & loss_id & "','" & op_id & "','" & pd & "','" & transfer_flg & "')")
         Try
             SQLConn.ConnectionString = sqlConnect
             SQLConn.Open()
@@ -4117,7 +4119,7 @@ re_insert_rework_act:
                 'case Load โปรแกรม ครั้ง แรก
                 SQLCmd.CommandText = "INSERT INTO loss_actual (wi,line_cd,item_cd,seq_no,shift_prd,start_loss,end_loss,loss_time,updated_date,loss_type,loss_cd_id,line_op_id,pd,transfer_flg , flg_control , pwi_id) VALUES ('" & wi_plan & "','" & line_cd & "','" & item_cd & "','" & seq_no & "','" & shift_prd & "','" & st_datetime2 & "','" & end_datetime2 & "','" & loss_time & "','" & currdated & "','" & loss_type & "','" & loss_id & "','" & op_id & "','" & pd & "','" & transfer_flg & "','" & flg_control & "','" & pwi_id & "')"
             End Try
-            Console.WriteLine(SQLCmd.CommandText)
+            'Console.WriteLine(SQLCmd.CommandText)
             reader = SQLCmd.ExecuteReader()
             'SQLConn.Dispose()
             SQLConn.Close()
@@ -4126,7 +4128,7 @@ re_insert_rework_act:
             Loss_reg.date_time_commit_data.Text = st_datetime2
             'SQLConn = Nothing
         Catch ex As Exception
-            MsgBox("MSSQL Database connect failed. Please contact PC System [Function ins_loss_act]")
+            'msgBox("MSSQL Database connect failed. Please contact PC System [Function ins_loss_act]")
             SQLConn.Close()
             load_show.Show()
             'Application.Exit()
@@ -4140,7 +4142,7 @@ re_insert_rework_act:
             SQLConn.ConnectionString = sqlConnect
             SQLConn.Open()
             SQLCmd.Connection = SQLConn
-            '    MsgBox("INSERT INTO loss_actual (wi,line_cd,item_cd,seq_no,shift_prd,start_loss,end_loss,loss_time,updated_date,loss_type,loss_cd_id,line_op_id,pd,transfer_flg) VALUES ('" & wi_plan & "','" & line_cd & "','" & item_cd & "','" & seq_no & "','" & shift_prd & "','" & st_datetime2 & "','" & end_datetime2 & "','" & loss_time & "','" & currdated & "','" & loss_type & "','" & loss_id & "','" & op_id & "','" & pd & "','" & transfer_flg & "')")
+            '    'msgBox("INSERT INTO loss_actual (wi,line_cd,item_cd,seq_no,shift_prd,start_loss,end_loss,loss_time,updated_date,loss_type,loss_cd_id,line_op_id,pd,transfer_flg) VALUES ('" & wi_plan & "','" & line_cd & "','" & item_cd & "','" & seq_no & "','" & shift_prd & "','" & st_datetime2 & "','" & end_datetime2 & "','" & loss_time & "','" & currdated & "','" & loss_type & "','" & loss_id & "','" & op_id & "','" & pd & "','" & transfer_flg & "')")
             SQLCmd.CommandText = "Update loss_actual set flg_control = '1' where flg_control = '0' and line_cd = '" & GET_LINE_PRODUCTION() & "'"
             reader = SQLCmd.ExecuteReader()
             'SQLConn.Dispose()
@@ -4175,12 +4177,12 @@ re_insert_rework_act:
             Else
                 cmd.CommandText = "INSERT INTO loss_actual(wi,line_cd,item_cd,seq_no,shift_prd,start_loss,end_loss,loss_time,updated_date,loss_type,loss_cd_id,line_op_id,pd,transfer_flg , flg_control , pwi_id) VALUES ('" & wi_plan & "','" & line_cd & "','" & item_cd & "','" & seq_no & "','" & shift_prd & "','" & st_datetime2 & "','" & end_datetime2 & "','" & loss_time & "','" & currdated & "','" & loss_type & "','" & loss_id & "','" & op_id & "','" & pd & "','" & transfer_flg & "','" & flg_control & "','" & pwi_id & "')"
             End If
-            ' Console.WriteLine("LOSSSS=>>>" & cmd.CommandText)
+            ' 'Console.WriteLine("LOSSSS=>>>" & cmd.CommandText)
             Loss_reg.date_time_commit_data.Text = st_datetime2
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
             sqliteConn.Close()
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function ins_loss_act_sqlite]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function ins_loss_act_sqlite]" & ex.Message)
             sqliteConn.Close()
             GoTo re_insert_rework_act
         End Try
@@ -4210,9 +4212,9 @@ re_insert_rework_act:
             Catch ex As Exception
                 Return 0
             End Try
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function check_loss_actual]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function check_loss_actual]" & ex.Message)
             sqliteConn.Close()
         End Try
     End Function
@@ -4241,9 +4243,9 @@ re_insert_rework_act:
             Catch ex As Exception
                 Return 0
             End Try
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function check_data_defact_detail]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function check_data_defact_detail]" & ex.Message)
             sqliteConn.Close()
         End Try
     End Function
@@ -4280,13 +4282,13 @@ recheck:
                 LoadSQL.Close()
                 update_flg_loss_atc_sqlite()
             Catch ex As Exception
-                MsgBox("error function Get_data_rework_actual == > " & ex.Message)
+                'msgBox("error function Get_data_rework_actual == > " & ex.Message)
                 Check_connect_sqlite()
                 GoTo recheck
             End Try
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function Get_data_rework_actual]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function Get_data_rework_actual]" & ex.Message)
             sqliteConn.Close()
         End Try
     End Function
@@ -4324,11 +4326,11 @@ recheck:
                 LoadSQL.Close()
                 update_flg_defact_sqlite()
             Catch ex As Exception
-                MsgBox("error function Get_data_defact_actual == > " & ex.Message)
+                'msgBox("error function Get_data_defact_actual == > " & ex.Message)
             End Try
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function Get_data_defact_actual]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function Get_data_defact_actual]" & ex.Message)
             sqliteConn.Close()
             Check_connect_sqlite()
             GoTo recheck
@@ -4362,7 +4364,7 @@ re_insert_rework_act:
             Dim st_datetime2 As String = st_time.ToString("yyyy/MM/dd H:mm:ss")
             Dim end_datetime2 As String = end_time.ToString("yyyy/MM/dd H:mm:ss")
             Dim date_now As String = end_time.ToString("dd/MM/yyyy")
-            'Console.WriteLine("Update_flg_loss loss_id ====>" & loss_id)
+            ''Console.WriteLine("Update_flg_loss loss_id ====>" & loss_id)
             If loss_id = "36" Then
                 SQLCmd.CommandText = "Update loss_actual 
 			set end_loss = '" & end_datetime2 & "',
@@ -4393,11 +4395,11 @@ re_insert_rework_act:
 			shift_prd = '" & shift_prd & "' and 
 			start_loss = '" & st_datetime2 & "'"
             End If
-            'Console.WriteLine(SQLCmd.CommandText)
+            ''Console.WriteLine(SQLCmd.CommandText)
             reader = SQLCmd.ExecuteReader()
             SQLConn.Close()
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function Update_flg_loss]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function Update_flg_loss]" & ex.Message)
             SQLConn.Close()
             GoTo re_insert_rework_act
         End Try
@@ -4420,14 +4422,14 @@ re_insert_rework_act:
             Else
                 cmd.CommandText = "Update loss_actual set end_loss = '" & end_datetime2 & "',loss_time = '" & loss_time & "' , updated_date = '" & currdated & "' , line_op_id = '" & op_id & "'  , transfer_flg = '" & transfer_flg & "' , flg_control ='" & flg_control & "' where wi='" & wi_plan & "' and line_cd = '" & line_cd & "' and item_cd = '" & item_cd & "' and seq_no = '" & seq_no & "' and shift_prd = '" & shift_prd & "' and start_loss = '" & st_datetime2 & "'"
             End If
-            'Console.WriteLine("Update_flg_loss_sqlite update ===>" & cmd.CommandText)
+            ''Console.WriteLine("Update_flg_loss_sqlite update ===>" & cmd.CommandText)
             Dim LoadSQL As SQLiteDataReader = cmd.ExecuteReader()
             LoadSQL.Close()
             sqliteConn.Close()
             Dim api = New api()
-            'MsgBox(LoadSQL)
+            ''msgBox(LoadSQL)
         Catch ex As Exception
-            MsgBox("SQLite Database connect failed. Please contact PC System [Function Update_flg_loss_sqlite]" & ex.Message)
+            'msgBox("SQLite Database connect failed. Please contact PC System [Function Update_flg_loss_sqlite]" & ex.Message)
             sqliteConn.Close()
         End Try
     End Function
@@ -4435,15 +4437,15 @@ re_insert_rework_act:
         Try
             Dim api = New api()
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_man_limit?line_cd=" & line_cd)
-            'Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_man_limit?line_cd=" & line_cd)
+            ''Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_man_limit?line_cd=" & line_cd)
             If GetData <> "0" Then
                 Return GetData
             Else
-                MsgBox("LoadManPower = 0")
+                'msgBox("LoadManPower = 0")
                 Return 0
             End If
         Catch ex As Exception
-            MsgBox("Error Function Get_MaxManPower In Backoffice_model")
+            'msgBox("Error Function Get_MaxManPower In Backoffice_model")
         End Try
         Return 0
     End Function
@@ -4451,10 +4453,10 @@ re_insert_rework_act:
         Try
             Dim api = New api()
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
-            'Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
+            ''Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
             Return GetData
         Catch ex As Exception
-            MsgBox("Error Function Get_Plan_All_By_Line In Backoffice_model")
+            'msgBox("Error Function Get_Plan_All_By_Line In Backoffice_model")
         End Try
         Return 0
     End Function
@@ -4464,7 +4466,7 @@ re_insert_rework_act:
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_X?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
             Return GetData
         Catch ex As Exception
-            MsgBox("Error Function Get_Plan_All_By_Line_Auto_Loss_X In Backoffice_model")
+            'msgBox("Error Function Get_Plan_All_By_Line_Auto_Loss_X In Backoffice_model")
         End Try
         Return 0
     End Function
@@ -4472,10 +4474,10 @@ re_insert_rework_act:
         Try
             Dim api = New api()
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd & "&dateEnd=" & dateEnd & "&timeEnd=" & timeEnd)
-            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd & "&dateEnd=" & dateEnd & "&timeEnd=" & timeEnd)
+            'Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd & "&dateEnd=" & dateEnd & "&timeEnd=" & timeEnd)
             Return GetData
         Catch ex As Exception
-            MsgBox("Error Function Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss In Backoffice_model")
+            'msgBox("Error Function Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss In Backoffice_model")
         End Try
         Return 0
     End Function
@@ -4485,7 +4487,7 @@ re_insert_rework_act:
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_A?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
             Return GetData
         Catch ex As Exception
-            MsgBox("Error Function Get_Plan_All_By_Line_LOSS_A In Backoffice_model")
+            'msgBox("Error Function Get_Plan_All_By_Line_LOSS_A In Backoffice_model")
         End Try
         Return 0
     End Function
@@ -4495,7 +4497,7 @@ re_insert_rework_act:
             Dim GetData = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_Plan_All_By_Line_Auto_Loss_E1?line_cd=" & line_cd & "&shift=" & shift & "&dateStart=" & dateStart & "&timeStart=" & timeStart & "&flg_spec=" & flg_spec & "&item_cd=" & item_cd)
             Return GetData
         Catch ex As Exception
-            MsgBox("Error Function Get_Plan_All_By_Line_LOSS_E1 In Backoffice_model")
+            'msgBox("Error Function Get_Plan_All_By_Line_LOSS_E1 In Backoffice_model")
         End Try
         Return 0
     End Function
@@ -4505,7 +4507,7 @@ re_insert_rework_act:
             Dim GetData = api.Load_data("http://192.168.161.77:5002/API_NEW_FA_PY2/notify/send?line_cd=" & line_cd & "&dep_cd=" & dep_cd)
             Return GetData
         Catch ex As Exception
-            MsgBox("Error Function AlertCheck_close_lot In Backoffice_model")
+            'msgBox("Error Function AlertCheck_close_lot In Backoffice_model")
         End Try
         Return 0
     End Function
@@ -4515,7 +4517,7 @@ re_insert_rework_act:
             Dim result_api_checkper = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/Api_Get_plan_production_critical?line_cd=" & GET_LINE_PRODUCTION())
             Return result_api_checkper
         Catch ex As Exception
-            MsgBox("Error Function Get_plan_production_critical In Backoffice_model")
+            'msgBox("Error Function Get_plan_production_critical In Backoffice_model")
         End Try
     End Function
     Public Shared Function GetDataPlanCritical(wi As String)
@@ -4524,7 +4526,7 @@ re_insert_rework_act:
             Dim result_api_checkper = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/Api_Get_plan_production_critical/GetDataPlanCritical?wi=" & wi & "&line_cd=" & GET_LINE_PRODUCTION())
             Return result_api_checkper
         Catch ex As Exception
-            MsgBox("Error Function GetDataPlanCritical In Backoffice_model")
+            'msgBox("Error Function GetDataPlanCritical In Backoffice_model")
         End Try
     End Function
     Public Shared Sub UpdateFlgZero(line_cd As String)
@@ -4532,7 +4534,7 @@ re_insert_rework_act:
             Dim api = New api()
             Dim result_api_checkper = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/UpdateFlgZero?line_cd=" & line_cd)
         Catch ex As Exception
-            MsgBox("Error Function UpdateFlgZeroSpecial In Backoffice_model")
+            'msgBox("Error Function UpdateFlgZeroSpecial In Backoffice_model")
         End Try
 
     End Sub
@@ -4545,7 +4547,7 @@ re_insert_rework_act:
             Dim url As String = "http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/UpdateFlgZeroSpecial"
             Dim result = api.Load_dataPOST(url, requestFunction)
         Catch ex As Exception
-            MsgBox("Error Function UpdateFlgZeroSpecial In Backoffice_model")
+            'msgBox("Error Function UpdateFlgZeroSpecial In Backoffice_model")
         End Try
     End Sub
     Public Shared Sub UpdateWorkingSpecial(arrayWI As Array)
@@ -4558,7 +4560,7 @@ re_insert_rework_act:
             Dim url As String = "http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/Update_supply_dev_WorkingSpecial"
             Dim result = api.Load_dataPOST(url, requestFunction)
         Catch ex As Exception
-            MsgBox("Error Function UpdateWorkingSpecial In Backoffice_model")
+            'msgBox("Error Function UpdateWorkingSpecial In Backoffice_model")
         End Try
     End Sub
     Public Shared Function M_Get_mst_line(line_cd As String)
@@ -4568,7 +4570,7 @@ re_insert_rework_act:
             Dim result = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_mst_line?line_cd=" & line_cd)
             Return result
         Catch ex As Exception
-            MsgBox("Error Function M_Get_mst_line In Backoffice_model")
+            'msgBox("Error Function M_Get_mst_line In Backoffice_model")
         End Try
     End Function
     Public Shared Function M_loadsecPopUp_Loss_E1(dateStart As String, timeStart As String, shift As String, item_cd As String, flg_spec As String, line_cd As String)
@@ -4578,7 +4580,7 @@ re_insert_rework_act:
             Dim result = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/loadsecPopUp_Loss_E1?dateStart=" & dateStart & "&timeStart=" & timeStart & "&Shift=" & shift & "&item_cd=" & item_cd & "&flg_spec=" & flg_spec & "&line_cd=" & line_cd)
             Return result
         Catch ex As Exception
-            MsgBox("Error Function M_loadsecPopUp_Loss_E1 In Backoffice_model")
+            'msgBox("Error Function M_loadsecPopUp_Loss_E1 In Backoffice_model")
         End Try
     End Function
     Public Shared Function GetDataLoss(start_loss As String, end_loss As String, line_cd As String)
@@ -4588,7 +4590,7 @@ re_insert_rework_act:
             Dim result = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/getDataloss?dateStart=" & start_loss & "&dateEnd=" & end_loss & "&line_cd=" & line_cd)
             Return result
         Catch ex As Exception
-            MsgBox("Error Function GetDataLoss In Backoffice_model")
+            'msgBox("Error Function GetDataLoss In Backoffice_model")
         End Try
     End Function
     Public Shared Async Function GetPercenPlanned_OEE(line_cd As String) As Task(Of String)
@@ -4600,7 +4602,7 @@ re_insert_rework_act:
             Dim rsData As String = Await Task.Run(Function() api.Load_data(url))
             Return rsData
         Catch ex As Exception
-            MsgBox("❗ connect Api Fail in GetPercenPlanned_OEE = " & ex.Message)
+            'msgBox("❗ connect Api Fail in GetPercenPlanned_OEE = " & ex.Message)
             Return "0"
         End Try
     End Function

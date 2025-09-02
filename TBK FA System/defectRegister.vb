@@ -68,7 +68,7 @@ Public Class defectRegister
             If rsCheck Then
                 tbQtydefectnc.Text = CDbl(Val(tbQtydefectnc.Text)) + number
             Else
-                MsgBox("Please Check QTY Input")
+                'msgBox("Please Check QTY Input")
             End If
         Else
             Dim dfNumpadregister As New defectNumpadregister
@@ -81,10 +81,10 @@ Public Class defectRegister
                 If CDbl(Val(Working_Pro.LB_COUNTER_SEQ.Text)) > 0 Then
                     tbQtydefectnc.Text = CDbl(Val(tbQtydefectnc.Text)) + number
                 Else
-                    MsgBox("Please Input Actaual QTY")
+                    'msgBox("Please Input Actaual QTY")
                 End If
             Else
-                MsgBox("Please Check QTY Input")
+                'msgBox("Please Check QTY Input")
             End If
             'tbQtydefectnc.Text = CDbl(Val(tbQtydefectnc.Text)) + number
         End If
@@ -112,7 +112,7 @@ Public Class defectRegister
                 CalChildPart()
             End If
         Else
-            MsgBox("Please Check QTY.")
+            'msgBox("Please Check QTY.")
         End If
     End Sub
     Public Shared ReadOnly Property Instance As defectRegister
@@ -251,12 +251,12 @@ Public Class defectRegister
             If rsDataSQLite Then
                 Return True
             Else
-                'MsgBox("insertDefectregister FAILL Please Check rsData=" & rsData)
-                MsgBox("insertDefectregister FAILL Please Check rsData=" & rsDataSQLite)
+                ''msgBox("insertDefectregister FAILL Please Check rsData=" & rsData)
+                'msgBox("insertDefectregister FAILL Please Check rsData=" & rsDataSQLite)
                 Return False
             End If
         Catch ex As Exception
-            MsgBox("insertDefectregister FAILL Please Check" & ex.Message)
+            'msgBox("insertDefectregister FAILL Please Check" & ex.Message)
             Return False
         End Try
     End Function

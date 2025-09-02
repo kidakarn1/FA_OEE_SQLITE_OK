@@ -44,9 +44,9 @@ Public Class Rm_scan
         Dim Rm_updated_by = " "
         Dim Rm_line_cd = Prd_detail.Label3.Text
         Dim Rm_QR_code = scan_item_cd.Text
-        'MsgBox("arr_ITEM_CD(21) = " & arr_ITEM_CD(21))
+        ''msgBox("arr_ITEM_CD(21) = " & arr_ITEM_CD(21))
         Backoffice_model.Insert_Rm_Scan(WI, ITEM_CD2, LOT_PO, SEQ, SHIFT, Rm_created_date, Rm_created_by, Rm_Updated_date, Rm_updated_by, Rm_line_cd, Rm_QR_code, arr_ITEM_CD(21))
-        MsgBox("OK")
+        'msgBox("OK")
     End Sub
     Public Sub check_qr_code()
         insertMutidigit(scan_item_cd.Text)
@@ -68,12 +68,12 @@ Public Class Rm_scan
             Dim Rm_updated_by = ""
             Dim Rm_line_cd = Prd_detail.Label3.Text
             Dim Rm_QR_code = dataTag
-            'MsgBox("arr_ITEM_CD(21) = " & arr_ITEM_CD(21))
+            ''msgBox("arr_ITEM_CD(21) = " & arr_ITEM_CD(21))
             Backoffice_model.Insert_Rm_Scan(WI, ITEM_CD2, LOT_PO, SEQ, SHIFT, Rm_created_date, Rm_created_by, Rm_Updated_date, Rm_updated_by, Rm_line_cd, Rm_QR_code, "-")
-            MsgBox("OK")
+            'msgBox("OK")
             keyboardRm_Scan.Close()
         Else
-            MsgBox("Plase Check Tag.")
+            'msgBox("Plase Check Tag.")
         End If
         scan_item_cd.Text = ""
         scan_item_cd.Focus()
@@ -95,9 +95,9 @@ Public Class Rm_scan
         Dim Rm_updated_by = " "
         Dim Rm_line_cd = Prd_detail.Label3.Text
         Dim Rm_QR_code = scan_item_cd.Text
-        'MsgBox("arr_ITEM_CD(21) = " & arr_ITEM_CD(21))
+        ''msgBox("arr_ITEM_CD(21) = " & arr_ITEM_CD(21))
         Backoffice_model.Insert_Rm_Scan(WI, ITEM_CD2, LOT_PO, SEQ, SHIFT, Rm_created_date, Rm_created_by, Rm_Updated_date, Rm_updated_by, Rm_line_cd, Rm_QR_code, arr_ITEM_CD(21))
-        MsgBox("OK")
+        'msgBox("OK")
     End Sub
     Public Sub Insert_TAG_62(dataTag As String)
         Dim arr_ITEM_CD = scan_item_cd.Text.Split(" ")
@@ -114,9 +114,9 @@ Public Class Rm_scan
         Dim Rm_updated_by = " "
         Dim Rm_line_cd = Prd_detail.Label3.Text
         Dim Rm_QR_code = scan_item_cd.Text
-        'MsgBox("arr_ITEM_CD(21) = " & arr_ITEM_CD(21))
+        ''msgBox("arr_ITEM_CD(21) = " & arr_ITEM_CD(21))
         Backoffice_model.Insert_Rm_Scan(WI, ITEM_CD2, LOT_PO, SEQ, SHIFT, Rm_created_date, Rm_created_by, Rm_Updated_date, Rm_updated_by, Rm_line_cd, Rm_QR_code, arr_ITEM_CD(21))
-        MsgBox("OK")
+        'msgBox("OK")
     End Sub
     Private Sub scan_item_cd_KeyDown(sender As Object, e As KeyEventArgs) Handles scan_item_cd.KeyDown
         Select Case e.KeyCode
@@ -126,7 +126,7 @@ Public Class Rm_scan
                     ' If arr_ITEM_CD(2) = Prd_detail.lb_wi.Text Then
                     check_qr_code()
                     '  Else
-                    ' MsgBox("กรุณาตรวจสอบ WI ของท่านที่นำมาสแกน")
+                    ' 'msgBox("กรุณาตรวจสอบ WI ของท่านที่นำมาสแกน")
                     ' scan_item_cd.Text = ""
                     '  End If
                     'If scan_item_cd.Text.Length = 62 Then
@@ -135,7 +135,7 @@ Public Class Rm_scan
                     'Dim reader = Backoffice_model.get_list_rm_scan(Prd_detail.lb_wi.Text)
                     'Dim check_data As Integer = 0
                     'While reader.read()
-                    'MsgBox("ITEM CD ====>" & reader("ITEM_CD").ToString())
+                    ''msgBox("ITEM CD ====>" & reader("ITEM_CD").ToString())
                     'If reader("ITEM_CD").ToString() = arr_ITEM_CD(0) Then
                     'check_data = 1
                     '	GoTo break_loop
@@ -158,11 +158,11 @@ Public Class Rm_scan
                     'Dim Rm_line_cd = Prd_detail.Label3.Text
                     'Dim Rm_QR_code = scan_item_cd.Text
                     'Backoffice_model.Insert_Rm_Scan(WI, ITEM_CD2, LOT_PO, SEQ, SHIFT, Rm_created_date, Rm_created_by, Rm_Updated_date, Rm_updated_by, Rm_line_cd, Rm_QR_code)
-                    'MsgBox("OK")
+                    ''msgBox("OK")
                     'scan_item_cd.Text = ""
                     'scan_item_cd.Focus()
                     'Else
-                    'MsgBox("กรุณา นำ PART / FW มาผลิตให้ถูกต้อง")
+                    ''msgBox("กรุณา นำ PART / FW มาผลิตให้ถูกต้อง")
                     'scan_item_cd.Text = ""
                     'scan_item_cd.Focus()
                     'End If
@@ -194,19 +194,19 @@ Public Class Rm_scan
                     '	Dim Rm_line_cd = Prd_detail.Label3.Text
                     '	Dim Rm_QR_code = scan_item_cd.Text
                     '	Backoffice_model.Insert_Rm_Scan(WI, ITEM_CD2, LOT_PO, SEQ, SHIFT, Rm_created_date, Rm_created_by, Rm_Updated_date, Rm_updated_by, Rm_line_cd, Rm_QR_code)
-                    '	MsgBox("OK")
+                    '	'msgBox("OK")
                     '	scan_item_cd.Text = ""
                     '	Else
-                    '	MsgBox("กรุณา นำ PART / FW มาผลิตให้ถูกต้อง")
+                    '	'msgBox("กรุณา นำ PART / FW มาผลิตให้ถูกต้อง")
                     '	scan_item_cd.Text = ""
                     '	scan_item_cd.Focus()
                     '	End If
                     '	Else
-                    '	MsgBox("กรุณากรอก QR CODE ให้ถูกต้อง")
+                    '	'msgBox("กรุณากรอก QR CODE ให้ถูกต้อง")
                     '	scan_item_cd.Text = ""
                     '	End If
                 Catch ex As Exception
-                    MsgBox("กรุณากรอก QR CODE ให้ถูกต้อง")
+                    'msgBox("กรุณากรอก QR CODE ให้ถูกต้อง")
                     scan_item_cd.Text = ""
                 End Try
         End Select

@@ -36,12 +36,12 @@
                         plantCode = "51"
                         wi = " - "
                     End If
-                    '                    MsgBox("partsNo===>" & partsNo)
-                    '                    MsgBox("qty===>" & qty)
-                    '                    MsgBox("dates===>" & dates)
-                    '                    MsgBox("seq===>" & seq)
-                    '                    MsgBox("line===>" & line)
-                    '                    MsgBox("keyInfo===>" & keyInfo)
+                    '                    'msgBox("partsNo===>" & partsNo)
+                    '                    'msgBox("qty===>" & qty)
+                    '                    'msgBox("dates===>" & dates)
+                    '                    'msgBox("seq===>" & seq)
+                    '                    'msgBox("line===>" & line)
+                    '                    'msgBox("keyInfo===>" & keyInfo)
 
                 Catch ex As Exception
                     Me.PictureBox9.Show()

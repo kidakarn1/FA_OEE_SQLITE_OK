@@ -333,11 +333,11 @@ Public Class Loss_reg
             Shell("C:\TicketMaintenances\TicketMaintenances\MaintenanceSystem.exe")
             Await AnotherAsyncMethod()
         Catch ex As Exception
-            '  MsgBox("Maintenance System Open.")
+            '  'msgBox("Maintenance System Open.")
         End Try
     End Function
     Public Sub Wait_DATA()
-        'Console.WriteLine("OK Connect MS SYS")
+        ''Console.WriteLine("OK Connect MS SYS")
     End Sub
     Public Async Function AnotherAsyncMethod() As Task
         ' Call the Main() method asynchronously
@@ -347,14 +347,14 @@ Public Class Loss_reg
     Public Async Function ConnectMaintenanceSys() As Task
         ' สร้าง PipeServer
         Dim pipeServer As New NamedPipeServerStream("mypipe", PipeDirection.In)
-        'Console.WriteLine("Waiting for connection...")
+        ''Console.WriteLine("Waiting for connection...")
         ' รอการเชื่อมต่อจาก Client
         Await pipeServer.WaitForConnectionAsync()
-        'Console.WriteLine("Client connected.")
+        ''Console.WriteLine("Client connected.")
         ' อ่านคำสั่งจาก Client
         Dim reader As New StreamReader(pipeServer)
         Dim command As String = Await reader.ReadLineAsync()
-        'Console.WriteLine("Received command from client: " & command)
+        ''Console.WriteLine("Received command from client: " & command)
         ' ตรวจสอบคำสั่ง
         If command = "click button" Then
             ' ทำงานเมื่อได้รับคำสั่ง "click button"
@@ -381,7 +381,7 @@ Public Class Loss_reg
             reader.Close()
             pipeServer.Close()
         ElseIf command = "Wait_DATA" Then
-            'Console.WriteLine("Wait_DATA")
+            ''Console.WriteLine("Wait_DATA")
         End If
         Try
             reader.Close()
@@ -390,6 +390,6 @@ Public Class Loss_reg
 
         End Try
         ' ปิดการเชื่อมต่อ
-        'Console.WriteLine("close Connection main")
+        ''Console.WriteLine("close Connection main")
     End Function
 End Class

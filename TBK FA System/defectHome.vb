@@ -19,7 +19,7 @@ Public Class defectHome
         Dim dfSelecttype = New defectSelecttype()
         dfSelecttype.show()
         Me.Close()
-        ' MsgBox("ไม่สามารถ ใส่ NC ได้ เนื่องจาก เมนูปิดแล้ว")
+        ' 'msgBox("ไม่สามารถ ใส่ NC ได้ เนื่องจาก เมนูปิดแล้ว")
     End Sub
     Public Sub RegisterNG()
         dtType = "NG"
@@ -59,7 +59,7 @@ Public Class defectHome
         'Dim dfSelecttype = New defectSelecttype()
         'dfSelecttype.show()
         'Me.Close()
-        ' MsgBox("ไม่สามารถ ใส่ NC ได้ เนื่องจาก เมนูปิดแล้ว")
+        ' 'msgBox("ไม่สามารถ ใส่ NC ได้ เนื่องจาก เมนูปิดแล้ว")
         RegisterNC()
     End Sub
     Private Sub btnAdjustncs_Click(sender As Object, e As EventArgs) Handles btnAdjustncs.Click
@@ -68,7 +68,7 @@ Public Class defectHome
         '  Dim dfDetailnc = New defectDetailnc()
         '  dfDetailnc.show()
         '  Me.Close()
-        'MsgBox("ไม่สามารถ ปรับ NC ได้ เนื่องจาก เมนูปิดแล้ว")
+        ''msgBox("ไม่สามารถ ปรับ NC ได้ เนื่องจาก เมนูปิดแล้ว")
     End Sub
     Public Sub CreateCenteredPictureBoxes()
         ' ===== ลบ PictureBox และ Control อื่น ๆ ที่ไม่จำเป็น (Reset) =====

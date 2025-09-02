@@ -87,7 +87,7 @@ Public Class Desc_act
                 reader = Backoffice_model.GET_QTY_SEQ_ACTUAL_DESC_SQLITE(Working_Pro.wi_no.Text, Working_Pro.Label14.Text, number_seq)
             End Try
             If App_qty_seq > 0 And check_qty_frith >= 0 Then 'เดินแผนไปแล้ว
-                ' MsgBox("condition 01")
+                ' 'msgBox("condition 01")
                 App_qty_seq = CDbl(Val(Working_Pro.LB_COUNTER_SEQ.Text)) - want_del
                 App_qty_ship = CDbl(Val(Working_Pro.LB_COUNTER_SHIP.Text)) - want_del
                 If CDbl(Val(Working_Pro.LB_COUNTER_SEQ.Text)) = want_del Then
@@ -101,9 +101,9 @@ Public Class Desc_act
                 End If
                 'End If
             ElseIf App_qty_seq = 0 And App_qty_ship > 0 Then 'ยังไม่ได้เดินแผน แต่มี qty seq เก่าค้างอยู่
-                'MsgBox("condition 02")
+                ''msgBox("condition 02")
                 While reader.read()
-                    '    MsgBox("SEQ = " & number_seq & " : LOAD_QTY = " & reader("QTY_ACTUAL").ToString())
+                    '    'msgBox("SEQ = " & number_seq & " : LOAD_QTY = " & reader("QTY_ACTUAL").ToString())
                     If reader("QTY_ACTUAL").ToString() <> "" Then
                         qty = reader("QTY_ACTUAL").ToString()
                     End If
@@ -115,10 +115,10 @@ Public Class Desc_act
                     ' App_qty_ship = CDbl(Val(Working_Pro.LB_COUNTER_SHIP.Text)) - want_del
                     tmp_qty_update = qty_update
                     want_del = qty_update
-                    '    MsgBox("want_del = " & want_del)
-                    '   MsgBox("App_qty_seq = " & App_qty_seq)
+                    '    'msgBox("want_del = " & want_del)
+                    '   'msgBox("App_qty_seq = " & App_qty_seq)
                     If qty_update > 0 Then
-                        '  MsgBox("If TOP")
+                        '  'msgBox("If TOP")
                         If want_del > 0 Then
                             tmp_qty_update = 0
                         End If
@@ -137,7 +137,7 @@ Public Class Desc_act
                         End Try
                     End If
                     If qty_update <= 0 Then
-                        ' MsgBox("If DOWN")
+                        ' 'msgBox("If DOWN")
                         Try
                             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                                 tr_status = "1"
@@ -155,7 +155,7 @@ Public Class Desc_act
                     End If
                 End If
             ElseIf App_qty_seq > 0 And App_qty_ship > 0 Then
-                '  MsgBox("condition 03")
+                '  'msgBox("condition 03")
                 Dim temp_data_seq_3 As Integer = 0
                 temp_data_seq_3 = tmp_del3 'CDbl(Val(Working_Pro.LB_COUNTER_SEQ.Text))
                 'App_qty_ship = CDbl(Val(Working_Pro.LB_COUNTER_SHIP.Text)) - want_del
@@ -177,20 +177,20 @@ Public Class Desc_act
                     reader = Backoffice_model.GET_QTY_SEQ_ACTUAL_DESC_SQLITE(Working_Pro.wi_no.Text, Working_Pro.Label14.Text, number_seq - 1)
                 End Try
                 While reader.read()
-                    ' MsgBox("SEQ = " & number_seq - 1 & "  LOAD_QTY = " & reader("QTY_ACTUAL").ToString())
+                    ' 'msgBox("SEQ = " & number_seq - 1 & "  LOAD_QTY = " & reader("QTY_ACTUAL").ToString())
                     qty = reader("QTY_ACTUAL").ToString()
                 End While
                 reader.close()
                 If qty > 0 Then
-                    '  MsgBox("reulst tmp_del3 = " & tmp_del3)
+                    '  'msgBox("reulst tmp_del3 = " & tmp_del3)
                     qty_update = tmp_del3 - qty
-                    ' MsgBox("reulst qty_update = " & qty_update)
+                    ' 'msgBox("reulst qty_update = " & qty_update)
                     ' App_qty_seq = CDbl(Val(Working_Pro.LB_COUNTER_SEQ.Text)) - want_del
                     ' App_qty_ship = CDbl(Val(Working_Pro.LB_COUNTER_SHIP.Text)) - want_del
                     tmp_qty_update = qty_update
                     want_del = qty_update
                     If qty_update > 0 Then
-                        ' MsgBox("If TOP3 ")
+                        ' 'msgBox("If TOP3 ")
                         If tmp_del3 > 0 Then
                             tmp_qty_update = 0
                         End If
@@ -207,7 +207,7 @@ Public Class Desc_act
                         End Try
                     End If
                     If qty_update <= 0 Then
-                        ' MsgBox("If DOWN3 ")
+                        ' 'msgBox("If DOWN3 ")
                         Try
                             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                                 tr_status = "1"
@@ -378,10 +378,10 @@ break_loop:
         Next
     End Sub
     Public Function set_data_del()
-		Dim prd_qty As Integer = Convert.ToInt32(Label1.Text)
+        Dim prd_qty As Integer = Convert.ToInt32(Label1.Text)
         Dim inp_qty As Integer
         Dim result As Integer = 0
-        '    MsgBox("M0")
+        '    'msgBox("M0")
         Dim md As New modelDefect()
         Working_Pro._Edit_Up_0.Text = "0"
         Try
@@ -400,14 +400,14 @@ break_loop:
             Label2.Text = listdetail
             Label2.BringToFront()
             Label2.Show()
-            'MsgBox("Can't input the Qty. over : " + Label1.Text)
+            ''msgBox("Can't input the Qty. over : " + Label1.Text)
             TextBox1.Clear()
             Return 0
         End Try
         Dim totalDefect As Integer = (CDbl(Val(Working_Pro.lb_nc_qty.Text)) + CDbl(Val(Working_Pro.lb_ng_qty.Text))) 'CDbl(Val(md.mGetDefect(Working_Pro.wi_no.Text, Working_Pro.Label18.Text, Working_Pro.Label14.Text) + (CDbl(Val(Working_Pro.lb_nc_qty.Text)) + CDbl(Val(Working_Pro.lb_ng_qty.Text)))))
         Dim totalDefectCP As Integer = (CDbl(Val(Working_Pro.lb_nc_child_part.Text)) + CDbl(Val(Working_Pro.lb_ng_child_part.Text)))
         'If inp_qty > (prd_qty - totalDefect) Then
-        ' MsgBox("M6")
+        ' 'msgBox("M6")
         Dim totalDefectAll As Integer = totalDefect
         If inp_qty > (CDbl(Val(Working_Pro.LB_COUNTER_SEQ.Text) - (totalDefectAll))) Then
             PictureBox3.Enabled = False
@@ -422,7 +422,7 @@ break_loop:
             Label2.Text = listdetail
             Label2.BringToFront()
             Label2.Show()
-            'MsgBox("Can't input the Qty. over : " & Label1.Text & " And Have Defect : " & totalDefect)
+            ''msgBox("Can't input the Qty. over : " & Label1.Text & " And Have Defect : " & totalDefect)
             TextBox1.Clear()
         Else
             If CDbl(Val(Working_Pro.LB_COUNTER_SHIP.Text)) > 0 Then
@@ -436,7 +436,7 @@ break_loop:
                     Working_Pro.flg_tag_print = 0
                     Working_Pro.LB_COUNTER_SHIP.Text -= inp_qty
                     Working_Pro.lb_good.Text -= inp_qty
-                    ' MsgBox("M1")
+                    ' 'msgBox("M1")
                     Working_Pro.LB_COUNTER_SEQ.Text -= inp_qty
                     Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
                     Dim monthNow As Integer = DateTime.Now.ToString("MM")
@@ -444,7 +444,7 @@ break_loop:
                     Dim hourNow As Integer = DateTime.Now.ToString("HH")
                     Dim minNow As Integer = DateTime.Now.ToString("mm")
                     Dim secNow As Integer = DateTime.Now.ToString("ss")
-                    ' MsgBox("M2")
+                    ' 'msgBox("M2")
                     Dim yearSt As Integer = Working_Pro.st_time.Text.Substring(0, 4)
                     Dim monthSt As Integer = Working_Pro.st_time.Text.Substring(5, 2)
                     Dim daySt As Integer = Working_Pro.st_time.Text.Substring(8, 2)
@@ -453,15 +453,17 @@ break_loop:
                     Dim secSt As Integer = Working_Pro.st_time.Text.Substring(17, 2)
                     Dim firstDate As New System.DateTime(yearSt, monthSt, daySt, hourSt, minSt, secSt)
                     Dim secondDate As New System.DateTime(yearNow, monthNow, dayNow, hourNow, minNow, secNow)
-                    ' MsgBox("M3")
+                    ' 'msgBox("M3")
                     Dim diff As System.TimeSpan = secondDate.Subtract(firstDate)
                     Dim diff1 As System.TimeSpan = secondDate - firstDate
                     Dim diff2 As String = (secondDate - firstDate).TotalSeconds.ToString()
                     Dim actCT As Double = Format(diff2 / 60, "0.00")
                     Dim cnt_btn As Integer = Integer.Parse(MainFrm.cavity.Text)
                     Dim snp As Integer = Integer.Parse(Working_Pro.Label27.Text)
-                    '  MsgBox("M4")
-                    Working_Pro._Edit_Up_0.Text = Integer.Parse(Working_Pro._Edit_Up_0.Text) - inp_qty
+                    '  'msgBox("M4")
+                    '  'msgBox("Working_Pro._Edit_Up_0.Text ==>" & Working_Pro._Edit_Up_0.Text)
+                    '  'msgBox("inp_qty ==>" & inp_qty)
+                    '  Working_Pro._Edit_Up_0.Text = Integer.Parse(Working_Pro._Edit_Up_0.Text) - inp_qty
                     Working_Pro.Label6.Text = Integer.Parse(Working_Pro.Label6.Text) - inp_qty
                     Try
                         Working_Pro.Label10.Text = Integer.Parse(Working_Pro.Label10.Text.Substring(1)) + inp_qty
@@ -471,7 +473,7 @@ break_loop:
                         ' Working_Pro.comp_flg = 0
                     End Try
                     Working_Pro.Label10.Text = "-" + Working_Pro.Label10.Text
-                    '   MsgBox("M5")
+                    '   'msgBox("M5")
                     Working_Pro.count = Working_Pro.count - inp_qty
                     Working_Pro.lb_qty_for_box.Text = Integer.Parse(Working_Pro.lb_qty_for_box.Text) - inp_qty
                     If Working_Pro.lb_qty_for_box.Text < 0 Then
@@ -562,7 +564,7 @@ break_loop:
                     Working_Pro.Enabled = True
                     Me.Close()
                 Else
-                    'MsgBox("Please check QTY OF SHIFT")
+                    ''msgBox("Please check QTY OF SHIFT")
                     PictureBox3.Enabled = False
                     PictureBox2.Enabled = False
                     Dim listdetail = "Please check QTY OF SHIFT"
@@ -580,7 +582,7 @@ break_loop:
                 PictureBox3.Enabled = False
                 PictureBox2.Enabled = False
                 Dim listdetail = "Can't input the Qty. over : " + Label1.Text
-                            PictureBox10.BringToFront()
+                PictureBox10.BringToFront()
                 PictureBox10.Show()
                 PictureBox1.BringToFront()
                 PictureBox1.Show()
@@ -589,12 +591,12 @@ break_loop:
                 Label2.Text = listdetail
                 Label2.BringToFront()
                 Label2.Show()
-                'MsgBox("Can't input the Qty. over : " + Label1.Text)
+                ''msgBox("Can't input the Qty. over : " + Label1.Text)
                 TextBox1.Clear()
-			End If
-		End If
-	End Function
-	Private Sub PictureBox3_Click(sender As Object, e As EventArgs) Handles PictureBox3.Click
+            End If
+        End If
+    End Function
+    Private Sub PictureBox3_Click(sender As Object, e As EventArgs) Handles PictureBox3.Click
         'Try
 
         If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
@@ -603,7 +605,7 @@ break_loop:
                 Dim prd_qty As Integer = Convert.ToInt32(Label1.Text)
                 Dim inp_qty As Integer
                 Dim result As Integer = 0
-                '    MsgBox("M0")
+                '    'msgBox("M0")
                 Dim md As New modelDefect()
                 Working_Pro._Edit_Up_0.Text = "0"
                 Try
@@ -622,9 +624,9 @@ break_loop:
                     Label2.Text = listdetail
                     Label2.BringToFront()
                     Label2.Show()
-                    'MsgBox("Can't input the Qty. over : " + Label1.Text)
+                    ''msgBox("Can't input the Qty. over : " + Label1.Text)
                     TextBox1.Clear()
-                 End Try
+                End Try
                 Dim totalDefect As Integer = (CDbl(Val(Working_Pro.lb_nc_qty.Text)) + CDbl(Val(Working_Pro.lb_ng_qty.Text))) 'CDbl(Val(md.mGetDefect(Working_Pro.wi_no.Text, Working_Pro.Label18.Text, Working_Pro.Label14.Text) + (CDbl(Val(Working_Pro.lb_nc_qty.Text)) + CDbl(Val(Working_Pro.lb_ng_qty.Text)))))
                 Dim totalDefectCP As Integer = (CDbl(Val(Working_Pro.lb_nc_child_part.Text)) + CDbl(Val(Working_Pro.lb_ng_child_part.Text)))
                 Dim totalDefectAll As Integer = totalDefect
@@ -642,7 +644,7 @@ break_loop:
                     Label2.Text = listdetail
                     Label2.BringToFront()
                     Label2.Show()
-                    'MsgBox("Can't input the Qty. over : " & Label1.Text & " And Have Defect : " & totalDefect)
+                    ''msgBox("Can't input the Qty. over : " & Label1.Text & " And Have Defect : " & totalDefect)
                     TextBox1.Clear()
                 Else
                     Working_Pro.RemainScanDmcDelQty = TextBox1.Text
@@ -659,94 +661,94 @@ break_loop:
                 set_data_del()
             End If
         Else
-            ' MsgBox("ASD")
+            ' 'msgBox("ASD")
             load_show.Show()
-			End If
-			'Catch ex As Exception
-		'MsgBox(ex.Message)
-		'load_show.Show()
-		'End Try
-		'Dim prd_qty As Integer = Convert.ToInt32(Label1.Text)
-		'Dim inp_qty As Integer
-		'Try
-		'    inp_qty = Convert.ToInt32(TextBox1.Text)
-		'Catch ex As Exception
-		'    inp_qty = 0
-		'End Try
-		'If inp_qty > prd_qty Then
-		'    MsgBox("Can't input the Qty. over : " + Label1.Text)
-		'   TextBox1.Clear()
-		'Else
-		'   Try
-		'Working_Pro.LB_COUNTER_SHIP.Text -= inp_qty
-		' Working_Pro.LB_COUNTER_SEQ.Text -= inp_qty
-		' Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
-		' Dim monthNow As Integer = DateTime.Now.ToString("MM")
-		' Dim dayNow As Integer = DateTime.Now.ToString("dd")
-		' Dim hourNow As Integer = DateTime.Now.ToString("HH")
-		' Dim minNow As Integer = DateTime.Now.ToString("mm")
-		' Dim secNow As Integer = DateTime.Now.ToString("ss")
-		' Dim yearSt As Integer = Working_Pro.st_time.Text.Substring(0, 4)
-		' Dim monthSt As Integer = Working_Pro.st_time.Text.Substring(5, 2)
-		' Dim daySt As Integer = Working_Pro.st_time.Text.Substring(8, 2)
-		' Dim hourSt As Integer = Working_Pro.st_time.Text.Substring(11, 2)
-		' Dim minSt As Integer = Working_Pro.st_time.Text.Substring(14, 2)
-		'Dim secSt As Integer = Working_Pro.st_time.Text.Substring(17, 2)
-		' Dim firstDate As New System.DateTime(yearSt, monthSt, daySt, hourSt, minSt, secSt)
-		' Dim secondDate As New System.DateTime(yearNow, monthNow, dayNow, hourNow, minNow, secNow)
-		'  Dim diff As System.TimeSpan = secondDate.Subtract(firstDate)
-		'   Dim diff1 As System.TimeSpan = secondDate - firstDate
-		'   Dim diff2 As String = (secondDate - firstDate).TotalSeconds.ToString()
-		'Dim actCT As Double = Format(diff2 / 60, "0.00")
-		'   Dim cnt_btn As Integer = Integer.Parse(MainFrm.cavity.Text)
-		'Dim snp As Integer = Integer.Parse(Working_Pro.Label27.Text)
-		'Working_Pro._Edit_Up_0.Text = Integer.Parse(Working_Pro._Edit_Up_0.Text) - inp_qty
-		' Working_Pro.Label6.Text = Integer.Parse(Working_Pro.Label6.Text) - inp_qty
-		'  Working_Pro.Label10.Text = Integer.Parse(Working_Pro.Label10.Text.Substring(1)) + inp_qty
-		'   Working_Pro.Label10.Text = "-" + Working_Pro.Label10.Text
-		' Working_Pro.count = Working_Pro.count - inp_qty
-		' Working_Pro.lb_qty_for_box.Text = Integer.Parse(Working_Pro.lb_qty_for_box.Text) - inp_qty
-		' Dim sum_prg As Integer = (Working_Pro.Label6.Text * 100) / Working_Pro.Label8.Text
-		' If sum_prg > 100 Then
-		'    sum_prg = 100
-		'End If
-		'Working_Pro.CircularProgressBar1.Text = sum_prg & "%"
-		'Working_Pro.CircularProgressBar1.Value = sum_prg
-		'Dim start_time As Date = Working_Pro.st_count_ct.Text
-		'Dim pd As String = MainFrm.Label6.Text
-		'D im line_cd As String = MainFrm.Label4.Text
-		'Dim wi_plan As String = Working_Pro.wi_no.Text
-		'Dim item_cd As String = Working_Pro.Label3.Text
-		'Dim item_name As String = Working_Pro.Label12.Text
-		'Dim staff_no As String = Working_Pro.Label29.Text
-		'Dim seq_no As String = Working_Pro.Label22.Text
-		'Dim prd_qty2 As Integer = inp_qty - (inp_qty * 2)
-		'Dim end_time As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
-		'Dim use_timee As Double = "0"
-		'Dim tr_status As String = "0"
-		'Dim number_qty As Integer = Working_Pro.Label6.Text
-		'Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-		'Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-		'Try
-		'If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
-		' tr_status = "1"
-		'  Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty2, number_qty, start_time2, end_time2, use_timee, tr_status)
-		'   Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty2, start_time, end_time, use_timee, number_qty)
-		'Else
-		'   tr_status = "0"
-		'    Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty2, number_qty, start_time2, end_time2, use_timee, tr_status)
-		'  End If
-		'Catch ex As Exception
-		'   tr_status = "0"
-		'   Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty2, number_qty, start_time2, end_time2, use_timee, tr_status)
-		'End Try
-		'Working_Pro.Enabled = True
-		'  Me.Close()
-		' Catch ex As Exception
-		'     MsgBox("Please input Qty." & ex.Message())
-		' End Try
-		'End If
-	End Sub
+        End If
+        'Catch ex As Exception
+        ''msgBox(ex.Message)
+        'load_show.Show()
+        'End Try
+        'Dim prd_qty As Integer = Convert.ToInt32(Label1.Text)
+        'Dim inp_qty As Integer
+        'Try
+        '    inp_qty = Convert.ToInt32(TextBox1.Text)
+        'Catch ex As Exception
+        '    inp_qty = 0
+        'End Try
+        'If inp_qty > prd_qty Then
+        '    'msgBox("Can't input the Qty. over : " + Label1.Text)
+        '   TextBox1.Clear()
+        'Else
+        '   Try
+        'Working_Pro.LB_COUNTER_SHIP.Text -= inp_qty
+        ' Working_Pro.LB_COUNTER_SEQ.Text -= inp_qty
+        ' Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
+        ' Dim monthNow As Integer = DateTime.Now.ToString("MM")
+        ' Dim dayNow As Integer = DateTime.Now.ToString("dd")
+        ' Dim hourNow As Integer = DateTime.Now.ToString("HH")
+        ' Dim minNow As Integer = DateTime.Now.ToString("mm")
+        ' Dim secNow As Integer = DateTime.Now.ToString("ss")
+        ' Dim yearSt As Integer = Working_Pro.st_time.Text.Substring(0, 4)
+        ' Dim monthSt As Integer = Working_Pro.st_time.Text.Substring(5, 2)
+        ' Dim daySt As Integer = Working_Pro.st_time.Text.Substring(8, 2)
+        ' Dim hourSt As Integer = Working_Pro.st_time.Text.Substring(11, 2)
+        ' Dim minSt As Integer = Working_Pro.st_time.Text.Substring(14, 2)
+        'Dim secSt As Integer = Working_Pro.st_time.Text.Substring(17, 2)
+        ' Dim firstDate As New System.DateTime(yearSt, monthSt, daySt, hourSt, minSt, secSt)
+        ' Dim secondDate As New System.DateTime(yearNow, monthNow, dayNow, hourNow, minNow, secNow)
+        '  Dim diff As System.TimeSpan = secondDate.Subtract(firstDate)
+        '   Dim diff1 As System.TimeSpan = secondDate - firstDate
+        '   Dim diff2 As String = (secondDate - firstDate).TotalSeconds.ToString()
+        'Dim actCT As Double = Format(diff2 / 60, "0.00")
+        '   Dim cnt_btn As Integer = Integer.Parse(MainFrm.cavity.Text)
+        'Dim snp As Integer = Integer.Parse(Working_Pro.Label27.Text)
+        'Working_Pro._Edit_Up_0.Text = Integer.Parse(Working_Pro._Edit_Up_0.Text) - inp_qty
+        ' Working_Pro.Label6.Text = Integer.Parse(Working_Pro.Label6.Text) - inp_qty
+        '  Working_Pro.Label10.Text = Integer.Parse(Working_Pro.Label10.Text.Substring(1)) + inp_qty
+        '   Working_Pro.Label10.Text = "-" + Working_Pro.Label10.Text
+        ' Working_Pro.count = Working_Pro.count - inp_qty
+        ' Working_Pro.lb_qty_for_box.Text = Integer.Parse(Working_Pro.lb_qty_for_box.Text) - inp_qty
+        ' Dim sum_prg As Integer = (Working_Pro.Label6.Text * 100) / Working_Pro.Label8.Text
+        ' If sum_prg > 100 Then
+        '    sum_prg = 100
+        'End If
+        'Working_Pro.CircularProgressBar1.Text = sum_prg & "%"
+        'Working_Pro.CircularProgressBar1.Value = sum_prg
+        'Dim start_time As Date = Working_Pro.st_count_ct.Text
+        'Dim pd As String = MainFrm.Label6.Text
+        'D im line_cd As String = MainFrm.Label4.Text
+        'Dim wi_plan As String = Working_Pro.wi_no.Text
+        'Dim item_cd As String = Working_Pro.Label3.Text
+        'Dim item_name As String = Working_Pro.Label12.Text
+        'Dim staff_no As String = Working_Pro.Label29.Text
+        'Dim seq_no As String = Working_Pro.Label22.Text
+        'Dim prd_qty2 As Integer = inp_qty - (inp_qty * 2)
+        'Dim end_time As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+        'Dim use_timee As Double = "0"
+        'Dim tr_status As String = "0"
+        'Dim number_qty As Integer = Working_Pro.Label6.Text
+        'Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+        'Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+        'Try
+        'If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+        ' tr_status = "1"
+        '  Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty2, number_qty, start_time2, end_time2, use_timee, tr_status)
+        '   Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty2, start_time, end_time, use_timee, number_qty)
+        'Else
+        '   tr_status = "0"
+        '    Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty2, number_qty, start_time2, end_time2, use_timee, tr_status)
+        '  End If
+        'Catch ex As Exception
+        '   tr_status = "0"
+        '   Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty2, number_qty, start_time2, end_time2, use_timee, tr_status)
+        'End Try
+        'Working_Pro.Enabled = True
+        '  Me.Close()
+        ' Catch ex As Exception
+        '     'msgBox("Please input Qty." & ex.Message())
+        ' End Try
+        'End If
+    End Sub
     Private Sub Desc_act_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         lbpartNo.Text = Working_Pro.Label3.Text
         'TextBox1.Enabled = False

@@ -42,7 +42,7 @@
             Label1.Text = listdetail
             Label1.BringToFront()
             Label1.Show()
-            'MsgBox("Username or password is incorrect!. Please try again.")
+            ''msgBox("Username or password is incorrect!. Please try again.")
             TextBox1.Text = ""
             TextBox2.Text = ""
             TextBox1.Select()
