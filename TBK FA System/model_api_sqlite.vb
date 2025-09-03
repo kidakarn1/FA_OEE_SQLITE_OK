@@ -651,22 +651,72 @@ Public Class model_api_sqlite
                   "st_time BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND " &
                   "line_cd = '" & line_cd & "' AND item_cd = '" & item_cd & "' AND qty > 0 " &
                   "ORDER BY end_time DESC LIMIT 1;"
-                sql_check_loss = "SELECT * FROM loss_actual WHERE " &
-                  "(line_cd = '" & line_cd & "' AND start_loss BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND item_cd = '" & item_cd & "' AND loss_cd_id <> '1' AND flg_control <> '2') OR " &
-                  "(line_cd = '" & line_cd & "' AND end_loss BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND item_cd = '" & item_cd & "' AND loss_cd_id <> '1' AND flg_control <> '2') " &
-                  "ORDER BY id DESC LIMIT 1;"
+                ' sql_check_loss = "SELECT * FROM loss_actual WHERE " &
+                '   "(line_cd = '" & line_cd & "' AND start_loss BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND item_cd = '" & item_cd & "' AND loss_cd_id <> '1' AND flg_control <> '2') OR " &
+                '   "(line_cd = '" & line_cd & "' AND end_loss BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND item_cd = '" & item_cd & "' AND loss_cd_id <> '1' AND flg_control <> '2') " &
+                '   "ORDER BY id DESC LIMIT 1;"
+                sql_check_loss = "SELECT *
+                                    FROM loss_actual
+                                    WHERE line_cd =  '" & line_cd & "'
+                                      AND flg_control <> '2'
+                                      AND (
+                                            start_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
+                                            OR end_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
+                                          )
+                                      AND id != (
+                                            SELECT id
+                                            FROM loss_actual
+                                            WHERE 
+                                                line_cd = '" & line_cd & "' 
+                                               
+                                                AND flg_control <> '2'
+                                                AND (
+                                                    start_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
+                                                    OR end_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
+                                                )
+                                            ORDER BY start_loss ASC
+                                            LIMIT 1
+                                        )
+                                           AND item_cd = '" & item_cd & "' 
+                                    ORDER BY id DESC
+                                    LIMIT 1;
+                                    "
             Else
                 sql = "SELECT * FROM act_ins WHERE " &
                   "st_time BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND " &
                   "line_cd = '" & line_cd & "' AND qty > 0 " &
                   "ORDER BY end_time DESC LIMIT 1;"
-                sql_check_loss = "SELECT * FROM loss_actual WHERE " &
-                  "(line_cd = '" & line_cd & "' AND start_loss BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND loss_cd_id <> '1' AND flg_control <> '2') OR " &
-                  "(line_cd = '" & line_cd & "' AND end_loss BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND loss_cd_id <> '1' AND flg_control <> '2') " &
-                  "ORDER BY id DESC LIMIT 1;"
+                ' sql_check_loss = "SELECT * FROM loss_actual WHERE " &
+                '   "(line_cd = '" & line_cd & "' AND start_loss BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND loss_cd_id <> '1' AND flg_control <> '2') OR " &
+                '   "(line_cd = '" & line_cd & "' AND end_loss BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND loss_cd_id <> '1' AND flg_control <> '2') " &
+                '   "ORDER BY id DESC LIMIT 1;"
+                sql_check_loss = "SELECT *
+                                    FROM loss_actual
+                                    WHERE line_cd =  '" & line_cd & "'
+                                      AND flg_control <> '2'
+                                      AND (
+                                            start_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
+                                            OR end_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
+                                          )
+                                      AND id != (
+                                            SELECT id
+                                            FROM loss_actual
+                                            WHERE 
+                                                line_cd = '" & line_cd & "' 
+                                                AND flg_control <> '2'
+                                                AND (
+                                                    start_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
+                                                    OR end_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
+                                                )
+                                            ORDER BY start_loss ASC
+                                            LIMIT 1
+                                        )
+                                    ORDER BY id DESC
+                                    LIMIT 1;
+                                    "
             End If
-            'Console.WriteLine("sql ==>" & sql)
-            'Console.WriteLine("sql_check_loss ==>" & sql_check_loss)
+            Console.WriteLine("mas_Get_Plan_All_By_Line_Loss_E1 sql ==>" & sql)
+            Console.WriteLine("mas_Get_Plan_All_By_Line_Loss_E1 sql_check_loss ==>" & sql_check_loss)
             ' โหลดข้อมูลการผลิต
             Dim jsonDataProd As String = Await api.Load_dataSQLiteAsyncLoaddata(sql)
             If String.IsNullOrWhiteSpace(jsonDataProd) OrElse Not jsonDataProd.Trim().StartsWith("[") Then
