@@ -19,7 +19,9 @@ Imports System.Web.Script.Serialization
 Imports Microsoft.Web.WebView2.Core
 Imports Microsoft.Web.WebView2.WinForms
 Imports QRCoder
+
 Public Class Working_Pro
+
     Public Property MinValue As Integer
     Public Property MaxValue As Integer
     Public Property ColorRGB As String
@@ -112,6 +114,353 @@ Public Class Working_Pro
     Public Shared Product_type As String = ""
     Public Shared checkLossA As Integer = 0
     Public Shared checkLossE1 As Integer = 0
+
+    Private ReadOnly logDir As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs")
+    Private Shared handlersInstalled As Boolean = False
+    Private Sub InstallGlobalHandlers()
+        If handlersInstalled Then Return
+        AddHandler Application.ThreadException, Sub(s, e)
+                                                    LogPrintError(e.Exception, "Application.ThreadException")
+                                                End Sub
+        AddHandler AppDomain.CurrentDomain.UnhandledException, Sub(s, e)
+                                                                   Dim ex = TryCast(e.ExceptionObject, Exception)
+                                                                   If ex IsNot Nothing Then LogPrintError(ex, "UnhandledException")
+                                                               End Sub
+        handlersInstalled = True
+    End Sub
+    Private Sub EnsureLogDir()
+        Try
+            If Not Directory.Exists(logDir) Then Directory.CreateDirectory(logDir)
+        Catch
+        End Try
+    End Sub
+    Private Sub LogObject(prefix As String, obj As Object)
+        Try
+            EnsureLogDir()
+            Dim p = Path.Combine(logDir, $"print_{DateTime.Now:yyyyMMdd}.log")
+            Using w As New StreamWriter(p, append:=True)
+                w.WriteLine("===== {0} @ {1:yyyy-MM-dd HH:mm:ss.fff} =====", prefix, DateTime.Now)
+                If obj Is Nothing Then
+                    w.WriteLine("(null)")
+                Else
+                    For Each prop In obj.GetType().GetProperties()
+                        Dim v = prop.GetValue(obj, Nothing)
+                        w.WriteLine("{0}: {1}", prop.Name, If(v Is Nothing, "(null)", v.ToString()))
+                    Next
+                End If
+                w.WriteLine()
+            End Using
+        Catch
+        End Try
+    End Sub
+
+    Private Function SafeText(lbl As Control) As String
+        If lbl Is Nothing OrElse lbl.IsDisposed Then Return ""
+        Return If(lbl.Text, "").Trim()
+    End Function
+
+    '========== ฟังก์ชันหลัก: พิมพ์ 1 ใบ ==========
+    Public Sub tag_print()
+        If Interlocked.Exchange(flg_tag_print, 1) = 1 Then
+            ' มีงานกำลังพิมพ์อยู่
+            Return
+        End If
+        Try
+            ' ป้องกันปัญหา CreateHandle/Win32Exception (#Event 1026, KERNELBASE.dll)
+            If Me.IsDisposed OrElse Not Me.IsHandleCreated Then
+                Throw New InvalidOperationException("Form ยังไม่พร้อม (Handle ไม่พร้อมหรือถูก Dispose).")
+            End If
+            If check_tag_type = "1" Or check_tag_type = "3" Then
+                ' ตรวจเครื่องพิมพ์
+                Dim ps As New PrinterSettings()
+                If PrinterSettings.InstalledPrinters Is Nothing OrElse PrinterSettings.InstalledPrinters.Count = 0 Then
+                    Throw New InvalidOperationException("ไม่พบเครื่องพิมพ์ที่ติดตั้ง")
+                End If
+                If Not ps.IsValid Then
+                    Throw New InvalidOperationException("เครื่องพิมพ์ไม่พร้อมใช้งาน")
+                End If
+
+                ' ===== เตรียมข้อมูล snapshot (ไม่อ่านตอน PrintPage) =====
+                ' *** ตัวอย่างนี้อ้าง Label ต่าง ๆ จากฟอร์มของคุณ ***
+                Dim sqlite = New ModelSqliteDefect()
+                Dim wi = SafeText(Me.wi_no)
+                Dim lot = SafeText(Me.Label18)
+                Dim startShift = SafeText(Me.DateTimeStartofShift)
+                Dim lineName = SafeText(MainFrm.Label4)
+                Dim defectAll As Integer = 0
+                Try
+                    defectAll = sqlite.mSqlieGetDataNGbyWILot(lineName, lot, startShift, wi)
+                Catch ex As Exception
+                    LogPrintError(ex, "mSqlieGetDataNGbyWILot")
+                End Try
+                Me.keep_data_and_gen_qr_tag_fa_completed()
+                Dim prdtype As String
+                Dim prdTypeText = SafeText(Me.lb_prd_type)
+                If prdTypeText = "10" Then
+                    prdtype = "FG"
+                ElseIf prdTypeText = "40" Then
+                    prdtype = "Parts"
+                Else
+                    prdtype = "FW"
+                End If
+                ' จับค่า Box ปัจจุบันให้ "ใบนี้"
+                Dim currentBox As Integer = Math.Max(0, CInt(Val(SafeText(Me.lb_box_count))))
+                Dim data As New TagPrintData With {
+                .iden_cd = If(SafeText(MainFrm.Label6) = "K1PD01", "GA", "GB"),
+                .PartNo = SafeText(Me.Label3),
+                .PartName = SafeText(Me.Label12).Replace(vbCrLf, ""),
+                .Model = SafeText(Me.lb_model),
+                .NextProcess = Backoffice_model.NEXT_PROCESS,
+                .Location = SafeText(Me.lb_location),
+                .Shift = SafeText(Me.Label14),
+                .PlanSeq = SafeText(Me.Label22),
+                .BoxSeq = currentBox.ToString(),
+                .PlanDate = Me.lb_dlv_date.Text,
+                .LotNo = lot,
+                .WiNo = wi,
+                .PrdType = prdtype,
+                .LineCode = SafeText(Me.Label24),
+                .GoodQty = CInt(Val(Me.GoodQty)),
+                .LbGood = CInt(Val(SafeText(Me.lb_good))),
+                .PackSize = Math.Max(1, CInt(Val(SafeText(Me.Label27)))),
+                .StatusPrint = Me.statusPrint,
+                .V_CheckLineReprint = Me.V_check_line_reprint,
+                .FactoryCd = If(SafeText(MainFrm.Label6) = "K2PD06", "Phase8", "Phase10"),
+                .PlanCd = If(SafeText(MainFrm.Label6) = "K2PD06", "52", "51"),
+                .BoxCount = currentBox,
+                .DefectAll = defectAll,
+                .RemainWi = CInt(Val(SafeText(Me.Label10)))
+            }
+                LogObject("TagPrintData (snapshot)", data)
+                Dim dataCopy As TagPrintData = data  ' snapshot ไว้ในตัวแปร local
+                ' ===== ใช้ PrintDocument เฉพาะงานนี้ =====
+                Using pd As New PrintDocument()
+                    pd.PrinterSettings = ps
+                    pd.PrintController = New StandardPrintController() ' suppress dialog
+                    AddHandler pd.PrintPage,
+                      Sub(sender As Object, e As PrintPageEventArgs)
+                          Try
+                              PrintPageWithData(e, dataCopy)  ' ส่ง snapshot เข้าไป
+                          Catch ex As Exception
+                              e.HasMorePages = False
+                              LogPrintError(ex, "PrintPage")
+                              MessageBox.Show("พิมพ์แท็กล้มเหลว: " & ex.Message,
+                            "Print Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error)
+                          End Try
+                      End Sub
+
+                    ' ===== พิมพ์แบบ synchronous (กัน race) =====
+                    pd.Print()
+                End Using
+                ' สำเร็จ: +1 ให้กล่องถัดไป
+                '  Me.lb_box_count.Text = (currentBox + 1).ToString()
+            ElseIf check_tag_type = "2" Then
+                Try
+                    Backoffice_model.flg_cat_layout_line = "2"
+                    print_back.print()
+                Catch ex As Exception
+                    Console.WriteLine("Print Back ข้อผิดพลาดในการพิมพ์: " & ex.Message)
+                    MessageBox.Show("Print Back  เกิดข้อผิดพลาดในการพิมพ์: " & ex.Message, "ข้อผิดพลาดการพิมพ์", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                End Try
+                'print_back.PrintDocument1.Print()
+            Else
+                ' หากฟอร์มไม่พร้อม
+                MessageBox.Show("ไม่สามารถใช้ UI Thread ได้", "ข้อผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            End If
+        Catch ex As Exception
+            LogPrintError(ex, "TagPrintOne")
+            MessageBox.Show("เกิดข้อผิดพลาดในการพิมพ์แท็ก: " & ex.Message, "ระบบ",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error)
+        Finally
+            Interlocked.Exchange(flg_tag_print, 0)
+        End Try
+    End Sub
+
+    '========== พิมพ์หลายใบจากจำนวนชิ้น (เช่น Manual 15 pcs → 3 ใบ) ==========
+    Public Sub TagPrintMany(totalPcs As Integer)
+        If totalPcs <= 0 Then Exit Sub
+
+        ' ทำ snapshotของ PackSize หนึ่งครั้ง เพื่อคำนวณจำนวนใบ
+        Dim packSize As Integer = Math.Max(1, CInt(Val(SafeText(Me.Label27))))
+        Dim pages As Integer = CInt(Math.Ceiling(totalPcs / Math.Max(1.0, packSize)))
+
+        For i = 1 To pages
+            'TagPrintOne() ' แต่ละใบจะจับค่า Box ณ ตอนเริ่มพิมพ์ของตัวเอง
+        Next
+    End Sub
+
+    '========== ตัวสร้างหน้าเอกสาร โดยใช้ snapshot d ==========
+    Private Sub PrintPageWithData(e As PrintPageEventArgs, d As TagPrintData)
+        Using aPen As New Pen(Color.Black)
+            aPen.Width = 2.0F
+            e.Graphics.DrawLine(aPen, 150, 10, 150, 290)
+            e.Graphics.DrawLine(aPen, 300, 175, 300, 290)
+            e.Graphics.DrawLine(aPen, 590, 10, 590, 175)
+            e.Graphics.DrawLine(aPen, 410, 120, 410, 235)
+            e.Graphics.DrawLine(aPen, 410, 175, 410, 235)
+            e.Graphics.DrawLine(aPen, 225, 175, 225, 235)
+            e.Graphics.DrawLine(aPen, 490, 10, 490, 65)
+            e.Graphics.DrawLine(aPen, 520, 175, 520, 290)
+            e.Graphics.DrawLine(aPen, 610, 175, 610, 290)
+            e.Graphics.DrawLine(aPen, 700, 10, 700, 290)
+            e.Graphics.DrawLine(aPen, 150, 11, 700, 11)
+            e.Graphics.DrawLine(aPen, 150, 65, 590, 65)
+            e.Graphics.DrawLine(aPen, 150, 120, 700, 120)
+            e.Graphics.DrawLine(aPen, 150, 175, 700, 175)
+            e.Graphics.DrawLine(aPen, 150, 235, 610, 235)
+            e.Graphics.DrawLine(aPen, 150, 289, 700, 289)
+        End Using
+
+        '--- คำนวณ QTY ต่อแท็ก ---
+        Dim modsucc As Integer
+        If d.StatusPrint = "CloseLot" OrElse d.StatusPrint = "Normal" Then
+            modsucc = d.GoodQty
+        Else
+            modsucc = If(d.RemainWi = 0, d.GoodQty - d.DefectAll, d.GoodQty)
+        End If
+
+        Dim result_snp As Integer = modsucc Mod d.PackSize
+        Dim status_tag As String = "[ Incomplete Tag ]"
+        If d.V_CheckLineReprint = "0" Then
+            If result_snp = 0 Then result_snp = d.PackSize : status_tag = " "
+        Else
+            If d.PackSize = 1 OrElse d.PackSize = 999999 Then
+                result_snp = d.BoxCount : status_tag = " "
+            Else
+                If result_snp = 0 Then
+                    result_snp = d.PackSize : status_tag = " "
+                Else
+                    result_snp = d.LbGood Mod d.PackSize
+                    status_tag = "[ Incomplete Tag ]"
+                End If
+            End If
+        End If
+
+        '--- ใช้ PlanDate จาก snapshot + TryParse ---
+        Dim planDt As DateTime
+        If Not DateTime.TryParse(d.PlanDate, planDt) Then
+            Throw New InvalidOperationException("Plan Date ไม่ถูกต้อง: " & d.PlanDate)
+        End If
+        Dim planDateDMY As String = planDt.ToString("dd/MM/yyyy")
+        Dim planDateYMD As String = planDt.ToString("yyyyMMdd")
+
+        '--- วาดข้อความ ---
+        e.Graphics.DrawString("PART NO.", lb_font1.Font, Brushes.Black, 152, 13)
+        e.Graphics.DrawString(d.PartNo, lb_font2.Font, Brushes.Black, 152, 25)
+        e.Graphics.DrawString("QTY.", lb_font1.Font, Brushes.Black, 492, 13)
+        e.Graphics.DrawString(result_snp.ToString(), lb_font2.Font, Brushes.Black, 505, 25)
+
+        e.Graphics.DrawString("PART NAME.", lb_font1.Font, Brushes.Black, 152, 67)
+        Dim partName As String = If(d.PartName, "")
+        If partName.Length > 36 Then
+            e.Graphics.DrawString(partName.Substring(0, 30), Label9_fontModel.Font, Brushes.Black, 152, 79)
+            e.Graphics.DrawString(partName.Substring(30), Label9_fontModel.Font, Brushes.Black, 152, 98)
+        Else
+            e.Graphics.DrawString(partName, lb_font2.Font, Brushes.Black, 152, 79)
+        End If
+
+        e.Graphics.DrawString("MODEL", lb_font1.Font, Brushes.Black, 152, 123)
+        e.Graphics.DrawString(d.Model, lb_font4.Font, Brushes.Black, 152, 141)
+        e.Graphics.DrawString("NEXT PROCESS", lb_font1.Font, Brushes.Black, 412, 123)
+        e.Graphics.DrawString(d.NextProcess, lb_font4.Font, Brushes.Black, 414, 141)
+        e.Graphics.DrawString("LOCATION", lb_font1.Font, Brushes.Black, 592, 123)
+        e.Graphics.DrawString(d.Location, lb_font4.Font, Brushes.Black, 596, 141)
+
+        e.Graphics.DrawString("SHIFT", lb_font1.Font, Brushes.Black, 152, 178)
+        e.Graphics.DrawString(d.Shift, lb_font2.Font, Brushes.Black, 170, 190)
+        e.Graphics.DrawString("PRO. SEQ.", lb_font1.Font, Brushes.Black, 227, 178)
+        e.Graphics.DrawString(d.PlanSeq.PadLeft(3, "0"c), lb_font2.Font, Brushes.Black, 231, 190)
+        e.Graphics.DrawString("BOX NO.", lb_font1.Font, Brushes.Black, 302, 178)
+        e.Graphics.DrawString(d.BoxSeq.PadLeft(3, "0"c), lb_font2.Font, Brushes.Black, 320, 190)
+        e.Graphics.DrawString("ACTUAL DATE", lb_font1.Font, Brushes.Black, 412, 178)
+        e.Graphics.DrawString(DateTime.Now.ToString("dd/MM/yyyy"), lb_font5.Font, Brushes.Black, 412, 196)
+        e.Graphics.DrawString("FACTORY", lb_font1.Font, Brushes.Black, 522, 178)
+        e.Graphics.DrawString(d.FactoryCd, lb_font5.Font, Brushes.Black, 522, 196)
+        e.Graphics.DrawString("INFO.", lb_font1.Font, Brushes.Black, 612, 178)
+
+        e.Graphics.DrawString("LINE", lb_font1.Font, Brushes.Black, 152, 238)
+        e.Graphics.DrawString(d.LineCode, lb_font2.Font, Brushes.Black, 152, 250)
+        e.Graphics.DrawString("PLAN DATE", lb_font1.Font, Brushes.Black, 302, 238)
+        e.Graphics.DrawString(planDateDMY, lb_font6.Font, Brushes.Black, 334, 250)
+        e.Graphics.DrawString("LOT NO.", lb_font1.Font, Brushes.Black, 522, 238)
+        e.Graphics.DrawString(d.LotNo, lb_font2.Font, Brushes.Black, 522, 250)
+
+        e.Graphics.DrawString("TBKK", lb_font2.Font, Brushes.Black, 15, 13)
+        e.Graphics.DrawString("(Thailand) Co., Ltd.", lb_font1.Font, Brushes.Black, 15, 45)
+        e.Graphics.DrawString("Shop floor system", lb_font3.Font, Brushes.Black, 15, 73)
+        e.Graphics.DrawString("(New FA system)", lb_font3.Font, Brushes.Black, 15, 85)
+        e.Graphics.DrawString("WI : " & d.WiNo, lb_font3.Font, Brushes.Black, 15, 123)
+        e.Graphics.DrawString("PART TYPE : " & d.PrdType, lb_font3.Font, Brushes.Black, 15, 136)
+
+        If status_tag = "[ Incomplete Tag ]" Then
+            e.Graphics.FillRectangle(Brushes.Black, 15, 160, 119, 25)
+        End If
+        e.Graphics.DrawString(status_tag, lb_font3.Font, Brushes.White, 15, 166)
+
+        '--- QR ---
+        Dim qty_num As String = result_snp.ToString().PadLeft(6, " "c)
+        Dim plan_seq As String = d.PlanSeq.PadLeft(3, "0"c)
+        Dim part_no_res1 As String = (If(d.PartNo, "")).PadRight(24, " "c)
+        Dim act_date As String = DateTime.Now.ToString("yyyyMMdd")
+        Dim lot_padded As String = (If(d.LotNo, "")).PadRight(5, " "c)
+        Dim cus_part_no As String = "".PadRight(25, " "c)
+
+        Dim qr As String = BuildQr103(d.iden_cd, d.LineCode, planDateYMD, plan_seq, part_no_res1,
+                                      act_date, qty_num, lot_padded, cus_part_no, d.PlanCd,
+                                      d.BoxSeq.PadLeft(3, "0"c))
+
+        If Not String.IsNullOrEmpty(qr) Then
+            Dim qrGenerator As New QRCoder.QRCodeGenerator()
+            Using qrData = qrGenerator.CreateQrCode(qr, QRCoder.QRCodeGenerator.ECCLevel.Q)
+                Using qrCode As New QRCoder.QRCode(qrData)
+                    Using bmp As Bitmap = qrCode.GetGraphic(5)
+                        e.Graphics.DrawImage(bmp, 590, 13, 106, 106)
+                        e.Graphics.DrawImage(bmp, 31, 190, 110, 110)
+                        e.Graphics.DrawImage(bmp, 614, 199, 84, 84)
+                    End Using
+                End Using
+            End Using
+        End If
+
+        e.HasMorePages = False
+
+    End Sub
+    '========== สร้างสตริงสำหรับ QR (ปรับตามระบบจริงของคุณ) ==========
+    ' สร้างสตริง QR ความยาวคงที่ 103 ตัวอักษร
+    Private Function BuildQr103(iden As String,
+                            lineCd As String,
+                            planDateYMD As String,      ' yyyyMMdd
+                            planSeq As String,           ' เลข 0-padding 3 หลัก
+                            partNo As String,            ' จะ PadRight(24)
+                            actDateYMD As String,        ' yyyyMMdd
+                            qty As String,              ' จะ PadLeft(6, space)
+                            lotNo As String,             ' จะ PadRight(5)
+                            cusPart As String,           ' จะ PadRight(25)
+                            planCd As String,
+                            BoxNo As String) ' 2 หลัก
+        Dim qr = iden & lineCd & planDateYMD & planSeq & partNo & actDateYMD & qty & lotNo & cusPart & actDateYMD & planSeq & planCd & BoxNo
+        Console.WriteLine("qr===>" & qr)
+        If qr.Length <> 103 Then
+            Throw New InvalidOperationException($"QR length invalid: {qr.Length}, expected 103")
+        End If
+        Return qr
+    End Function
+    '==================== ตัวอย่างการเรียกใช้ ====================
+
+    Private Sub LogPrintError(ex As Exception, Optional hint As String = Nothing)
+        Try
+            EnsureLogDir()
+            Dim p = Path.Combine(logDir, $"print_{DateTime.Now:yyyyMMdd}.log")
+            Using w As New StreamWriter(p, True)
+                w.WriteLine("===== ERROR @ {0:yyyy-MM-dd HH:mm:ss.fff} =====", DateTime.Now)
+                If Not String.IsNullOrEmpty(hint) Then w.WriteLine("HINT: " & hint)
+                w.WriteLine(ex.ToString())
+                w.WriteLine()
+            End Using
+        Catch
+        End Try
+    End Sub
     Private Sub Timer1_Tick(sender As Object, e As EventArgs) Handles Timer1.Tick
         'Label44.Text = TimeOfDay.ToString("H:mm:ss")
         Label17.Text = TimeOfDay.ToString("H:mm:ss")
@@ -3810,7 +4159,7 @@ outNet:
     '             print_back.print()
     ' End Select
     ' End Sub
-    Public Shared Sub tag_print()
+    Public Shared Sub tag_print2()
         ' 🔒 ป้องกันไม่ให้เรียกซ้ำซ้อน
         If flg_tag_print = 1 Then Exit Sub
         flg_tag_print = 1 ' ตั้งค่าเพื่อป้องกันการพิมพ์ซ้ำ
@@ -3822,14 +4171,12 @@ outNet:
                 Console.WriteLine("UI ยังไม่พร้อม กรุณาลองใหม่ภายหลัง")
                 Exit Sub
             End If
-
             ' ✅ ตรวจสอบว่า Printer พร้อมใช้งานหรือไม่
             If PrinterSettings.InstalledPrinters.Count = 0 Then
                 MessageBox.Show("ไม่พบ Printer กรุณาติดตั้ง Printer ก่อน", "ข้อผิดพลาด Printer", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                 Console.WriteLine("ไม่พบ Printer กรุณาติดตั้ง Printer ก่อน")
                 Exit Sub
             End If
-
             ' ✅ ตรวจสอบว่า Printer พร้อมใช้งานหรือไม่
             Dim printerCheck As New PrinterSettings()
             If Not printerCheck.IsValid Then
@@ -3837,12 +4184,10 @@ outNet:
                 Console.WriteLine("Printer ไม่พร้อมใช้งาน")
                 Exit Sub
             End If
-
             ' ✅ เตรียมข้อมูลก่อนพิมพ์
             Working_Pro.keep_data_and_gen_qr_tag_fa_completed()
             Application.DoEvents() ' ให้ UI ตอบสนองในระหว่างประมวลผล
             Console.WriteLine("เตรียมข้อมูลก่อนพิมพ์เสร็จสิ้น")
-
             ' ✅ พิมพ์ใน UI Thread
             If Working_Pro.IsHandleCreated And (check_tag_type = "1" Or check_tag_type = "3") Then
                 ' ส่งคำขอพิมพ์ใน UI Thread
@@ -4070,7 +4415,8 @@ outNet:
             'End If
         Next
     End Sub
-    Public Function ins_qty_fn_manual()
+    Public Async Function ins_qty_fn_manual() As Task
+        Console.WriteLine("ins_qty_fn_manual")
         statusPrint = "Normal"
         Dim add_value_loop As Integer = 0
         Dim result_add As Integer = CDbl(Val(lb_ins_qty.Text)) + CDbl(Val(Label6.Text))
@@ -4138,16 +4484,26 @@ outNet:
                         Dim j As Integer = 0
                         For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
                             Iseq += 1
+
                             Dim special_wi As String = itemPlanData.wi
                             Dim special_item_cd As String = itemPlanData.item_cd
                             Dim special_item_name As String = itemPlanData.item_name
-                            Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
                             PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, start_time2, end_time2, use_time, number_qty, Spwi_id(j), tr_status)
+                            'Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                            If PK_pad_id = 0 Then
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, "0", Spwi_id(j))
+                            Else
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                            End If
                             j = j + 1
                         Next
                     Else
-                        Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
                         PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, start_time2, end_time2, use_time, number_qty, pwi_id, tr_status)
+                        If PK_pad_id = 0 Then
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, "0", pwi_id)
+                        Else
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                        End If
                     End If
                 Else
                     tr_status = "0"
@@ -4209,13 +4565,22 @@ outNet:
                                 Dim special_wi As String = itemPlanData.wi
                                 Dim special_item_cd As String = itemPlanData.item_cd
                                 Dim special_item_name As String = itemPlanData.item_name
-                                Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
                                 PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, start_time2, end_time2, use_time, number_qty, Spwi_id(j), tr_status)
+                                If PK_pad_id = 0 Then
+                                    PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, "0", Spwi_id(j))
+                                Else
+                                    PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                                End If
                                 j = j + 1
                             Next
                         Else
-                            Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
                             PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, start_time2, end_time2, use_time, number_qty, pwi_id, tr_status)
+                            If PK_pad_id = 0 Then
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, "0", pwi_id)
+                            Else
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                            End If
+
                         End If
                     Else
                         tr_status = "0"
@@ -4746,6 +5111,7 @@ outNet:
         End If
     End Function
     Public Async Function counter_data_new_dio() As Task ' NI MAX
+        Console.WriteLine("Auto counter_data_new_dio")
         ''''Console.WriteLine("READY NI MAX")
         Dim hasError As Boolean = False
         Dim statusLossManualE1 As Integer = 0

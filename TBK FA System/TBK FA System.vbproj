@@ -752,6 +752,7 @@
     <Compile Include="PrintDefectAdmin.vb">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="PrintQueue.vb" />
     <Compile Include="ProgressBar_Form.Designer.vb">
       <DependentUpon>ProgressBar_Form.vb</DependentUpon>
     </Compile>
@@ -764,6 +765,7 @@
     <Compile Include="RobotApppSuport.vb">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="SafeFonts.vb" />
     <Compile Include="ScanQRprod.Designer.vb">
       <DependentUpon>ScanQRprod.vb</DependentUpon>
     </Compile>
@@ -789,6 +791,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="modelSpecialLine.vb" />
+    <Compile Include="TagPrintData.vb" />
     <Compile Include="TagPrintModel.vb" />
     <Compile Include="tag_print_normal.Designer.vb">
       <DependentUpon>tag_print_normal.vb</DependentUpon>

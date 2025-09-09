@@ -950,13 +950,25 @@ re_insert_rework_act:
             'Application.Exit()
         End Try
     End Function
+    'Public Shared Async Function Check_detail_actual_insert_act(parentForm As Form) As Task(Of String)
+    '    Await updated_data_to_dbsvr(parentForm, "1")
+    ' Dim api = New api()
+    '  Dim result_update_count_pro = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/TESTAPITRANFER/Get_detail_act?line_cd=" & MainFrm.Label4.Text)
+    '   Return result_update_count_pro
+    '   End Function
     Public Shared Async Function Check_detail_actual_insert_act(parentForm As Form) As Task(Of String)
-        Await updated_data_to_dbsvr(parentForm, "1")
-        Dim api = New api()
-        Dim result_update_count_pro = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/TESTAPITRANFER/Get_detail_act?line_cd=" & MainFrm.Label4.Text)
-        ''Console.WriteLine(result_update_count_pro)
-        Return result_update_count_pro
+        Try
+            Dim url As String = "http://" & svApi & "/API_NEW_FA/index.php/TESTAPITRANFER/Get_detail_act?line_cd=" & MainFrm.Label4.Text
+            ' ✅ แปลงให้ async โดยรันบน background thread
+            Dim api = New api()
+            Dim rsData As String = Await Task.Run(Function() api.Load_data(url))
+            Return rsData
+        Catch ex As Exception
+            'msgBox("❗ connect Api Fail in GetPercenPlanned_OEE = " & ex.Message)
+            Return "0"
+        End Try
     End Function
+
     Public Shared Async Function Check_detail_actual_insert_act_no_api(parentForm As Form) As Task(Of String)
         Await updated_data_to_dbsvr(parentForm, "1")
     End Function
@@ -1290,19 +1302,23 @@ where
                                 'Console.WriteLine("Try insertId ==>" & insertId)
                             Catch exTimeout As SqlException
                                 If exTimeout.Number = -2 OrElse exTimeout.Message.Contains("Timeout") Then
-                                    'Console.WriteLine("⚠️ Timeout detected. Trying to recover inserted ID...")
+                                    Console.WriteLine("⚠️ Timeout detected. Trying to recover inserted ID...")
                                     '  insertId = GetInsertedIdFromData(pd, line_cd, wi_plan, seq_no)
-                                    'Console.WriteLine("catch insertId ==>" & insertId)
+                                    Console.WriteLine("catch insertId ==>" & insertId)
                                 Else
+                                    Console.WriteLine("catch else ")
                                     Throw
                                 End If
                             End Try
                         End Using
                     End Using
                 Catch ex As Exception
-                    'Console.WriteLine("❌ Error inserting data: " & ex.Message)
+                    Console.WriteLine("❌ Status = 1 แต่ไม่เข้า DB  Error inserting data: " & ex.Message)
                     insertId = 0
                 End Try
+            Else
+                Console.WriteLine("else Insert_prd_detail No insert naja")
+                insertId = 0
             End If
         Catch ex As Exception
             insertId = 0

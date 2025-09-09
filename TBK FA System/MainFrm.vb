@@ -663,7 +663,7 @@ Public Class MainFrm
     End Sub
     Private Sub menu3_Click_2(sender As Object, e As EventArgs) Handles menu3.Click
         Dim mdD = New modelDefect
-        Backoffice_model.Check_detail_actual_insert_act(Me) 'กรณีเครื่องดับ'
+        ' Backoffice_model.Check_detail_actual_insert_act(Me) 'กรณีเครื่องดับ' เพราะ ใช้ ทับ  
         Dim data = mdD.mGetDatamsterLine(Label4.Text)
         If data <> "0" Then
             Dim dict As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(data)

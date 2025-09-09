@@ -308,7 +308,7 @@ Public Class ins_qty
         Me.Close()
     End Sub
 
-    Private Sub PictureBox3_Click(sender As Object, e As EventArgs) Handles pb_ok.Click
+    Private Async Sub PictureBox3_Click(sender As Object, e As EventArgs) Handles pb_ok.Click
         If Trim(TextBox1.Text) = "" Then
             ''msgBox("Please check QTY.")
             Button10.Enabled = False
@@ -408,55 +408,55 @@ Public Class ins_qty
             End If
         End If
     End Sub
-    Public Sub insert_qty(tb As String)
+    Public Async Function insert_qty(tb As String) As Task
         ''msgBox("TEST 5 ")
         '  'msgBox("Wait_data.check_load_wit_data====> " & Wait_data.check_load_wit_data)
         'If Wait_data.check_load_wit_data = "1" Then
         Dim ins_qtyy As Integer = tb
-            Dim max_val As String = Working_Pro.Label10.Text
-            max_val = max_val.Substring(1, max_val.Length - 1)
-            If Working_Pro.check_tag_type = "3" Then
-                Dim delayInSeconds As Integer = 2 ' เวลารอระหว่างการปริ้น (วินาที)
-                For i As Integer = 1 To CDbl(Val(tb))
-                    Dim break = Working_Pro.lbPosition1.Text & " " & Working_Pro.lbPosition2.Text
-                    Dim plb = New PrintLabelBreak
-                    plb.loadData(Working_Pro.Label3.Text, break, Working_Pro.Label18.Text, Working_Pro.Label22.Text, CDbl(Val(Working_Pro.LB_COUNTER_SEQ.Text)) + i)
-                    'Thread.Sleep(delayInSeconds * 1000) ' รอเป็นมิลลิวินาที
-                Next i
-            End If
+        Dim max_val As String = Working_Pro.Label10.Text
+        max_val = max_val.Substring(1, max_val.Length - 1)
+        If Working_Pro.check_tag_type = "3" Then
+            Dim delayInSeconds As Integer = 2 ' เวลารอระหว่างการปริ้น (วินาที)
+            For i As Integer = 1 To CDbl(Val(tb))
+                Dim break = Working_Pro.lbPosition1.Text & " " & Working_Pro.lbPosition2.Text
+                Dim plb = New PrintLabelBreak
+                plb.loadData(Working_Pro.Label3.Text, break, Working_Pro.Label18.Text, Working_Pro.Label22.Text, CDbl(Val(Working_Pro.LB_COUNTER_SEQ.Text)) + i)
+                'Thread.Sleep(delayInSeconds * 1000) ' รอเป็นมิลลิวินาที
+            Next i
+        End If
         ''msgBox("TEST 6 ")
         Working_Pro.LB_COUNTER_SHIP.Text = CDbl(Val(Working_Pro.LB_COUNTER_SHIP.Text)) + CDbl(Val(tb))
-            Working_Pro.LB_COUNTER_SEQ.Text = CDbl(Val(Working_Pro.LB_COUNTER_SEQ.Text)) + CDbl(Val(tb))
-            Working_Pro.lb_good.Text = CDbl(Val(Working_Pro.lb_good.Text)) + CDbl(Val(tb))
-            Dim max_val_int As Integer = Convert.ToInt32(max_val)
+        Working_Pro.LB_COUNTER_SEQ.Text = CDbl(Val(Working_Pro.LB_COUNTER_SEQ.Text)) + CDbl(Val(tb))
+        Working_Pro.lb_good.Text = CDbl(Val(Working_Pro.lb_good.Text)) + CDbl(Val(tb))
+        Dim max_val_int As Integer = Convert.ToInt32(max_val)
         Backoffice_model.qty_int = ins_qtyy
         Dim statusLossManualE1 As Integer = 0
         If ins_qtyy > 0 And ins_qtyy <= max_val_int Then
             Working_Pro.lb_ins_qty.Text = tb
             Working_Pro.insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
-            Working_Pro.ins_qty_fn_manual()
+            Await Working_Pro.ins_qty_fn_manual()
             Working_Pro.Enabled = True
             select_int_qty.Close()
             'Wait_data.Close()
             Me.Close()
         Else
             Button10.Enabled = False
-                Button11.Enabled = False
-                Dim listdetail = "Insert mitaked! Please try it again."
-                PictureBox10.BringToFront()
-                PictureBox10.Show()
-                PictureBox3.BringToFront()
-                PictureBox3.Show()
-                Panel2.BringToFront()
-                Panel2.Show()
-                Label2.Text = listdetail
-                Label2.BringToFront()
-                Label2.Show()
-                TextBox1.Text = ""
-                Working_Pro.Enabled = False
-            End If
+            Button11.Enabled = False
+            Dim listdetail = "Insert mitaked! Please try it again."
+            PictureBox10.BringToFront()
+            PictureBox10.Show()
+            PictureBox3.BringToFront()
+            PictureBox3.Show()
+            Panel2.BringToFront()
+            Panel2.Show()
+            Label2.Text = listdetail
+            Label2.BringToFront()
+            Label2.Show()
+            TextBox1.Text = ""
+            Working_Pro.Enabled = False
+        End If
         'End If
-    End Sub
+    End Function
     Private Sub Timer1_Tick(sender As Object, e As EventArgs) Handles Timer1.Tick
         count_time += 1
         '  'msgBox("count_time ==>" & count_time)

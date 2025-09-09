@@ -646,7 +646,8 @@ Public Class model_api_sqlite
             defaultTime = formattedDateDefaultTime
             ' ผลลัพธ์: "2025-07-09 08:00:00"
             ' สร้าง SQL ตาม flg_spec
-            If flg_spec = "1" Then
+            'MsgBox("mas_Get_Plan_All_By_Line_Loss_E1 flg_spec==>" & flg_spec)
+            If flg_spec = "1" Then ' For m025 / M082
                 sql = "SELECT * FROM act_ins WHERE " &
                   "st_time BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND " &
                   "line_cd = '" & line_cd & "' AND item_cd = '" & item_cd & "' AND qty > 0 " &
@@ -655,6 +656,8 @@ Public Class model_api_sqlite
                 '   "(line_cd = '" & line_cd & "' AND start_loss BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND item_cd = '" & item_cd & "' AND loss_cd_id <> '1' AND flg_control <> '2') OR " &
                 '   "(line_cd = '" & line_cd & "' AND end_loss BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND item_cd = '" & item_cd & "' AND loss_cd_id <> '1' AND flg_control <> '2') " &
                 '   "ORDER BY id DESC LIMIT 1;"
+
+                Dim limit_p As Integer = Confrime_work_production.ArrayDataPlan.Count  ' Support K1M083  & Normal Line 
                 sql_check_loss = "SELECT *
                                     FROM loss_actual
                                     WHERE line_cd =  '" & line_cd & "'
@@ -675,13 +678,13 @@ Public Class model_api_sqlite
                                                     OR end_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
                                                 )
                                             ORDER BY start_loss ASC
-                                            LIMIT 1
+                                            LIMIT " & limit_p & "
                                         )
                                            AND item_cd = '" & item_cd & "' 
                                     ORDER BY id DESC
-                                    LIMIT 1;
-                                    "
+                                    LIMIT " & limit_p
             Else
+                Dim limit_p As Integer = Confrime_work_production.ArrayDataPlan.Count  ' Support K1M083  & Normal Line 
                 sql = "SELECT * FROM act_ins WHERE " &
                   "st_time BETWEEN '" & dateTimeStartShift & "' AND '" & defaultTime & "' AND " &
                   "line_cd = '" & line_cd & "' AND qty > 0 " &
@@ -698,7 +701,7 @@ Public Class model_api_sqlite
                                             start_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
                                             OR end_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
                                           )
-                                      AND id != (
+                                      AND id not in (
                                             SELECT id
                                             FROM loss_actual
                                             WHERE 
@@ -709,11 +712,11 @@ Public Class model_api_sqlite
                                                     OR end_loss BETWEEN  '" & dateTimeStartShift & "' AND '" & defaultTime & "'
                                                 )
                                             ORDER BY start_loss ASC
-                                            LIMIT 1
+                                            LIMIT " & limit_p & "
                                         )
+                                           AND item_cd = '" & item_cd & "' 
                                     ORDER BY id DESC
-                                    LIMIT 1;
-                                    "
+                                    LIMIT 1;"
             End If
             Console.WriteLine("mas_Get_Plan_All_By_Line_Loss_E1 sql ==>" & sql)
             Console.WriteLine("mas_Get_Plan_All_By_Line_Loss_E1 sql_check_loss ==>" & sql_check_loss)
