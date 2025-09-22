@@ -325,6 +325,8 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Api_Scan_FA.vb" />
+    <Compile Include="AppGuard.vb" />
+    <Compile Include="ApplicationEvents.vb" />
     <Compile Include="AssemblyInfo.vb" />
     <Compile Include="AutoUpdate.vb" />
     <Compile Include="Auto_close_lot.Designer.vb">

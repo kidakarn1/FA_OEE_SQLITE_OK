@@ -3467,6 +3467,7 @@ outNet:
         End If
     End Function
     Private Async Function Manage_counter_contect_DIO() As Task
+        Await MainFrm.CheckMemoryLeak()
         Dim fallbackNeeded As Boolean = False
         Dim shouldScan As Boolean = (slm_flg_qr_prod = 1)
         check_bull = 1
@@ -3570,6 +3571,7 @@ outNet:
         End If
     End Function
     Private Async Function Manage_counter_NI_MAX() As Task
+        Await MainFrm.CheckMemoryLeak()
         Dim fallbackNeeded As Boolean = False
         Dim shouldScan As Boolean = (slm_flg_qr_prod = 1)
         Try

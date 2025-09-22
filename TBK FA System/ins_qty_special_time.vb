@@ -484,6 +484,7 @@ Public Class ins_qty_special_time
                                         End Try
                                         Dim check_time = Backoffice_model.check_time(Working_Pro.Label22.Text, Working_Pro.wi_no.Text, start_time, end_time)
                                         If check_time = "0" Then
+                                            Console.WriteLine("date Satrt ===>" & start_time)
                                             ins_qty.Label1.Visible = True
                                             ins_qty.Label3.Visible = True
                                             ins_qty.Start_input_data_spc.Visible = True
@@ -560,7 +561,7 @@ Public Class ins_qty_special_time
                             ''msgBox("Please Check time")
                             Button10.Enabled = False
                             Button11.Enabled = False
-                            Dim listdetail = "Please Check time."
+                            Dim listdetail = "Please Check time 1 ."
                             PictureBox10.BringToFront()
                             PictureBox10.Show()
                             PictureBox2.BringToFront()
@@ -574,7 +575,7 @@ Public Class ins_qty_special_time
                     Else
                         Button10.Enabled = False
                         Button11.Enabled = False
-                        Dim listdetail = "Please Check time."
+                        Dim listdetail = "Please Check time 2 ."
                         PictureBox10.BringToFront()
                         PictureBox10.Show()
                         PictureBox2.BringToFront()
@@ -589,7 +590,7 @@ Public Class ins_qty_special_time
                     ''msgBox("Please check time")
                     Button10.Enabled = False
                     Button11.Enabled = False
-                    Dim listdetail = "Please Check STart Time."
+                    Dim listdetail = "Please Check STart Time 3 ."
                     PictureBox10.BringToFront()
                     PictureBox10.Show()
                     PictureBox2.BringToFront()

@@ -441,6 +441,7 @@ Public Class List_Emp
                 Dim date_starts As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
                 Dim GET_SEQ = Backoffice_model.GET_SEQ_PLAN_current(Working_Pro.wi_no.Text, Backoffice_model.GET_LINE_PRODUCTION(), date_starts, date_starts) ' Working_Pro.Label22.Text
                 Dim seq_no As String = ""
+
                 Try
                     If GET_SEQ.Read() Then
                         If MainFrm.chk_spec_line = "2" Then
@@ -550,6 +551,8 @@ Public Class List_Emp
                 End Try
                 'Working_Pro.Label22.Text = Convert.ToInt32(Working_Pro.Label22.Text) + 1
                 GET_SEQ = Backoffice_model.GET_SEQ_PLAN_current(Working_Pro.wi_no.Text, Backoffice_model.GET_LINE_PRODUCTION(), date_starts, date_starts) ' Working_Pro.Label22.Text
+                Backoffice_model.date_time_click_start = DateTime.Now.ToString("yyyy-MM-dd HH:mm") & ":00"
+                '                Working_Pro.DateTimeStartofShift.Text = Backoffice_model.date_time_click_start
                 Try
                     If GET_SEQ.Read() Then
                         seq_no = GET_SEQ("seq_no")

@@ -40,7 +40,7 @@ Public Class MainFrm
         If p.Count > 1 Then
             Application.Exit()
             Return 1
-            ' Process is running
+            'Process Is running
         Else
             Return 0
             ' Process is not running
@@ -168,6 +168,10 @@ Public Class MainFrm
             'msgBox("ไม่สามารถโหลดข้อมูลได้ กรุณาตรวจสอบเครือข่าย", 'msgBoxStyle.Exclamation)
         End Try
     End Function
+    Protected Overrides Sub OnHandleCreated(e As EventArgs)
+        MyBase.OnHandleCreated(e)
+        Try : Timer2.SynchronizingObject = Me : Catch : End Try
+    End Sub
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         check_process()
@@ -193,7 +197,6 @@ Public Class MainFrm
                 lb_dio_port.Text = sqlss("dio_port").ToString()
                 Backoffice_model.SCANNER_PORT = sqlss("scanner_port").ToString()
             End While
-
             If Backoffice_model.SCANNER_PORT <> "" AndAlso Backoffice_model.SCANNER_PORT <> "USB" Then
                 lb_ctrl_sc_flg.Text = "emp"
             End If
