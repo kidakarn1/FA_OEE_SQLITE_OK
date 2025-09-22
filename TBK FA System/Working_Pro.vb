@@ -21,7 +21,9 @@ Imports Microsoft.Web.WebView2.WinForms
 Imports QRCoder
 
 Public Class Working_Pro
-
+    Private _breakTimer As System.Windows.Forms.Timer
+    Private _breakTarget As DateTime
+    Private _timerHooked As Boolean = False
     Public Property MinValue As Integer
     Public Property MaxValue As Integer
     Public Property ColorRGB As String
@@ -5495,95 +5497,117 @@ outNet:
             End Try
         End If
     End Sub
-    Sub Main()
-        ''''Console.WriteLine("Main program started")
-        ' Delay for 2 seconds using Task.Delay
+    Public Sub Main()
+        StartAutoBreakScheduler()
+    End Sub
+
+    Public Sub StartAutoBreakScheduler()
+        If _breakTimer Is Nothing Then
+            _breakTimer = New System.Windows.Forms.Timer()
+            _breakTimer.Interval = 1000
+        End If
+        If Not _timerHooked Then
+            AddHandler _breakTimer.Tick, AddressOf BreakTimer_Tick
+            _timerHooked = True
+        End If
+        ScheduleBreakFromLabel()
+    End Sub
+
+    Private Sub ScheduleBreakFromLabel()
+        Dim txt = lbNextTime.Text
+        If String.IsNullOrWhiteSpace(txt) Then
+            _breakTimer.Stop() : Exit Sub
+        End If
+
+        Dim t As DateTime
+        If Not DateTime.TryParseExact(txt, "HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, t) Then
+            _breakTimer.Stop() : Exit Sub
+        End If
+
+        _breakTarget = Date.Today.Add(t.TimeOfDay)
+        If _breakTarget <= DateTime.Now Then _breakTarget = _breakTarget.AddDays(1)
+        ArmBreakTimer()
+    End Sub
+
+    Private Sub ArmBreakTimer()
+        Dim remaining = _breakTarget - DateTime.Now
+        If remaining <= TimeSpan.Zero Then remaining = TimeSpan.FromMilliseconds(1)
+        Dim nextSliceMs As Integer = CInt(Math.Min(remaining.TotalMilliseconds, 60000)) ' ยิงทีละ ≤ 60s
+        If nextSliceMs < 1 Then nextSliceMs = 1
+        _breakTimer.Interval = nextSliceMs
+        _breakTimer.Start()
+    End Sub
+
+    Private Sub BreakTimer_Tick(sender As Object, e As EventArgs)
+        If DateTime.Now >= _breakTarget Then
+            _breakTimer.Stop()
+            HandleBreakTick()
+        Else
+            ArmBreakTimer()
+        End If
+    End Sub
+
+    ' ===== ถึงเวลา Break → ทำงานเดิม แล้วตั้งรอบใหม่ =====
+    Private Sub HandleBreakTick()
         Try
-            If Application.OpenForms().OfType(Of Loss_reg).Any Or Application.OpenForms().OfType(Of Loss_reg_pass).Any Then
-            Else
-                Dim dateTimeStart As String = Backoffice_model.date_time_click_start.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
-                Dim sec = DateTime.Now.ToString("ss")
-                Dim convert_dateTimeStart As Date = dateTimeStart & ":" & sec
-                Dim timeNow = DateTime.Now.ToString("HH:mm:ss")
-                Dim dateTimeBreak As Date = DateTime.Now.ToString("yyyy-MM-dd" & " " & lbNextTime.Text, CultureInfo.InvariantCulture)
-                Dim dateNow As Date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
-                Dim total_loss As Integer = 1
-                If lbNextTime.Text <> "" Then
-                    Try
-                        If lbNextTime.Text >= "00:00:00" And lbNextTime.Text <= "07:59:59" Then
-                            total_loss = DateDiff(DateInterval.Second, dateNow, dateTimeBreak)
-                            ''''Console.WriteLine("dateNow--->" & dateNow)
-                        Else
-                            total_loss = DateDiff(DateInterval.Second, dateNow, dateTimeBreak)
-                            ''''Console.WriteLine("dateNow--->" & dateNow)
-                        End If
-                    Catch ex As Exception
-                        dateTimeBreak = dateTimeBreak.AddDays(1)
-                        total_loss = DateDiff(DateInterval.Second, dateNow, dateTimeBreak)
-                    End Try
-                    If total_loss < 0 Then
-                        Dim currentDate As DateTime = DateTime.Now
-                        ' Add one day to the current date
-                        Dim nextDate As DateTime = currentDate.AddDays(1)
-                        ' Format the next date as "yyyy-MM-dd"
-                        Dim formattedDate As String = nextDate.ToString("yyyy-MM-dd")
-                        dateTimeBreak = formattedDate & " " & lbNextTime.Text
-                        total_loss = DateDiff(DateInterval.Second, dateNow, dateTimeBreak)
-                    End If
-                    ''''Console.WriteLine(total_loss)
-                    'Dim Delays As Integer = total_loss * 1000
-                    Try
-                        ''''Console.WriteLine("C1 2 3 ")
-                        Task.Delay(total_loss * 1000).ContinueWith(Sub(task)
-                                                                       Try
-                                                                           ''''Console.WriteLine(DateTime.Now.ToString("HH:mm:ss"))
-                                                                           ' Bring the button to the front using Invoke
-                                                                           check_network_frist = 1
-                                                                           Me.Invoke(Sub()
-                                                                                         Try
-                                                                                             If Application.OpenForms().OfType(Of closeLotsummary).Any Then
-                                                                                                 Dim BreakTime = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Label14.Text) ' for set data 
-                                                                                                 Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, wi_no.Text, Label22.Text)
-                                                                                                 lbNextTime.Text = BreakTime
-                                                                                                 Main()
-                                                                                             ElseIf Application.OpenForms().OfType(Of Loss_reg).Any Or Application.OpenForms().OfType(Of Loss_reg_pass).Any Then
-                                                                                                 Dim BreakTime = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Label14.Text) ' for set data 
-                                                                                                 Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, wi_no.Text, Label22.Text)
-                                                                                                 lbNextTime.Text = BreakTime
-                                                                                                 Main()
-                                                                                             Else
-                                                                                                 stop_working()
-                                                                                                 Backoffice_model.TimeStartBreakTime = DateTime.Now.ToString("HH:mm:ss")
-                                                                                                 If check_in_up_seq = 0 Then
-                                                                                                     Backoffice_model.IDLossCodeAuto = "36"
-                                                                                                 End If
-                                                                                                 Dim statusLossManualE1 As Integer = 0
-                                                                                                 insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
-                                                                                                 StopMenu.Show()
-                                                                                                 ' StopMenu.ShowDialog()
-                                                                                                 'If StopMenu.Visible Then
-                                                                                                 'Me.Enabled = False
-                                                                                                 'End If
-                                                                                             End If
-                                                                                         Catch ex As Exception
+            check_network_frist = 1
 
-                                                                                         End Try
-                                                                                     End Sub)
-                                                                       Catch ex As Exception
+            If Application.OpenForms().OfType(Of closeLotsummary)().Any() _
+               OrElse Application.OpenForms().OfType(Of Loss_reg)().Any() _
+               OrElse Application.OpenForms().OfType(Of Loss_reg_pass)().Any() Then
 
-                                                                       End Try
-                                                                   End Sub, TaskScheduler.FromCurrentSynchronizationContext())
-                    Catch ex As Exception
-                    End Try
-                    ''''Console.WriteLine("C2")
-                    ' Create a delayed task using Task.Delay
-                    ' Wait for user input to prevent the console from closing immediately
-                    '''''Console.WriteLine("Press Enter to exit...")
-                    'Console.ReadLine()
-                End If
+                Dim BreakTime = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Label14.Text)
+                Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, wi_no.Text, Label22.Text)
+                lbNextTime.Text = BreakTime
+                ScheduleBreakFromLabel()
+                Exit Sub
             End If
+
+            ' เข้าหยุดงาน + เปิด StopMenu แบบ "อินสแตนซ์เดียว"
+            stop_working()
+            Backoffice_model.TimeStartBreakTime = DateTime.Now.ToString("HH:mm:ss")
+            If check_in_up_seq = 0 Then Backoffice_model.IDLossCodeAuto = "36"
+
+            Dim statusLossManualE1 As Integer = 0
+            insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"),
+                                      DateTime.Now.ToString("HH:mm:ss"),
+                                      statusLossManualE1)
+
+            ' ---- เปิด StopMenu อย่างปลอดภัย ไม่ซ้อน ----
+            Static _stop As StopMenu = Nothing
+            If _stop Is Nothing OrElse _stop.IsDisposed Then _stop = New StopMenu()
+            If Not _stop.Visible Then _stop.Show(Me)
+
+            ' รอบถัดไป: StopMenu จะคำนวณ BreakTime ใหม่แล้วเรียก RescheduleAfterNextTimeChanged()
+
         Catch
+            'TODO: log
         End Try
+    End Sub
+
+    ' ให้ StopMenu เรียกกลับเมื่อได้ BreakTime ใหม่
+    Public Sub RescheduleAfterNextTimeChanged(newNextTime As String)
+        lbNextTime.Text = newNextTime
+        ScheduleBreakFromLabel()
+    End Sub
+
+    ' โหลด/ปิดฟอร์ม: สร้าง-ทำลาย Timer ให้สะอาด
+    Protected Overrides Sub OnLoad(e As EventArgs)
+        MyBase.OnLoad(e)
+        StartAutoBreakScheduler()
+    End Sub
+
+    Protected Overrides Sub OnFormClosing(e As FormClosingEventArgs)
+        MyBase.OnFormClosing(e)
+        If _breakTimer IsNot Nothing Then
+            _breakTimer.Stop()
+            If _timerHooked Then
+                RemoveHandler _breakTimer.Tick, AddressOf BreakTimer_Tick
+                _timerHooked = False
+            End If
+            _breakTimer.Dispose()
+            _breakTimer = Nothing
+        End If
     End Sub
     Public Function calTimeBreakTime(pdStart As Date, timeNextBreak As String)
         Dim total_loss As Integer = 0

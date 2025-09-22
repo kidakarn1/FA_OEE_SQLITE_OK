@@ -1,347 +1,328 @@
-﻿Public Class StopMenu
-    Dim contDelay As Integer = 0
-    Dim flg_check As Integer = 0
-    Public date_start_data = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
-    Public Async Function SatrtWork() As Task
-        If PanelShowLoss.Visible Then
-            UpdateAutoLoss()
-            Dim BreakTime = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Working_Pro.Label14.Text) ' for set data 
-            ' 'msgBox("Next BreakTime ===>" & BreakTime)
-            If MainFrm.chk_spec_line = "2" Then
-                Dim GenSEQ As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
-                Dim Iseq = GenSEQ
-                Dim j As Integer = 0
-                For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
-                    Iseq += 1
-                    Dim special_wi As String = itemPlanData.wi
-                    Dim special_item_cd As String = itemPlanData.item_cd
-                    Dim special_item_name As String = itemPlanData.item_name
-                    Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, special_wi, Iseq)
-                Next
-            Else
-                Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, Working_Pro.wi_no.Text, Working_Pro.Label22.Text)
-            End If
-            Working_Pro.lbNextTime.Text = BreakTime
-            If Working_Pro.slm_flg_qr_prod = 1 Then ' Scan Qrproduct
-                If Working_Pro.RemainScanDmc = 1 Then
-                    Working_Pro.Enabled = True
-                    TimerLossBT.Start()
-                    Working_Pro.Start_Production()
-                Else
-                    Working_Pro.Enabled = True
-                    'ScanQRprod.ManageQrScanFA("1", RemainScanDmc)
-                    'ScanQRprod.ShowDialog()
-                    TimerLossBT.Start()
-                    Me.Hide()
-                    Working_Pro.Start_Production()
-                End If
-            Else
-                Working_Pro.Enabled = True
-                TimerLossBT.Start()
-                Working_Pro.Start_Production()
-            End If
-            Me.Close()
-        Else
-            Dim BreakTime = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Working_Pro.Label14.Text) ' for set data 
-            If MainFrm.chk_spec_line = "2" Then
-                Dim GenSEQ As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
-                Dim Iseq = GenSEQ
-                Dim j As Integer = 0
-                For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
-                    Iseq += 1
-                    Dim special_wi As String = itemPlanData.wi
-                    Dim special_item_cd As String = itemPlanData.item_cd
-                    Dim special_item_name As String = itemPlanData.item_name
-                    Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, special_wi, Iseq)
-                Next
-            Else
-                Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, Working_Pro.wi_no.Text, Working_Pro.Label22.Text)
-            End If
-            Working_Pro.lbNextTime.Text = BreakTime
-            If Working_Pro.slm_flg_qr_prod = 1 Then ' Scan Qrproduct
-                If Working_Pro.RemainScanDmc < 1 Then
-                    Working_Pro.Enabled = True
-                    TimerLossBT.Start()
-                    Working_Pro.Start_Production()
-                Else
-                    Working_Pro.Enabled = True
-                    ' ScanQRprod.ManageQrScanFA("1", RemainScanDmc)
-                    ' ScanQRprod.ShowDialog()
-                    TimerLossBT.Start()
-                    Me.Hide()
-                    Working_Pro.Start_Production()
-                End If
-            Else
-                Working_Pro.Enabled = True
-                TimerLossBT.Start()
-                Working_Pro.Start_Production()
-            End If
-            Me.Close()
+﻿Imports System.Windows.Forms
+
+Public Class StopMenu
+
+    ' ----------------- ฟิลด์สถานะ -----------------
+    Private contDelay As Integer = 0
+    Private _timerStarted As Boolean = False
+    Public date_start_data As DateTime = DateTime.Now
+
+    ' ----------------- คุม TimerLossBT ให้สะอาด -----------------
+    Private Sub StartTimerSafe()
+        If Not _timerStarted Then
+            TimerLossBT.Start()
+            _timerStarted = True
         End If
-    End Function
+    End Sub
+
+    Private Sub StopTimerSafe()
+        If _timerStarted Then
+            TimerLossBT.Stop()
+            _timerStarted = False
+        End If
+    End Sub
+
+    ' ----------------- Lifecycle -----------------
+    Private Sub StopMenu_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        ' เวลาเริ่มต้นของช่วง Loss
+        If Working_Pro.check_in_up_seq = 0 Then
+            Try
+                ' ถ้า Gdate_now_date เป็น DateTime จะเข้าได้เลย
+                date_start_data = Working_Pro.Gdate_now_date
+            Catch
+                date_start_data = DateTime.Now
+            End Try
+        Else
+            date_start_data = DateTime.Now
+        End If
+
+        lbLineCode.Text = MainFrm.Label4.Text
+
+        ' เปิด Timer แบบปลอดภัย
+        StartTimerSafe()
+        TimerLossBT.Enabled = True
+    End Sub
+
+    Private Sub StopMenu_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
+        ' หยุด Timer + ตัด event ก่อนปิดฟอร์ม กัน Tick ยิงใส่ Handle ที่ถูก Dispose แล้ว
+        StopTimerSafe()
+        RemoveHandler TimerLossBT.Tick, AddressOf TimerLossBT_Tick
+    End Sub
+
+    ' ----------------- ปุ่ม Continue -----------------
     Private Sub btnContinue_Click(sender As Object, e As EventArgs) Handles btnContinue.Click
         SatrtWork()
     End Sub
-    Public Async Function UpdateAutoLoss() As Task
+
+    ' ----------------- เริ่มงานต่อ (ไม่ใช้ Async) -----------------
+    Public Sub SatrtWork()
+        ' ถ้ามี Panel สรุป Loss แสดงอยู่ ให้ Update Auto Loss ก่อน
+        If PanelShowLoss.Visible Then
+            UpdateAutoLoss()
+        End If
+
+        ' คำนวณ BreakTime รอบต่อไป + Log BreakTime
+        Dim BreakTime As String = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Working_Pro.Label14.Text)
+
+        If MainFrm.chk_spec_line = "2" Then
+            Dim genSeq As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+            Dim iSeq = genSeq
+            For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                iSeq += 1
+                Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, itemPlanData.wi, iSeq)
+            Next
+        Else
+            Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, Working_Pro.wi_no.Text, Working_Pro.Label22.Text)
+        End If
+
+        ' ส่งเวลาใหม่กลับไปให้ Working_Pro ตั้งรอบถัดไป
+        Working_Pro.lbNextTime.Text = BreakTime
+        Working_Pro.RescheduleAfterNextTimeChanged(BreakTime)
+
+        ' เดินการผลิตต่อ
+        Working_Pro.Enabled = True
+        Working_Pro.Start_Production()
+
+        ' ปิดฟอร์มนี้อย่างปลอดภัย: หยุด Timer ก่อนทุกครั้ง
+        StopTimerSafe()
+        Me.Hide()
+        Me.Close()
+    End Sub
+
+    ' ----------------- Update Auto Loss (Online/Offline) -----------------
+    Public Sub UpdateAutoLoss()
         Dim pd As String = MainFrm.Label6.Text
-        Dim sel_combo As String = 0 'ComboBox1.SelectedIndex
         Dim wi_plan As String = Working_Pro.wi_no.Text
         Dim line_cd As String = MainFrm.Label4.Text
         Dim item_cd As String = Working_Pro.Label3.Text
         Dim seq_no As Integer = Working_Pro.Label22.Text
         Dim shift_prd As String = Working_Pro.Label14.Text
-        Dim start_loss As Date = Date.Parse(TimeOfDay.ToString("H:mm:ss"))
-        Dim end_loss As Date = Date.Parse(TimeOfDay.ToString("H:mm:ss"))
-        Dim date1 As Date = Date.Parse(TimeOfDay.ToString("H:mm:ss"))
-        Dim date2 As Date = Date.Parse(TimeOfDay.ToString("H:mm:ss"))
-        ' 'msgBox("SAAAA")
-        Dim total_loss As Integer = DateDiff(DateInterval.Minute, date1, date2)
-        ''msgBox("SFFFFF")
-        Dim loss_type As String = "0"  '0:Normally,1:Manual
+        Dim end_loss As DateTime = DateTime.Now
+
+        Dim loss_type As String = "0"  ' 0:Normally, 1:Manual
         Dim op_id As String = "0"
-        ''msgBox("SCCCC")
-        Dim loss_cd_id As String = "35"
-        ''msgBox("Ready load UpdateAutoLoss 2.")
+        Dim loss_cd_id As String = If(closeLotsummary.Visible, "36", "35")
+
         Try
-            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
-                transfer_flg = "1"
-                If closeLotsummary.Visible Then
-                    loss_cd_id = "36"
-                Else
-                    loss_cd_id = "35"
-                End If
-                If MainFrm.chk_spec_line = "2" Then
-                    ''Console.WriteLine(MainFrm.ArrayDataPlan.ToArray().Length)
-                    Dim GenSEQ As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
-                    Dim Iseq = GenSEQ
-                    Dim j As Integer = 0
-                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
-                        Iseq += 1
-                        Dim special_wi As String = itemPlanData.wi
-                        Dim special_item_cd As String = itemPlanData.item_cd
-                        Dim special_item_name As String = itemPlanData.item_name
-                        Backoffice_model.Update_flg_loss(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, date_start_data, end_loss, test_time_loss_time.Text, loss_type, loss_cd_id, op_id, transfer_flg, "1")
-                        Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, date_start_data, end_loss, test_time_loss_time.Text, loss_type, loss_cd_id, op_id, transfer_flg, "1")
-                        Backoffice_model.alert_loss(special_wi, "1", pd, loss_cd_id)
-                    Next
-                Else
-                    Backoffice_model.Update_flg_loss(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, date_start_data, end_loss, test_time_loss_time.Text, loss_type, loss_cd_id, op_id, transfer_flg, "1")
-                    Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, date_start_data, end_loss, test_time_loss_time.Text, loss_type, loss_cd_id, op_id, transfer_flg, "1")
-                    Backoffice_model.alert_loss(wi_plan, "1", pd, loss_cd_id)
-                End If
-            Else
-                transfer_flg = "0"
-                If MainFrm.chk_spec_line = "2" Then
-                    Dim GenSEQ As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
-                    Dim Iseq = GenSEQ
-                    Dim j As Integer = 0
-                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
-                        Iseq += 1
-                        Dim special_wi As String = itemPlanData.wi
-                        Dim special_item_cd As String = itemPlanData.item_cd
-                        Dim special_item_name As String = itemPlanData.item_name
-                        Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, date_start_data, end_loss, test_time_loss_time.Text, loss_type, loss_cd_id, op_id, transfer_flg, "1")                'Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
-                    Next
-                Else
-                    Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, date_start_data, end_loss, test_time_loss_time.Text, loss_type, loss_cd_id, op_id, transfer_flg, "1")                'Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
-                End If
-            End If
-        Catch ex As Exception
-            transfer_flg = "0"
+            Dim online As Boolean
+            Try
+                online = My.Computer.Network.Ping(Backoffice_model.svp_ping)
+            Catch
+                online = False
+            End Try
+            transfer_flg = If(online, "1", "0")
+
             If MainFrm.chk_spec_line = "2" Then
-                Dim GenSEQ As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
-                Dim Iseq = GenSEQ
-                Dim j As Integer = 0
+                Dim genSeq As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                Dim iSeq = genSeq
                 For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
-                    Iseq += 1
-                    Dim special_wi As String = itemPlanData.wi
-                    Dim special_item_cd As String = itemPlanData.item_cd
-                    Dim special_item_name As String = itemPlanData.item_name
-                    Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, date_start_data, end_loss, test_time_loss_time.Text, loss_type, loss_cd_id, op_id, transfer_flg, "1")            'Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
+                    iSeq += 1
+                    If online Then
+                        Backoffice_model.Update_flg_loss(pd, line_cd, itemPlanData.wi, itemPlanData.item_cd, iSeq, shift_prd,
+                                                         date_start_data, end_loss, test_time_loss_time.Text, loss_type,
+                                                         loss_cd_id, op_id, transfer_flg, "1")
+                        Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, itemPlanData.wi, itemPlanData.item_cd, iSeq, shift_prd,
+                                                                date_start_data, end_loss, test_time_loss_time.Text, loss_type,
+                                                                loss_cd_id, op_id, transfer_flg, "1")
+                        Backoffice_model.alert_loss(itemPlanData.wi, "1", pd, loss_cd_id)
+                    Else
+                        Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, itemPlanData.wi, itemPlanData.item_cd, iSeq, shift_prd,
+                                                                date_start_data, end_loss, test_time_loss_time.Text, loss_type,
+                                                                loss_cd_id, op_id, transfer_flg, "1")
+                    End If
                 Next
             Else
-                Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, date_start_data, end_loss, test_time_loss_time.Text, loss_type, loss_cd_id, op_id, transfer_flg, "1")            'Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
+                If online Then
+                    Backoffice_model.Update_flg_loss(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd,
+                                                     date_start_data, end_loss, test_time_loss_time.Text, loss_type,
+                                                     loss_cd_id, op_id, transfer_flg, "1")
+                    Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd,
+                                                            date_start_data, end_loss, test_time_loss_time.Text, loss_type,
+                                                            loss_cd_id, op_id, transfer_flg, "1")
+                    Backoffice_model.alert_loss(wi_plan, "1", pd, loss_cd_id)
+                Else
+                    Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd,
+                                                            date_start_data, end_loss, test_time_loss_time.Text, loss_type,
+                                                            loss_cd_id, op_id, transfer_flg, "1")
+                End If
+            End If
+
+        Catch
+            ' โหมดกันตาย: ลง SQLite อย่างเดียว
+            transfer_flg = "0"
+            If MainFrm.chk_spec_line = "2" Then
+                Dim genSeq As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                Dim iSeq = genSeq
+                For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                    iSeq += 1
+                    Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, itemPlanData.wi, itemPlanData.item_cd, iSeq, shift_prd,
+                                                            date_start_data, end_loss, test_time_loss_time.Text, loss_type,
+                                                            loss_cd_id, op_id, transfer_flg, "1")
+                Next
+            Else
+                Backoffice_model.Update_flg_loss_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd,
+                                                        date_start_data, end_loss, test_time_loss_time.Text, loss_type,
+                                                        loss_cd_id, op_id, transfer_flg, "1")
             End If
         End Try
-        Await Task.Delay(100) ' Mock delay for async operation
-    End Function
-    Private Sub btnBreakTime_Click(sender As Object, e As EventArgs) Handles btnBreakTime.Click
-        If Backoffice_model.CountDelay <> "" Then
-            ''Console.WriteLine(contDelay)
-            ''msgBox("ครบ 5 นาที")
-            btnContinue.BringToFront()
-            btnContinue.Visible = True
-            'btnContinue.BackColor = Color.FromArgb(63, 63, 63)
-            'btnContinue.Size = New Size(312, 555)
-            insLoss()
-            lock.Visible = True
-            btnBreakTime.Visible = False
-            lbLossCode.Text = Backoffice_model.LossCodeAuto
-            lbStartCount.Text = Backoffice_model.TimeStartBreakTime
-            lbEndCount.Text = TimeOfDay.ToString("H:mm:ss")
-            btnBreakTime.Visible = False
-            PanelShowLoss.Visible = True
-            lbEndCount.Text = TimeOfDay.ToString("H:mm:ss")
-            Dim date_end_data As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
-            Dim date_end As Date = date_end_data
-            Dim total_loss As Integer = DateDiff(DateInterval.Minute, date_start_data, date_end)
-            test_time_loss_time.Text = total_loss
-            If total_loss < 0 Then
-                Minutes_total = Math.Abs(CDbl(Val(test_time_loss_time.Text)))
-                test_time_loss_time.Text = Minutes_total
-            End If
-        End If
-        lbEndCount.Text = TimeOfDay.ToString("H:mm:ss")
     End Sub
+
+    ' ----------------- Timer: เดินนาที/ตัดเข้าสู่ PanelShowLoss -----------------
     Private Sub TimerLossBT_Tick(sender As Object, e As EventArgs) Handles TimerLossBT.Tick
         Try
             contDelay += 1
-            If Application.OpenForms().OfType(Of Loss_reg).Any Or Application.OpenForms().OfType(Of Loss_reg_pass).Any Then
-            Else
-                If Backoffice_model.CountDelay <> "" Then
-                    If btnBreakTime.Visible = True Then
 
-                        ''Console.WriteLine(contDelay)
-                        If CDbl(Val(contDelay)) = CDbl(Val((Backoffice_model.CountDelay))) Then
-                            ''msgBox("ครบ 5 นาที")
-                            btnContinue.BringToFront()
-                            btnContinue.Visible = True
-                            'btnContinue.BackColor = Color.FromArgb(63, 63, 63)
-                            'btnContinue.Size = New Size(312, 555)
-                            insLoss()
-                            lock.Visible = True
-                            btnBreakTime.Visible = False
-                            lbLossCode.Text = Backoffice_model.LossCodeAuto
-                            lbStartCount.Text = Backoffice_model.TimeStartBreakTime
-                            lbEndCount.Text = TimeOfDay.ToString("H:mm:ss")
-                            btnBreakTime.Visible = False
-                            PanelShowLoss.Visible = True
-                        End If
-                    End If
-                    lbEndCount.Text = TimeOfDay.ToString("H:mm:ss")
-                    Dim date_end_data As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
-                    Dim date_end As Date = date_end_data
-                    Dim total_loss As Integer = DateDiff(DateInterval.Minute, date_start_data, date_end)
-                    test_time_loss_time.Text = total_loss
-                    If total_loss < 0 Then
-                        Minutes_total = Math.Abs(CDbl(Val(test_time_loss_time.Text)))
-                        test_time_loss_time.Text = Minutes_total
+            ' ถ้ามีหน้ากรอก Loss อื่นเปิดอยู่ ให้ข้าม
+            If Application.OpenForms().OfType(Of Loss_reg)().Any() _
+               OrElse Application.OpenForms().OfType(Of Loss_reg_pass)().Any() Then
+                Return
+            End If
+
+            ' ครบ CountDelay → แสดงสรุป
+            If Not String.IsNullOrEmpty(Backoffice_model.CountDelay) AndAlso btnBreakTime.Visible Then
+                Dim target As Integer
+                If Integer.TryParse(Backoffice_model.CountDelay, target) Then
+                    If contDelay >= target Then
+                        contDelay = 0 ' สำคัญ: รีเซ็ต
+                        btnContinue.BringToFront()
+                        btnContinue.Visible = True
+                        insLoss()
+                        lock.Visible = True
+                        btnBreakTime.Visible = False
+                        lbLossCode.Text = Backoffice_model.LossCodeAuto
+                        lbStartCount.Text = Backoffice_model.TimeStartBreakTime
+                        lbEndCount.Text = DateTime.Now.ToString("H:mm:ss")
+                        PanelShowLoss.Visible = True
                     End If
                 End If
-                lbEndCount.Text = TimeOfDay.ToString("H:mm:ss")
-
             End If
-        Catch ex As Exception
+
+            ' อัปเดตเวลาปัจจุบัน + รวมเวลาที่ผ่านไป
+            Dim nowDt As DateTime = DateTime.Now
+            lbEndCount.Text = nowDt.ToString("H:mm:ss")
+
+            Dim totalMin As Integer = CInt((nowDt - date_start_data).TotalMinutes)
+            If totalMin < 0 Then totalMin = Math.Abs(totalMin)
+            test_time_loss_time.Text = totalMin.ToString()
+
+        Catch
+            ' อย่าให้ผู้ใช้ค้าง
             Working_Pro.Enabled = True
         End Try
     End Sub
+
+    ' ----------------- บันทึก Loss ครั้งนี้ (Online/Offline) -----------------
     Public Sub insLoss()
         If Working_Pro.check_in_up_seq = 0 Then
-            date_start_data = Working_Pro.Gdate_now_date
+            Try
+                date_start_data = Working_Pro.Gdate_now_date
+            Catch
+                date_start_data = DateTime.Now
+            End Try
         End If
+
         Dim pd As String = MainFrm.Label6.Text
-        Dim sel_combo As String = 0 'ComboBox1.SelectedIndex
         Dim wi_plan As String = Working_Pro.wi_no.Text
         Dim line_cd As String = MainFrm.Label4.Text
         Dim item_cd As String = Working_Pro.Label3.Text
         Dim seq_no As Integer = Working_Pro.Label22.Text
         Dim shift_prd As String = Working_Pro.Label14.Text
-        Dim start_loss As Date = date_start_data 'Date.Parse(TimeOfDay.ToString("H:mm:ss"))
-        Dim end_loss As Date = Date.Parse(TimeOfDay.ToString("H:mm:ss")) ' back night result 12:00:00 AM
-        Dim date1 As Date = Date.Parse(TimeOfDay.ToString("H:mm:ss"))
-        Dim date2 As Date = Date.Parse(TimeOfDay.ToString("H:mm:ss"))
-        Dim total_loss As Integer = DateDiff(DateInterval.Minute, date1, date2)
-        Dim loss_type As String = "0"  '0:Normally,1:Manual
+
+        Dim start_loss As DateTime = date_start_data
+        Dim end_loss As DateTime = DateTime.Now
+        Dim total_loss As Integer = CInt((end_loss - start_loss).TotalMinutes)
+
+        Dim loss_type As String = "0"
         Dim op_id As String = "0"
         Dim statusManualE1 As Integer = 0
+
         Try
-            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
-                transfer_flg = "1"
-                If MainFrm.chk_spec_line = "2" Then
-                    Dim GenSEQ As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
-                    Dim Iseq = GenSEQ
-                    Dim j As Integer = 0
-                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
-                        Iseq += 1
-                        Dim special_wi As String = itemPlanData.wi
-                        Dim special_item_cd As String = itemPlanData.item_cd
-                        Dim special_item_name As String = itemPlanData.item_name
-                        Dim localPwis As String = ""
-                        Try
-                            localPwis = Working_Pro.Spwi_id(j)
-                        Catch ex As Exception
-                            localPwis = ""
-                        End Try
-                        Backoffice_model.ins_loss_act(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis, statusManualE1)
-                        Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis, statusManualE1)
-                        j = j + 1
-                    Next
-                Else
-                    Backoffice_model.ins_loss_act(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id, statusManualE1)
-                    Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id, statusManualE1)
-                End If
-            Else
-                transfer_flg = "0"
-                If MainFrm.chk_spec_line = "2" Then
-                    Dim GenSEQ As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
-                    Dim Iseq = GenSEQ
-                    Dim j As Integer = 0
-                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
-                        Iseq += 1
-                        Dim special_wi As String = itemPlanData.wi
-                        Dim special_item_cd As String = itemPlanData.item_cd
-                        Dim special_item_name As String = itemPlanData.item_name
-                        Dim localPwis As String = ""
-                        Try
-                            localPwis = Working_Pro.Spwi_id(j)
-                        Catch ex As Exception
-                            localPwis = ""
-                        End Try
-                        Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis, statusManualE1)
-                        j = j + 1
-                    Next
-                Else
-                    Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id, statusManualE1)
-                End If
-            End If
-        Catch ex As Exception
-            transfer_flg = "0"
+            Dim online As Boolean
+            Try
+                online = My.Computer.Network.Ping(Backoffice_model.svp_ping)
+            Catch
+                online = False
+            End Try
+            transfer_flg = If(online, "1", "0")
+
             If MainFrm.chk_spec_line = "2" Then
-                Dim GenSEQ As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
-                Dim Iseq = GenSEQ
+                Dim genSeq As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                Dim iSeq = genSeq
                 Dim j As Integer = 0
                 For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
-                    Iseq += 1
+                    iSeq += 1
                     Dim localPwis As String = ""
-                    Try
-                        localPwis = Working_Pro.Spwi_id(j)
-                    Catch ex1 As Exception
-                        localPwis = ""
-                    End Try
-                    Dim special_wi As String = itemPlanData.wi
-                    Dim special_item_cd As String = itemPlanData.item_cd
-                    Dim special_item_name As String = itemPlanData.item_name
-                    Backoffice_model.ins_loss_act_sqlite(pd, line_cd, special_wi, special_item_cd, Iseq, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", localPwis, statusManualE1)
-                    j = j + 1
+                    Try : localPwis = Working_Pro.Spwi_id(j) : Catch : localPwis = "" : End Try
+
+                    If online Then
+                        Backoffice_model.ins_loss_act(pd, line_cd, itemPlanData.wi, itemPlanData.item_cd, iSeq, shift_prd,
+                                                      start_loss, end_loss, total_loss, loss_type,
+                                                      Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0",
+                                                      localPwis, statusManualE1)
+                    End If
+                    Backoffice_model.ins_loss_act_sqlite(pd, line_cd, itemPlanData.wi, itemPlanData.item_cd, iSeq, shift_prd,
+                                                         start_loss, end_loss, total_loss, loss_type,
+                                                         Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0",
+                                                         localPwis, statusManualE1)
+                    j += 1
                 Next
             Else
-                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0", Working_Pro.pwi_id, statusManualE1)
+                If online Then
+                    Backoffice_model.ins_loss_act(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd,
+                                                  start_loss, end_loss, total_loss, loss_type,
+                                                  Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0",
+                                                  Working_Pro.pwi_id, statusManualE1)
+                End If
+                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd,
+                                                     start_loss, end_loss, total_loss, loss_type,
+                                                     Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0",
+                                                     Working_Pro.pwi_id, statusManualE1)
+            End If
+
+        Catch
+            ' fallback offline
+            transfer_flg = "0"
+            If MainFrm.chk_spec_line = "2" Then
+                Dim genSeq As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                Dim iSeq = genSeq
+                Dim j As Integer = 0
+                For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                    iSeq += 1
+                    Dim localPwis As String = ""
+                    Try : localPwis = Working_Pro.Spwi_id(j) : Catch : localPwis = "" : End Try
+                    Backoffice_model.ins_loss_act_sqlite(pd, line_cd, itemPlanData.wi, itemPlanData.item_cd, iSeq, shift_prd,
+                                                         start_loss, end_loss, total_loss, loss_type,
+                                                         Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0",
+                                                         localPwis, statusManualE1)
+                    j += 1
+                Next
+            Else
+                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd,
+                                                     start_loss, end_loss, total_loss, loss_type,
+                                                     Backoffice_model.IDLossCodeAuto, op_id, transfer_flg, "0",
+                                                     Working_Pro.pwi_id, statusManualE1)
             End If
         End Try
     End Sub
-    Private Sub StopMenu_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        ''Console.WriteLine("date_start_data ===>" & date_start_data) ' ไม่ต้องลบ 
-        'Console.WriteLine("Working_Pro.slm_flg_qr_prod ===>" & Working_Pro.slm_flg_qr_prod)
-        'Console.WriteLine("Working_Pro.check_bull ===>" & Working_Pro.check_bull)
-        'Console.WriteLine("Working_Pro.start_flg ===>" & Working_Pro.start_flg)
-        If Working_Pro.check_in_up_seq = 0 Then
-            date_start_data = Working_Pro.Gdate_now_date
-        Else
-            date_start_data = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
-        End If
-        TimerLossBT.Start()
-        TimerLossBT.Enabled = True
-        lbLineCode.Text = MainFrm.Label4.Text
 
+    ' ----------------- ปุ่ม Break → แสดง Panel + คำนวณทันที -----------------
+    Private Sub btnBreakTime_Click(sender As Object, e As EventArgs) Handles btnBreakTime.Click
+        If String.IsNullOrEmpty(Backoffice_model.CountDelay) Then Return
+
+        btnContinue.BringToFront()
+        btnContinue.Visible = True
+        insLoss()
+        lock.Visible = True
+        btnBreakTime.Visible = False
+        lbLossCode.Text = Backoffice_model.LossCodeAuto
+        lbStartCount.Text = Backoffice_model.TimeStartBreakTime
+        lbEndCount.Text = DateTime.Now.ToString("H:mm:ss")
+        PanelShowLoss.Visible = True
+
+        ' อัปเดตรวมเวลาที่ผ่านไป ณ ตอนกด
+        Dim totalMin As Integer = CInt((DateTime.Now - date_start_data).TotalMinutes)
+        If totalMin < 0 Then totalMin = Math.Abs(totalMin)
+        test_time_loss_time.Text = totalMin.ToString()
     End Sub
+
 End Class
