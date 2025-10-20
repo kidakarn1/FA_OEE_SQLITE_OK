@@ -46,7 +46,7 @@ Public Class defectNumpadregister
                 Me.Close()
                 defectRegister.Show()
             Else
-                'msgBox("Please Check QTY Input")
+                MsgBox("Please Check QTY Input")
             End If
         Else
             If tbAddqty.Text = "" Then
@@ -61,10 +61,10 @@ Public Class defectNumpadregister
                     Me.Close()
                     defectRegister.Show()
                 Else
-                    'msgBox("Please Input Actaual QTY")
+                    MsgBox("Please Input Actaual QTY")
                 End If
             Else
-                'msgBox("Please Check QTY Input")
+                MsgBox("Please Check QTY Input")
             End If
                 'defectRegister.dfQty = CDbl(Val(tbAddqty.Text))
                 'defectRegister.tbQtydefectnc.Text = CDbl(Val(tbAddqty.Text))

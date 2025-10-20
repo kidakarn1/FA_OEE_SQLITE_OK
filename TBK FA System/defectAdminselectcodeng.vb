@@ -108,7 +108,7 @@ Public Class defectAdminselectcodeng
                 Me.Hide()
             End If
         Catch ex As Exception
-            'msgBox("PLEASE SELECT ROW.")
+            MsgBox("PLEASE SELECT ROW.")
         End Try
     End Sub
     Private Sub btnDown_Click(sender As Object, e As EventArgs)

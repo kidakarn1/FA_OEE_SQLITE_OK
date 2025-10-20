@@ -166,7 +166,7 @@
             Working_Pro.Enabled = True
             Me.Close()
         Else
-            'msgBox("Please Check QTY.")
+            MsgBox("Please Check QTY.")
         End If
     End Sub
     Public Shared Function setValuenc(Act As String, nc As String, ng As String, sNc As String, ipQty As Integer)

@@ -24,7 +24,6 @@
 
     Private Sub numPadSetQTY_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         lb_MAX_QTY.Text = CDbl(Val(Working_Pro.Label8.Text)) - CDbl(Val(Working_Pro.Label6.Text))
-
     End Sub
 
     Private Sub btnNumber2_Click(sender As Object, e As EventArgs) Handles btnNumber2.Click

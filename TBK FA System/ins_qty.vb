@@ -37,7 +37,7 @@ Public Class ins_qty
                 Button10.Enabled = True
             End If
         Catch ex As Exception
-            'msgBox("Please Check QTY.")
+            MsgBox("Please Check QTY.")
         End Try
     End Sub
     Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click

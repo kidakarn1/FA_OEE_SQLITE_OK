@@ -37,7 +37,7 @@ Public Class OEE_NODE
             load_show_OEE.Close()
             Return dcResultdata
         Catch ex As Exception
-            'msgBox("Please Check Function : OEE_LOAD_MSTOEEColor Or Check Master OEE In Table line_mst")
+            MsgBox("Please Check Function : OEE_LOAD_MSTOEEColor Or Check Master OEE In Table line_mst")
             Try
                 If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                     load_show_OEE.Show()

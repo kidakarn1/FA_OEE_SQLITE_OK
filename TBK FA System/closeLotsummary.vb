@@ -276,7 +276,7 @@ Public Class closeLotsummary
                         For Each itemchild As Object In dcResultdatafg
                             Dim date_now = DateTime.Now.ToString("yyyy-MM-dd H:m:s")
                             Await WaitForNetworkWithPopup()
-                            ClickOk(itemPlanData.wi, lbLine.Text, itemchild("dt_item_cd").ToString(), "1", sLot, Iseq, itemchild("dt_type").ToString(), itemchild("dt_code").ToString(), itemchild("total_nc").ToString(), date_now, itemchild("pwi_id").ToString())
+                            Await ClickOk(itemPlanData.wi, lbLine.Text, itemchild("dt_item_cd").ToString(), "1", sLot, Iseq, itemchild("dt_type").ToString(), itemchild("dt_code").ToString(), itemchild("total_nc").ToString(), date_now, itemchild("pwi_id").ToString())
                             mdSqlite.UpdateStatusCloselotSqlite("1", itemchild("pwi_id").ToString())
                         Next
                     End If
@@ -286,7 +286,7 @@ Public Class closeLotsummary
                         For Each itemfg As Object In dcResultdata
                             Dim date_now = DateTime.Now.ToString("yyyy-MM-dd H:m:s")
                             Await WaitForNetworkWithPopup()
-                            ClickOk(itemPlanData.wi, lbLine.Text, itemfg("dt_item_cd").ToString(), "2", sLot, Iseq, itemfg("dt_type").ToString(), itemfg("dt_code").ToString(), itemfg("total_nc").ToString(), date_now, itemfg("pwi_id").ToString())
+                            Await ClickOk(itemPlanData.wi, lbLine.Text, itemfg("dt_item_cd").ToString(), "2", sLot, Iseq, itemfg("dt_type").ToString(), itemfg("dt_code").ToString(), itemfg("total_nc").ToString(), date_now, itemfg("pwi_id").ToString())
                             mdSqlite.UpdateStatusCloselotSqlite("1", itemfg("pwi_id").ToString())
                         Next
                     End If
@@ -316,7 +316,7 @@ Public Class closeLotsummary
                     For Each itemchild As Object In dcResultdatafg
                         Dim date_now = DateTime.Now.ToString("yyyy-MM-dd H:m:s")
                         Await WaitForNetworkWithPopup()
-                        ClickOk(sWi, lbLine.Text, itemchild("dt_item_cd").ToString(), "1", sLot, sSeq, itemchild("dt_type").ToString(), itemchild("dt_code").ToString(), itemchild("total_nc").ToString(), date_now, Working_Pro.pwi_id)
+                        Await ClickOk(sWi, lbLine.Text, itemchild("dt_item_cd").ToString(), "1", sLot, sSeq, itemchild("dt_type").ToString(), itemchild("dt_code").ToString(), itemchild("total_nc").ToString(), date_now, Working_Pro.pwi_id)
                     Next
                 End If
                 ' rs = md.mGetdatachildpartsummarychild(sWi, sSeq, sLot)
@@ -327,7 +327,7 @@ Public Class closeLotsummary
                     For Each itemfg As Object In dcResultdata
                         Dim date_now = DateTime.Now.ToString("yyyy-MM-dd H:m:s")
                         Await WaitForNetworkWithPopup()
-                        ClickOk(sWi, lbLine.Text, itemfg("dt_item_cd").ToString(), "2", sLot, sSeq, itemfg("dt_type").ToString(), itemfg("dt_code").ToString(), itemfg("total_nc").ToString(), date_now, Working_Pro.pwi_id)
+                        Await ClickOk(sWi, lbLine.Text, itemfg("dt_item_cd").ToString(), "2", sLot, sSeq, itemfg("dt_type").ToString(), itemfg("dt_code").ToString(), itemfg("total_nc").ToString(), date_now, Working_Pro.pwi_id)
                     Next
                 End If
                 If Backoffice_model.S_chk_spec_line = 1 Then
@@ -460,7 +460,8 @@ Public Class closeLotsummary
                     Dim objTagprintdefect = New printDefect()
                     Dim menu = "1"
                     Await WaitForNetworkWithPopup()
-                    objTagprintdefect.Set_parameter_print(itemdf("dt_item_cd").ToString(), detailItemfg("ITEM_NAME").ToString(), detailItemfg("MODEL").ToString(), sLine, stDatetime, detailItemfg("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemdf("total_nc"), seq, wi, itemType, dfType, menu)
+                    ' objTagprintdefect.Set_parameter_print(itemdf("dt_item_cd").ToString(), detailItemfg("ITEM_NAME").ToString(), detailItemfg("MODEL").ToString(), sLine, stDatetime, detailItemfg("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemdf("total_nc"), seq, wi, itemType, dfType, menu)
+                    Await objTagprintdefect.Set_parameter_print(itemdf("dt_item_cd").ToString(), detailItemfg("ITEM_NAME").ToString(), detailItemfg("MODEL").ToString(), sLine, stDatetime, detailItemfg("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemdf("total_nc"), seq, wi, itemType, dfType, menu)
                 Next
             Next
         End If
@@ -485,17 +486,19 @@ Public Class closeLotsummary
                     Dim objTagprintdefect = New printDefect()
                     Dim menu = "1"
                     Await WaitForNetworkWithPopup()
-                    objTagprintdefect.Set_parameter_print(itemd("dt_item_cd").ToString(), detailItemchild("ITEM_NAME").ToString(), detailItemchild("MODEL").ToString(), sLine, stDatetime, detailItemchild("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemd("total_nc"), seq, wi, itemType, dfType, menu)
+                    'objTagprintdefect.Set_parameter_print(itemd("dt_item_cd").ToString(), detailItemchild("ITEM_NAME").ToString(), detailItemchild("MODEL").ToString(), sLine, stDatetime, detailItemchild("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemd("total_nc"), seq, wi, itemType, dfType, menu)
+                    Await objTagprintdefect.Set_parameter_print(itemd("dt_item_cd").ToString(), detailItemchild("ITEM_NAME").ToString(), detailItemchild("MODEL").ToString(), sLine, stDatetime, detailItemchild("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemd("total_nc"), seq, wi, itemType, dfType, menu)
                 Next
             Next
         End If
         dfType = "1" 'NG
         ' rsNc = md.mGetdatachildpartsummarychildgrouppart(wi, seq, lot, dfType) 'NG
         'rsFgNc = md.Getdatachildpartsummaryfggrouppart(wi, seq, lot, dfType) 'NG
-        rsNc = mdSqlite.mSqliteGetdatachildpartsummarychildgrouppart(wi, seq, lot, dfType) 'NC
-        rsFgNc = mdSqlite.mSqliteGetdatachildpartsummaryfggrouppart(wi, seq, lot, dfType) 'NC
+        rsNc = mdSqlite.mSqliteGetdatachildpartsummarychildgrouppart(wi, seq, lot, dfType) 'NG
+        rsFgNc = mdSqlite.mSqliteGetdatachildpartsummaryfggrouppart(wi, seq, lot, dfType) 'NG ' rs ออก 1 ตัว 
         itemType = "1"
         If rsFgNc <> "0" Then
+
             Dim dcResultdatafg As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(rsFgNc)
             Dim i As Integer = 1
             Dim factory_cd As String = "NO DATA"
@@ -507,7 +510,7 @@ Public Class closeLotsummary
                 factory_cd = "10"
                 plan_cd = "51"
             End If
-            For Each itemdf As Object In dcResultdatafg
+            For Each itemdf As Object In dcResultdatafg ' rs ออก 1 ตัว 
                 itemType = "1"
                 Await WaitForNetworkWithPopup()
                 Dim rsApi = Await md.mGetdatepartdetail(itemdf("dt_item_cd").ToString, "1")
@@ -516,7 +519,8 @@ Public Class closeLotsummary
                     Dim objTagprintdefect = New printDefect()
                     Dim menu = "1"
                     Await WaitForNetworkWithPopup()
-                    objTagprintdefect.Set_parameter_print(itemdf("dt_item_cd").ToString(), detailItemfg("ITEM_NAME").ToString(), detailItemfg("MODEL").ToString(), sLine, stDatetime, detailItemfg("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemdf("total_nc"), seq, wi, itemType, dfType, menu)
+                    'objTagprintdefect.Set_parameter_print(itemdf("dt_item_cd").ToString(), detailItemfg("ITEM_NAME").ToString(), detailItemfg("MODEL").ToString(), sLine, stDatetime, detailItemfg("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemdf("total_nc"), seq, wi, itemType, dfType, menu)
+                    Await objTagprintdefect.Set_parameter_print(itemdf("dt_item_cd").ToString(), detailItemfg("ITEM_NAME").ToString(), detailItemfg("MODEL").ToString(), sLine, stDatetime, detailItemfg("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemdf("total_nc"), seq, wi, itemType, dfType, menu)
                 Next
             Next
         End If
@@ -541,7 +545,8 @@ Public Class closeLotsummary
                     Dim objTagprintdefect = New printDefect()
                     Dim menu = "1"
                     Await WaitForNetworkWithPopup()
-                    objTagprintdefect.Set_parameter_print(itemd("dt_item_cd").ToString(), detailItemchild("ITEM_NAME").ToString(), detailItemchild("MODEL").ToString(), sLine, stDatetime, detailItemchild("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemd("total_nc"), seq, wi, itemType, dfType, menu)
+                    '    objTagprintdefect.Set_parameter_print(itemd("dt_item_cd").ToString(), detailItemchild("ITEM_NAME").ToString(), detailItemchild("MODEL").ToString(), sLine, stDatetime, detailItemchild("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemd("total_nc"), seq, wi, itemType, dfType, menu)
+                    Await objTagprintdefect.Set_parameter_print(itemd("dt_item_cd").ToString(), detailItemchild("ITEM_NAME").ToString(), detailItemchild("MODEL").ToString(), sLine, stDatetime, detailItemchild("LOCATION_PART").ToString(), sShift, factory_cd, sLot, itemd("total_nc"), seq, wi, itemType, dfType, menu)
                 Next
             Next
         End If
@@ -691,7 +696,7 @@ Public Class closeLotsummary
             End If
         End Try
     End Sub
-    Public Async Sub ClickOk(dtWino As String, dtLineno As String, dtItemcd As String, dtItemtype As String, dtLotno As String, dtSeqno As String, dtType As String, dtCode As String, dtQty As String, dtActualdate As String, pwi_id As String)
+    Public Async Function ClickOk(dtWino As String, dtLineno As String, dtItemcd As String, dtItemtype As String, dtLotno As String, dtSeqno As String, dtType As String, dtCode As String, dtQty As String, dtActualdate As String, pwi_id As String) As Task
         Dim md As New modelDefect()
         Dim apimdSQLite = New model_api_sqlite()
         Dim mdSQLite = New ModelSqliteDefect
@@ -745,7 +750,7 @@ recheck_defect:
                          Await WaitForNetworkWithPopup()
                      End Function)
         End Try
-    End Sub
+    End Function
 
     Public Function comPleteflg(Act As Integer, Plan As Integer)
         Dim cFlg As Integer = 0

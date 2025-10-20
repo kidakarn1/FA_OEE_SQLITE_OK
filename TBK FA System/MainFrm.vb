@@ -5,7 +5,6 @@ Imports System.Web.Script.Serialization
 Imports Microsoft.Web
 Imports Microsoft.Web.WebView2.Core
 Imports Microsoft.Web.WebView2.WinForms
-
 Public Class MainFrm
     Private WithEvents WebViewEmergency As WebView2
     Public Sub ClickButton()
@@ -480,11 +479,12 @@ Public Class MainFrm
                 Me.Enabled = True
             End If
             ModelSqliteDefect.cancelCloselotStatusUpdate("2")
+            Dim LoadSQL_by_op = Backoffice_model.get_trdata_sqlite_by_op()
             Dim LoadSQL = Backoffice_model.get_trdata_sqlite()
             Dim LoadSQL_tag_print_detail = Backoffice_model.get_tr_tag_print_detail()
             Dim LoadSQL_check_loss_actual = Backoffice_model.check_loss_actual()
             Dim LoadSQL_get_defect_tag_information = Backoffice_model.get_defect_tag_information()
-            hasData = LoadSQL.HasRows OrElse LoadSQL_tag_print_detail.HasRows OrElse LoadSQL_get_defect_tag_information.HasRows OrElse LoadSQL_check_loss_actual > 0
+            hasData = LoadSQL.HasRows OrElse LoadSQL_tag_print_detail.HasRows OrElse LoadSQL_get_defect_tag_information.HasRows OrElse LoadSQL_check_loss_actual > 0 OrElse LoadSQL_by_op.HasRows
             If hasData Then
                 Me.Enabled = False
                 Await dbClass.updated_data_to_dbsvr(Me, "1")

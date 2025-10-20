@@ -133,6 +133,7 @@ Partial Class Working_Pro
         Me.lb_use_time = New System.Windows.Forms.Label()
         Me.Label33 = New System.Windows.Forms.Label()
         Me.Panel6 = New System.Windows.Forms.Panel()
+        Me.lb_fontACTUALDATE = New System.Windows.Forms.Label()
         Me.btn_defect = New System.Windows.Forms.Button()
         Me.lbPosition1 = New System.Windows.Forms.Label()
         Me.lbPosition2 = New System.Windows.Forms.Label()
@@ -1579,6 +1580,7 @@ Partial Class Working_Pro
         'Panel6
         '
         Me.Panel6.BackColor = System.Drawing.Color.SteelBlue
+        Me.Panel6.Controls.Add(Me.lb_fontACTUALDATE)
         Me.Panel6.Controls.Add(Me.lb_loss_status)
         Me.Panel6.Controls.Add(Me.lb_ng_child_part)
         Me.Panel6.Controls.Add(Me.btn_defect)
@@ -1588,6 +1590,19 @@ Partial Class Working_Pro
         Me.Panel6.Size = New System.Drawing.Size(322, 30)
         Me.Panel6.TabIndex = 4622
         Me.Panel6.Visible = False
+        '
+        'lb_fontACTUALDATE
+        '
+        Me.lb_fontACTUALDATE.AutoSize = True
+        Me.lb_fontACTUALDATE.BackColor = System.Drawing.Color.Transparent
+        Me.lb_fontACTUALDATE.Font = New System.Drawing.Font("Arial", 14.0!, System.Drawing.FontStyle.Bold)
+        Me.lb_fontACTUALDATE.ForeColor = System.Drawing.Color.White
+        Me.lb_fontACTUALDATE.Location = New System.Drawing.Point(-81, 10)
+        Me.lb_fontACTUALDATE.Name = "lb_fontACTUALDATE"
+        Me.lb_fontACTUALDATE.Size = New System.Drawing.Size(246, 22)
+        Me.lb_fontACTUALDATE.TabIndex = 4725
+        Me.lb_fontACTUALDATE.Text = "XXXXXXXXXXXXXXXXX..."
+        Me.lb_fontACTUALDATE.Visible = False
         '
         'btn_defect
         '
@@ -3294,4 +3309,5 @@ Partial Class Working_Pro
     Friend WithEvents progressbarP As CircularProgressBar.CircularProgressBar
     Friend WithEvents Label52 As Label
     Friend WithEvents lbCT As Label
+    Friend WithEvents lb_fontACTUALDATE As Label
 End Class

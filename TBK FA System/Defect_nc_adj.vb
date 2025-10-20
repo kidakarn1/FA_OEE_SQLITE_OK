@@ -292,14 +292,14 @@ goto_recheck_data:
                             Me.Close()
                         End If
                     Catch ex As Exception
-                        'msgBox("Please input Qty." & ex.Message)
+                        MsgBox("Please input Qty." & ex.Message)
                     End Try
                 End If
             Else
-                'msgBox("QTY OVER SHIFT COUNT")
+                MsgBox("QTY OVER SHIFT COUNT")
             End If
         Else
-            'msgBox("QTY OVER SHIFT COUNT")
+            MsgBox("QTY OVER SHIFT COUNT")
         End If
     End Sub
     Public Sub cal_qty()

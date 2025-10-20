@@ -191,7 +191,7 @@ Friend Class defectSelecttype
                 dfSS.Show()
                 Me.Hide()
             Else
-                'msgBox("Please Enable Line Special.")
+                MsgBox("Please Enable Line Special.")
                 'Dim sDefectcode As New defectSelectcode()
                 'Me.sPart = btnPartfg.Text
                 'lvChildpart.Items(0).Selected = True
@@ -255,7 +255,7 @@ Friend Class defectSelecttype
             sDefectcode.Show()
             Me.Hide()
         Else
-            'msgBox("PLEASE SELECT ROW. ")
+            MsgBox("PLEASE SELECT ROW. ")
         End If
     End Sub
 End Class

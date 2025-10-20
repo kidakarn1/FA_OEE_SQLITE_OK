@@ -196,7 +196,7 @@
                 End If
             End If
         Catch ex As Exception
-            'msgBox("Please Select Data")
+            MsgBox("Please Select Data")
         End Try
     End Sub
     Public Sub manageNc()
@@ -241,7 +241,7 @@
                 Working_Pro.Enabled = True
                 Me.Close()
             Else
-                'msgBox("Please Check QTY.")
+                MsgBox("Please Check QTY.")
             End If
         Else ' Child Part
             Dim LdfDetailsnc As New defectDetailnc()
@@ -269,7 +269,7 @@
                     Working_Pro.Enabled = True
                     Me.Close()
                 Else
-                    'msgBox("Please Check QTY.")
+                    MsgBox("Please Check QTY.")
                 End If
                 ''msgBox("-->")
                 ''msgBox("wi = " & wi)
@@ -330,7 +330,7 @@
                         Working_Pro.ResetRed()
                         Me.Close()
                     Else
-                        'msgBox("Please Check QTY.")
+                        MsgBox("Please Check QTY.")
                     End If
                 ElseIf dfHome.dtType = "NG" Then
                     Dim rsCheck = ckInputqtyaddjust(tbAddjust.Text, lbMax.Text)
@@ -353,13 +353,13 @@
                         Working_Pro.ResetRed()
                         Me.Close()
                     Else
-                        'msgBox("Please Check QTY.")
+                        MsgBox("Please Check QTY.")
                     End If
 
 
                 End If
             Else
-                'msgBox("Please Check QTY.")
+                MsgBox("Please Check QTY.")
             End If
         Else ' Child Part
             Dim LdfDetailsnc As New defectDetailnc()
@@ -391,7 +391,7 @@
                     Working_Pro.Enabled = True
                     Me.Close()
                 Else
-                    'msgBox("Please Check QTY.")
+                    MsgBox("Please Check QTY.")
                 End If
             ElseIf dfHome.dtType = "NG" Then
                 wi = LdfDetailsng.dtWino
@@ -413,7 +413,7 @@
                     Working_Pro.Enabled = True
                     Me.Close()
                 Else
-                    'msgBox("Please Check QTY.")
+                    MsgBox("Please Check QTY.")
                 End If
             End If
         End If
@@ -463,11 +463,11 @@
                             '  ScanQRprod.lbTopices.Text = "Add Qr Product"
                             '  ScanQRprod.Visible = True
                             '  ScanQRprod.G_StatusAddCutDefect = "1"
-                            'msgBox("Please Check QTY")
+                            MsgBox("Please Check QTY")
                         End If
                         ' 'msgBox(dtQty & " = " & CDbl(Val(tbAddjust.Text)))
                     Else
-                        'msgBox("Please Check QTY")
+                        MsgBox("Please Check QTY")
                     End If
                 Else
                     manageNg()

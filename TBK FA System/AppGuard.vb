@@ -56,7 +56,7 @@ Public Module AppGuard
             Dim dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TBK FA System", "logs")
             Directory.CreateDirectory(dir)
             Dim f = Path.Combine(dir, DateTime.Now.ToString("yyyyMMdd") & ".log")
-            File.AppendAllText(f, $"{DateTime.Now:HH:mm:ss} {msg}{Environment.NewLine}")
+            ' File.AppendAllText(f, $"{DateTime.Now:HH:mm:ss} {msg}{Environment.NewLine}")
         Catch
         End Try
     End Sub

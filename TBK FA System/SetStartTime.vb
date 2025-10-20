@@ -51,10 +51,10 @@ Public Class SetStartTime
                             ''msgBox("Please Checks QTY.")
                             'End Try
                         Else
-                            'msgBox("Please Check Time.")
+                            MsgBox("Please Check Time.")
                         End If
                     Else
-                        'msgBox("Please Check Time Current.")
+                        MsgBox("Please Check Time Current.")
                     End If
                 Else
                     load_show.Show()

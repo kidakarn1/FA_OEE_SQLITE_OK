@@ -21,6 +21,8 @@ Imports Microsoft.Web.WebView2.WinForms
 Imports QRCoder
 
 Public Class Working_Pro
+    Public Shared last_start_time As DateTime = DateTime.Now
+    Public map_OP
     Private _breakTimer As System.Windows.Forms.Timer
     Private _breakTarget As DateTime
     Private _timerHooked As Boolean = False
@@ -66,6 +68,7 @@ Public Class Working_Pro
     Friend WithEvents TimerCheckDIO As System.Windows.Forms.Timer
     Dim delay_btn As Integer = 0
     Public Shared check_bull As Integer = 0
+    Public Shared check_bull_op As New List(Of Integer) From {0}
     Public check_in_up_seq As Integer = 0
     Dim value_next_process As String = ""
     Public check_format_tag As String = Backoffice_model.B_check_format_tag()
@@ -268,12 +271,12 @@ Public Class Working_Pro
                 'print_back.PrintDocument1.Print()
             Else
                 ' หากฟอร์มไม่พร้อม
-                MessageBox.Show("ไม่สามารถใช้ UI Thread ได้", "ข้อผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                'MessageBox.Show("ไม่สามารถใช้ UI Thread ได้", "ข้อผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error)
             End If
         Catch ex As Exception
-            LogPrintError(ex, "TagPrintOne")
-            MessageBox.Show("เกิดข้อผิดพลาดในการพิมพ์แท็ก: " & ex.Message, "ระบบ",
-                            MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ' LogPrintError(ex, "TagPrintOne")
+            '  MessageBox.Show("เกิดข้อผิดพลาดในการพิมพ์แท็ก: " & ex.Message, "ระบบ",
+            'MessageBoxButtons.OK, MessageBoxIcon.Error)
         Finally
             Interlocked.Exchange(flg_tag_print, 0)
         End Try
@@ -291,9 +294,9 @@ Public Class Working_Pro
             'TagPrintOne() ' แต่ละใบจะจับค่า Box ณ ตอนเริ่มพิมพ์ของตัวเอง
         Next
     End Sub
-
     '========== ตัวสร้างหน้าเอกสาร โดยใช้ snapshot d ==========
     Private Sub PrintPageWithData(e As PrintPageEventArgs, d As TagPrintData)
+
         Using aPen As New Pen(Color.Black)
             aPen.Width = 2.0F
             e.Graphics.DrawLine(aPen, 150, 10, 150, 290)
@@ -313,9 +316,11 @@ Public Class Working_Pro
             e.Graphics.DrawLine(aPen, 150, 235, 610, 235)
             e.Graphics.DrawLine(aPen, 150, 289, 700, 289)
         End Using
-
         '--- คำนวณ QTY ต่อแท็ก ---
         Dim modsucc As Integer
+
+
+
         If d.StatusPrint = "CloseLot" OrElse d.StatusPrint = "Normal" Then
             modsucc = d.GoodQty
         Else
@@ -368,7 +373,6 @@ Public Class Working_Pro
         e.Graphics.DrawString(d.NextProcess, lb_font4.Font, Brushes.Black, 414, 141)
         e.Graphics.DrawString("LOCATION", lb_font1.Font, Brushes.Black, 592, 123)
         e.Graphics.DrawString(d.Location, lb_font4.Font, Brushes.Black, 596, 141)
-
         e.Graphics.DrawString("SHIFT", lb_font1.Font, Brushes.Black, 152, 178)
         e.Graphics.DrawString(d.Shift, lb_font2.Font, Brushes.Black, 170, 190)
         e.Graphics.DrawString("PRO. SEQ.", lb_font1.Font, Brushes.Black, 227, 178)
@@ -376,7 +380,7 @@ Public Class Working_Pro
         e.Graphics.DrawString("BOX NO.", lb_font1.Font, Brushes.Black, 302, 178)
         e.Graphics.DrawString(d.BoxSeq.PadLeft(3, "0"c), lb_font2.Font, Brushes.Black, 320, 190)
         e.Graphics.DrawString("ACTUAL DATE", lb_font1.Font, Brushes.Black, 412, 178)
-        e.Graphics.DrawString(DateTime.Now.ToString("dd/MM/yyyy"), lb_font5.Font, Brushes.Black, 412, 196)
+        e.Graphics.DrawString(DateTime.Now.ToString("dd/MM/yyyy"), lb_fontACTUALDATE.Font, Brushes.Black, 412, 196)
         e.Graphics.DrawString("FACTORY", lb_font1.Font, Brushes.Black, 522, 178)
         e.Graphics.DrawString(d.FactoryCd, lb_font5.Font, Brushes.Black, 522, 196)
         e.Graphics.DrawString("INFO.", lb_font1.Font, Brushes.Black, 612, 178)
@@ -403,14 +407,16 @@ Public Class Working_Pro
         '--- QR ---
         Dim qty_num As String = result_snp.ToString().PadLeft(6, " "c)
         Dim plan_seq As String = d.PlanSeq.PadLeft(3, "0"c)
-        Dim part_no_res1 As String = (If(d.PartNo, "")).PadRight(24, " "c)
+        ' Dim part_no_res1 As String = (If(d.PartNo, "")).PadRight(24, " "c)' old Before K1M158
+        Dim part_no_res1 As String = (If(d.PartNo, "")).PadRight(25, " "c)
         Dim act_date As String = DateTime.Now.ToString("yyyyMMdd")
         Dim lot_padded As String = (If(d.LotNo, "")).PadRight(5, " "c)
-        Dim cus_part_no As String = "".PadRight(25, " "c)
-
+        ' Dim cus_part_no As String = "".PadRight(25, " "c)
+        Dim cus_part_no As String = "                        "
         Dim qr As String = BuildQr103(d.iden_cd, d.LineCode, planDateYMD, plan_seq, part_no_res1,
                                       act_date, qty_num, lot_padded, cus_part_no, d.PlanCd,
                                       d.BoxSeq.PadLeft(3, "0"c))
+        Console.WriteLine(Len(qr))
 
         If Not String.IsNullOrEmpty(qr) Then
             Dim qrGenerator As New QRCoder.QRCodeGenerator()
@@ -426,7 +432,6 @@ Public Class Working_Pro
         End If
 
         e.HasMorePages = False
-
     End Sub
     '========== สร้างสตริงสำหรับ QR (ปรับตามระบบจริงของคุณ) ==========
     ' สร้างสตริง QR ความยาวคงที่ 103 ตัวอักษร
@@ -441,12 +446,11 @@ Public Class Working_Pro
                             cusPart As String,           ' จะ PadRight(25)
                             planCd As String,
                             BoxNo As String) ' 2 หลัก
-        Dim qr = iden & lineCd & planDateYMD & planSeq & partNo & actDateYMD & qty & lotNo & cusPart & actDateYMD & planSeq & planCd & BoxNo
-        Console.WriteLine("qr===>" & qr)
+        Dim qr = Trim(iden & lineCd & planDateYMD & planSeq & partNo & actDateYMD & qty & lotNo & cusPart & actDateYMD & planSeq & planCd & BoxNo)
         If qr.Length <> 103 Then
             Throw New InvalidOperationException($"QR length invalid: {qr.Length}, expected 103")
         End If
-        Return qr
+        Return Trim(qr)
     End Function
     '==================== ตัวอย่างการเรียกใช้ ====================
 
@@ -951,6 +955,8 @@ Public Class Working_Pro
             '  time_st = " 20:00:00"
             '  time_end = " 08:00:00"
         End If
+        map_OP = Backoffice_model.GetDeviceCounterByop(MainFrm.Label4.Text)
+        Console.WriteLine(map_OP)
         DateTimeStartofShift.Text = OEE.OEE_getDateTimeStart(Prd_detail.Label12.Text.Substring(3, 5), MainFrm.Label4.Text)
         ''msgBox("DateTimeStartofShift.Text===>" & DateTimeStartofShift.Text)
         ' 'msgBox("LOAD 1 DateTimeStartofShift ===>" & DateTimeStartofShift.Text)
@@ -1979,6 +1985,9 @@ Public Class Working_Pro
                 Dim BreakTime = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Label14.Text) ' for set data 
                 Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, wi_no.Text, Label22.Text)
                 lbNextTime.Text = BreakTime
+                map_OP = Backoffice_model.GetDeviceCounterByop(MainFrm.Label4.Text)
+                Console.WriteLine(map_OP)
+
             End If
         Catch ex As Exception
 
@@ -4223,7 +4232,7 @@ outNet:
         Catch ex As Exception
             ' ข้อผิดพลาดภายนอก Try
             Console.WriteLine("เกิดข้อผิดพลาดในการพิมพ์แท็ก: " & ex.Message)
-            MessageBox.Show("เกิดข้อผิดพลาดในการพิมพ์แท็ก: " & ex.Message, "ข้อผิดพลาดระบบ", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ' MessageBox.Show("เกิดข้อผิดพลาดในการพิมพ์แท็ก: " & ex.Message, "ข้อผิดพลาดระบบ", MessageBoxButtons.OK, MessageBoxIcon.Error)
         Finally
             ' รีเซ็ตสถานะให้สามารถพิมพ์ใหม่ได้
             flg_tag_print = 0 ' 🔓 ปลดล็อกให้สามารถพิมพ์ได้อีกครั้ง
@@ -4401,7 +4410,7 @@ outNet:
                             lb_box_count.Text = lb_box_count.Text + 1
                             Label_bach.Text += 1
                             GoodQty = lb_good.Text
-                            tag_print()
+                            'tag_print() เพราะออก ตอน ครบแผน จริง พอครบแผน ค้องกด Close Lot 
                         End If
                     End If
                 Else
@@ -4427,6 +4436,7 @@ outNet:
         Dim loop_check As Integer = result_add / CDbl(Val(Label27.Text))
         If V_check_line_reprint = "1" Then
             If CDbl(Val(Label27.Text)) = 1 Or CDbl(Val(Label27.Text)) = 999999 Then
+
                 If (CDbl(Val(Label6.Text) + CDbl(Val(lb_ins_qty.Text)))) = CDbl(Val(Label8.Text)) Then
                     Label6.Text = result_add
                     lb_box_count.Text = lb_box_count.Text + 1
@@ -4737,7 +4747,9 @@ outNet:
                 'No Net
             End Try
             ' 'msgBox("ready run 3 ")
-            MainFrm.RunCmd(MainFrm.Label4.Text)
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Await MainFrm.RunCmd(MainFrm.Label4.Text)
+            End If
             ''msgBox("ready run 4 ")
             '
             ''''Console.WriteLine("READY LOAD OEE cal_eff ")
@@ -5467,17 +5479,160 @@ outNet:
             'End If
         End If
     End Function
+    Public Async Function Manage_counter_NI_MAX_By_OP(pd As String, line_cd As String, wi_plan As String, item_cd As String, item_name As String, staff_no As String, seq_no As String, op_id As String,
+        flagIndex As Integer) As Task
+        If check_bull_op(flagIndex) = 0 Then
+            check_bull_op(flagIndex) = 1
+            Dim PK_pad_id_by_op As Integer = 0
+            Dim PK_pad_id_sqlite_by_op = 0
+            Dim status_work = "1"
+            Dim start_time As Date = last_start_time
+            Dim end_time As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            last_start_time = end_time2
+            Dim prd_qty = 1
+            Dim result_use_time = Cal_Use_Time_ins_qty_fn_manual(start_time2, end_time2)
+            Dim number_qty = Label6.Text + prd_qty
+            Try
+                ' If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+                If rsNetwork Then
+                    tr_status = "1"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim indRow As String = itemPlanData.IND_ROW
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            PK_pad_id_by_op = Backoffice_model.Insert_prd_detail_by_op(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, start_time, end_time, result_use_time, number_qty, Spwi_id(j), tr_status, op_id, status_work)
+                            If PK_pad_id_by_op = 0 Then
+                                PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, "0", Spwi_id(j), op_id, status_work)
+                            Else
+                                PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j), op_id, status_work)
+                            End If
+                            j = j + 1
+                        Next
+                    Else
+                        PK_pad_id_by_op = Backoffice_model.Insert_prd_detail_by_op(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, result_use_time, number_qty, pwi_id, tr_status, op_id, status_work)
+                        If PK_pad_id_by_op = 0 Then
+                            PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, "0", pwi_id, op_id, status_work)
+                        Else
+                            PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id, op_id, status_work)
+                        End If
+                    End If
+                Else
+                    tr_status = "0"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim indRow As String = itemPlanData.IND_ROW
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, special_wi, special_item_cd, item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j), op_id, status_work)
+                            j = j + 1
+                        Next
+                    Else
+                        PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id, op_id, status_work)
+                    End If
+                End If
+            Catch ex As Exception
+                tr_status = "0"
+                If MainFrm.chk_spec_line = "2" Then
+                    Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                    Dim Iseq = GenSEQ
+                    Dim j As Integer = 0
+                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                        Iseq += 1
+                        Dim indRow As String = itemPlanData.IND_ROW
+                        Dim special_wi As String = itemPlanData.wi
+                        Dim special_item_cd As String = itemPlanData.item_cd
+                        Dim special_item_name As String = itemPlanData.item_name
+                        PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j), op_id, status_work)
+                        j = j + 1
+                    Next
+                Else
+                    PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id, op_id, status_work)
+                End If
+            End Try
+            Try
+                Dim delay_setting As Integer = If(status_conter = "0", s_delay * 100, s_delay * 1000)
+                Await Task.Delay(delay_setting, cts.Token).ContinueWith(Sub(task)
+                                                                            If Not task.IsCanceled Then
+                                                                                If Me.IsHandleCreated AndAlso Not Me.IsDisposed Then
+                                                                                    Try
+                                                                                        Me.Invoke(Sub()
+                                                                                                      check_bull_op(flagIndex) = 0
+
+                                                                                                  End Sub)
+                                                                                    Catch ex As Exception
+                                                                                        ''Console.WriteLine("[Invoke Error] " & ex.Message)
+                                                                                        check_bull_op(flagIndex) = 0
+
+                                                                                    End Try
+                                                                                Else
+                                                                                    check_bull_op(flagIndex) = 0
+
+                                                                                End If
+                                                                            End If
+                                                                        End Sub, TaskScheduler.FromCurrentSynchronizationContext())
+            Catch ex As Exception
+                ''Console.WriteLine("[Manage_counter_NI_MAX] " & ex.Message)
+                check_bull_op(0) = 0
+            End Try
+        End If
+    End Function
     Private Async Sub Tiemr_new_dio_Tick(sender As Object, e As EventArgs) Handles Timer_new_dio.Tick
         If rsWindow Then
             Try
+                Dim states As Boolean() = CheckWindow.reader_new_dio.ReadSingleSampleMultiLine()
                 CheckWindow.data_new_dio = CheckWindow.reader_new_dio.ReadSingleSamplePortUInt32()
-                ' ''Console.WriteLine("[Timer] data_new_dio: " & CheckWindow.data_new_dio.ToString())
-                If CheckWindow.data_new_dio.ToString() <> "255" Then
+                Console.WriteLine("[Timer] states: " & states(0) & "----->>" & states(1))
+                'If CheckWindow.data_new_dio.ToString() <> "255" Then
+                If Not states(0) Then
                     If check_bull = 0 Then
                         If start_flg = 1 Then
                             Await Manage_counter_NI_MAX()
                         End If
                     End If
+                End If
+                If Not String.IsNullOrWhiteSpace(map_OP) AndAlso map_OP <> "0" Then
+                    Dim serializer As New JavaScriptSerializer()
+                    Dim dict2 As List(Of Dictionary(Of String, Object)) = serializer.Deserialize(Of List(Of Dictionary(Of String, Object)))(map_OP)
+                    For Each m As Dictionary(Of String, Object) In dict2
+                        Dim idx As Integer = Convert.ToInt32(m("port_line_ni"))
+                        If idx < 0 OrElse idx >= states.Length Then Continue For
+                        EnsureFlagSize(idx) ' ขยาย list กัน index เกิน
+                        ' Active-Low: False แปลว่ามีสัญญาณ
+                        If Not states(idx) Then
+                            If check_bull_op(idx) = 0 Then
+                                Dim plan_seq As String = Label22.Text.PadLeft(3, "0"c)
+                                Dim opId As String = Convert.ToString(m("op_id"))
+                                ' check_bull_op(idx) = 1 ' กันเด้งก่อน Await
+                                Await Manage_counter_NI_MAX_By_OP(
+                    MainFrm.Label6.Text,  ' pd
+                    MainFrm.Label4.Text,  ' line_cd
+                    wi_no.Text,           ' wi_plan
+                    Label3.Text,          ' item_cd
+                    Label12.Text,         ' item_name
+                    Label29.Text,         ' staff_no
+                    plan_seq,             ' seq_no
+                    opId,                 ' ใช้จาก JSON
+                    idx
+)
+                            End If
+                        Else
+                            check_bull_op(idx) = 0 ' ปล่อยสัญญาณแล้ว รีเซ็ต
+                        End If
+                    Next
                 End If
             Catch ex As Exception
                 'Button1.Enabled = False
@@ -5496,6 +5651,11 @@ outNet:
                 Timer_new_dio.Stop()
             End Try
         End If
+    End Sub
+    Private Sub EnsureFlagSize(index As Integer)
+        While check_bull_op.Count <= index
+            check_bull_op.Add(0)
+        End While
     End Sub
     Public Sub Main()
         StartAutoBreakScheduler()

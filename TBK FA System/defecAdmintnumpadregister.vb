@@ -64,7 +64,7 @@ Public Class defecAdmintnumpadregister
             Me.Close()
             defectAdminregister.Show()
         Else
-            'msgBox("Please Check QTY Input")
+            MsgBox("Please Check QTY Input")
         End If
     End Sub
     Public Shared Function calNumpadregister(rtQty As Integer, maxQty As Integer)

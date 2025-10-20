@@ -139,7 +139,7 @@ Public Class model_api_sqlite
                   AND da_type = '" & dfType & "'  
                   AND da_status_flg = 1
                 GROUP BY da_item_cd, da_code;"
-            'Console.WriteLine("funcrtion return data sql ====>" & sql)
+            Console.WriteLine("funcrtion return data sql ====>" & sql)
             ' 'msgBox(sql)
             ' Dim jsonData As String = api.Load_dataSQLite(sql)
             Dim jsonData As String = Await api.Load_dataSQLiteAsyncLoaddata(sql)

@@ -123,10 +123,10 @@ Public Class defectDetailng
                 dfNumpadafjust.Show()
                 Me.Close()
             Else
-                'msgBox("Please Select Data")
+                MsgBox("Please Select Data")
             End If
         Catch ex As Exception
-            'msgBox("Please Select Data")
+            MsgBox("Please Select Data")
         End Try
     End Sub
     Private Sub btnBack_Click(sender As Object, e As EventArgs) Handles btnBack.Click

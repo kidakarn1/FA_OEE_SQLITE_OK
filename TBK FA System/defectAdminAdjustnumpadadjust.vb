@@ -175,7 +175,7 @@ Public Class defectAdminAdjustnumpadadjust
             '  obj.Show()
             '  Me.Close()
         Else
-            'msgBox("Please Check QTY.")
+            MsgBox("Please Check QTY.")
         End If
     End Sub
     Public Function updateAddjustqty(dtWino As String, dtLotNo As String, dtSeqno As String, dtType As String, dtCode As String, dtItemCd As String, pwi_id As String)
@@ -191,10 +191,10 @@ Public Class defectAdminAdjustnumpadadjust
                 dfRegister.insertDefectregister(dtWino, dtLineno, objDefectdetailnc.SPART, dtItemtype, dtLotNo, dtSeqno, dtType, dtCode, tbAddjust.Text, dtMenu, dtActualdate, pwi_id)
                 Dim rsInsertActual = md.mInsertdefectactual(dtWino, dtLineno, objDefectdetailnc.SPART, dtItemtype, dtLotNo, dtSeqno, dtType, dtCode, tbAddjust.Text, "2", dtActualdate, pwi_id)
             Else
-                'msgBox("Update Status Fiall Function mUpdatedefectactual in defectNumpadadjust.vb")
+                MsgBox("Update Status Fiall Function mUpdatedefectactual in defectNumpadadjust.vb")
             End If
         Else
-            'msgBox("Update Status Fiall Function updateAddjustqty in defectNumpadadjust.vb")
+            MsgBox("Update Status Fiall Function updateAddjustqty in defectNumpadadjust.vb")
         End If
         Return 0
     End Function

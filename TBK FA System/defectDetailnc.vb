@@ -122,10 +122,10 @@ Friend Class defectDetailnc
                 defectNumpadadjust.Show()
                 Me.Close()
             Else
-                'msgBox("Please Select Data")
+                MsgBox("Please Select Data")
             End If
         Catch ex As Exception
-            'msgBox("Please Select Data")
+            MsgBox("Please Select Data")
         End Try
     End Sub
 

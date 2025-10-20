@@ -214,7 +214,7 @@ Public Class Chang_Loss
         Try
             ListView2.Items(0).Selected = True
         Catch ex As Exception
-            'msgBox("Please Check Loss Master.")
+            MsgBox("Please Check Loss Master.")
         End Try
         Timer1.Start()
     End Sub

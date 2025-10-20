@@ -35,10 +35,4 @@
         Working_Pro.Enabled = True
         Me.Close()
     End Sub
-    Private Sub LB_WI_Click(sender As Object, e As EventArgs) Handles LB_WI.Click
-
-    End Sub
-    Private Sub LB_ACT_CT_Click(sender As Object, e As EventArgs) Handles LB_ACT_CT.Click
-
-    End Sub
 End Class

@@ -376,17 +376,17 @@ Public Class numPadSetStartTime
                         SetStartTime.tbMin.Text = tbAddjustM.Text
                         Me.Close() ' OK
                     Else
-                        'msgBox("Please Check Time.")
+                        MsgBox("Please Check Time.")
                     End If
                 Else
-                    'msgBox("Please Check Time Current.")
+                    MsgBox("Please Check Time Current.")
                 End If
             Else
                 load_show.Show()
             End If
         Catch ex As Exception
             'load_show.Show()
-            'msgBox("Please Check Times.")
+            MsgBox("catch Please Check Times.")
         End Try
     End Sub
 End Class

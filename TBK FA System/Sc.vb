@@ -271,7 +271,7 @@ recheck:
                 Else
                     Dim bf = New Backoffice_model
                     List_Emp.MaxManPower = bf.Get_MaxManPower(MainFrm.Label4.Text)
-                    'msgBox("ไลน์นี้มีพนักงานเดินไลน์ได้ " & List_Emp.MaxManPower & " คนเท่านั้น")
+                    MsgBox("ไลน์นี้มีพนักงานเดินไลน์ได้ " & List_Emp.MaxManPower & " คนเท่านั้น")
                 End If
             Else
                 load_show.Show()

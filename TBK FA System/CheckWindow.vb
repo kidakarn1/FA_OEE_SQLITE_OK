@@ -33,8 +33,12 @@ Public Class CheckWindow
 
                 ' 🎯 เพิ่ม Channel ใหม่
                 Try
-                    digitalReadTask_new_dio.DIChannels.CreateChannel(
-                        "Dev1/port0", "port0", ChannelLineGrouping.OneChannelForAllLines)
+                    'digitalReadTask_new_dio.DIChannels.CreateChannel(
+                    ' "Dev1/port0", "port0", ChannelLineGrouping.OneChannelForAllLines)
+
+                    digitalReadTask_new_dio.DIChannels.CreateChannel("Dev1/port0/line0:7",
+                                            "ProductionLines",
+                                            ChannelLineGrouping.OneChannelForAllLines)
                 Catch ex As Exception
                     '  'msgBox("[CreateChannel] " & ex.Message)
                     Return "Fail to create channel"
