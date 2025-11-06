@@ -5594,6 +5594,8 @@ outNet:
         End If
     End Function
     Private Shared ReadOnly alertLock As New Object()
+    Public Function YaTAKOI()
+    End Function
 
     Public Async Function CheckModel_Pokayoke() As Task
         Try
