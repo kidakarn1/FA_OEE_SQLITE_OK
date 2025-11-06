@@ -2282,7 +2282,7 @@ Public Class Working_Pro
             Catch ex As Exception
             End Try
         End If
-        Await CheckModel_Pokayoke()
+        ' Await CheckModel_Pokayoke()
 outNet:
     End Function
     Public Async Function CheckMN() As Task
@@ -5594,9 +5594,6 @@ outNet:
         End If
     End Function
     Private Shared ReadOnly alertLock As New Object()
-    Public Function YaTAKOI()
-    End Function
-
     Public Async Function CheckModel_Pokayoke() As Task
         Try
             ' 1) Ensure reader ready
@@ -5702,7 +5699,7 @@ outNet:
     Private Async Sub Tiemr_new_dio_Tick(sender As Object, e As EventArgs) Handles Timer_new_dio.Tick
         If rsWindow Then
             Try
-                Await CheckModel_Pokayoke()
+                'Await CheckModel_Pokayoke()
                 Dim states As Boolean() = CheckWindow.reader_new_dio.ReadSingleSampleMultiLine()
                 CheckWindow.data_new_dio = CheckWindow.reader_new_dio.ReadSingleSamplePortUInt32()
                 Console.WriteLine("[Timer] states: " & states(0) & "----->>" & states(1))
@@ -5712,7 +5709,6 @@ outNet:
                         If start_flg = 1 Then
                             Console.WriteLine("count TEST ....")
                             Await Manage_counter_NI_MAX()
-
                         End If
                     End If
                 End If
