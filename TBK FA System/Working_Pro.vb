@@ -21,6 +21,8 @@ Imports Microsoft.Web.WebView2.WinForms
 Imports QRCoder
 
 Public Class Working_Pro
+    Private Shared isAlertShowing As Boolean = False
+    Private Shared lastPokayokeAlarmUtc As DateTime = DateTime.MinValue
     Public Shared last_start_time As DateTime = DateTime.Now
     Public map_OP
     Private _breakTimer As System.Windows.Forms.Timer
@@ -2280,6 +2282,7 @@ Public Class Working_Pro
             Catch ex As Exception
             End Try
         End If
+        Await CheckModel_Pokayoke()
 outNet:
     End Function
     Public Async Function CheckMN() As Task
@@ -5590,9 +5593,114 @@ outNet:
             End Try
         End If
     End Function
+    Private Shared ReadOnly alertLock As New Object()
+
+    Public Async Function CheckModel_Pokayoke() As Task
+        Try
+            ' 1) Ensure reader ready
+            If CheckWindow.reader_new_dio_check_model Is Nothing Then
+                Dim r = CheckWindow.count_NIMAX_CheckModel()
+                If r <> "OK" OrElse CheckWindow.reader_new_dio_check_model Is Nothing Then
+                    Console.WriteLine("[Pokayoke] reader not ready: " & r)
+                    Exit Function
+                End If
+            End If
+
+            ' 2) Read and validate
+            Dim states As Boolean() = CheckWindow.reader_new_dio_check_model.ReadSingleSampleMultiLine()
+            If states Is Nothing OrElse states.Length < 3 Then
+                Console.WriteLine("[Pokayoke] states invalid (Nothing or Length<3)")
+                Exit Function
+            End If
+
+            Dim lineA As Boolean = states(1) ' Port 2:1
+            Dim lineB As Boolean = states(2) ' Port 2:2
+            Console.WriteLine("lineA==>" & lineA)
+            Console.WriteLine("lineB==>" & lineB)
+
+            ' 3) Interpret (False = model is running)
+            Dim partNo As String = ""
+            If Not lineA Then
+                partNo = CheckWindow.PART_A
+            ElseIf Not lineB Then
+                partNo = CheckWindow.PART_B
+            End If
+
+            ' 4) Expected PART จากหน้าจอ (Label3.Text)
+            Dim expected As String = Label3.Text.Trim()
+            If String.IsNullOrEmpty(expected) Then expected = CheckWindow.PART_A
+
+            Console.WriteLine(partNo & "<>" & expected)
+
+            ' 5) เงื่อนไขผิดรุ่น (ไม่แจ้งถ้า identify ไม่ได้)
+            If partNo <> "" AndAlso partNo <> expected Then
+
+                ' Debounce 1 วินาที กันเด้งถี่
+                Dim canAlert As Boolean = (DateTime.UtcNow - lastPokayokeAlarmUtc).TotalMilliseconds > 1000
+                If Not canAlert Then Exit Function
+                lastPokayokeAlarmUtc = DateTime.UtcNow
+
+                ' กันเปิด Dialog ซ้ำ (หลาย thread/timer)
+                SyncLock alertLock
+                    If isAlertShowing Then
+                        Console.WriteLine("[Pokayoke] Alert already showing, skip.")
+                        Exit Function
+                    End If
+                    isAlertShowing = True
+                End SyncLock
+
+                ' หยุดงานหลักก่อน
+                Try : stop_working() : Catch : End Try
+                Await Task.Delay(100)
+
+                ' ===== เปิด Alert แบบ Modal บน UI thread =====
+                Dim showAction As Action =
+                Sub()
+                    Dim alertForm As New Alert_worng_model()
+                    AddHandler alertForm.FormClosed, Sub()
+                                                         SyncLock alertLock
+                                                             isAlertShowing = False
+                                                         End SyncLock
+                                                     End Sub
+                    ' (ถ้ามีฟิลด์ข้อความในฟอร์ม ก็ set ได้ เช่น)
+                    ' alertForm.lblInfo.Text = $"Detected: {partNo}{Environment.NewLine}Expected: {expected}"
+
+                    ' ถ้าฟังก์ชันนี้อยู่ในฟอร์ม ให้ใช้ ShowDialog(Me) จะ center-parent
+                    ' มิฉะนั้นใช้ ShowDialog() ธรรมดา
+                    If TypeOf Me Is Form Then
+                        alertForm.ShowDialog(DirectCast(Me, IWin32Window))
+                    Else
+                        alertForm.StartPosition = FormStartPosition.CenterScreen
+                        alertForm.ShowDialog()
+                    End If
+                End Sub
+
+                ' เรียกบน UI thread เสมอ (กัน cross-thread)
+                If TypeOf Me Is Control AndAlso DirectCast(Me, Control).InvokeRequired Then
+                    DirectCast(Me, Control).BeginInvoke(showAction)
+                Else
+                    showAction()
+                End If
+            End If
+
+            Console.WriteLine("[Pokayoke] A=" & lineA & ", B=" & lineB & " | partNo=" & partNo & " | expected=" & expected)
+
+        Catch ex As NationalInstruments.DAQmx.DaqException
+            Console.WriteLine("DAQ Error: " & ex.Message)
+            SyncLock alertLock : isAlertShowing = False : End SyncLock
+        Catch ex As Exception
+            Console.WriteLine("เกิดข้อผิดพลาดในการอ่านค่า: " & ex.Message)
+            SyncLock alertLock : isAlertShowing = False : End SyncLock
+        End Try
+    End Function
+    Private Function GetExpectedModel() As String
+
+        'Return cboExpected.SelectedItem.ToString()
+    End Function
     Private Async Sub Tiemr_new_dio_Tick(sender As Object, e As EventArgs) Handles Timer_new_dio.Tick
         If rsWindow Then
             Try
+                Await CheckModel_Pokayoke()
                 Dim states As Boolean() = CheckWindow.reader_new_dio.ReadSingleSampleMultiLine()
                 CheckWindow.data_new_dio = CheckWindow.reader_new_dio.ReadSingleSamplePortUInt32()
                 Console.WriteLine("[Timer] states: " & states(0) & "----->>" & states(1))
@@ -5600,7 +5708,9 @@ outNet:
                 If Not states(0) Then
                     If check_bull = 0 Then
                         If start_flg = 1 Then
+                            Console.WriteLine("count TEST ....")
                             Await Manage_counter_NI_MAX()
+
                         End If
                     End If
                 End If

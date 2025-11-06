@@ -201,8 +201,10 @@ Public Class MainFrm
             End If
             Insert_list.Label3.Text = Label4.Text
             Prd_detail.Label3.Text = Label4.Text
+            'Await F_UpdateSqlite()
             Await ShowInformationByStatus(Label6.Text, Label4.Text)
             Await checkcmd()
+
         Else
             Application.Exit()
         End If
@@ -250,7 +252,7 @@ Public Class MainFrm
                                                              End If
                                                          End Sub, TaskScheduler.FromCurrentSynchronizationContext())
     End Function
-    Public Sub check_lot()
+    Public Async Function check_lot() As Task
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Working_Pro.Label24.Text = Label4.Text
@@ -261,7 +263,7 @@ Public Class MainFrm
                         line_id.Text = LoadSQL("line_id").ToString()
                     End While
                     Prd_detail.Label2.Text = i
-                    Me.Enabled = False
+                    ' Me.Enabled = False
                     Dim lotSubstYear As String = DateTime.Now.ToString("yyyy").Substring(3, 1)
                     Dim lotFirstDigit As String = ""
                     If lotSubstYear = "1" Then
@@ -404,7 +406,7 @@ Public Class MainFrm
             load_show.Show()
             Me.Enabled = True
         End Try
-    End Sub
+    End Function
     Public Async Function Check_critical_flg() As Task(Of String)
         Dim rs = Backoffice_model.load_config_master_database()
         ' Try
@@ -431,7 +433,7 @@ Public Class MainFrm
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 Await WaitForSQLiteEmptyAsync()
                 Backoffice_model.gobal_Flg_autoTranferProductions = Await Backoffice_model.Check_detail_actual_insert_act(Me) 'กรณีเครื่องดับ'
-                check_lot()
+                Await check_lot()
                 'Prd_detail.Label2.Text = ListView1.Items.Count
                 Working_Pro.Label24.Text = Label4.Text
                 Dim i = List_Emp.ListView1.Items.Count
@@ -522,6 +524,7 @@ Public Class MainFrm
                             Prd_detail.lb_wi.Text = item("WI").ToString()
                             Prd_detail.LB_PLAN_DATE.Text = item("WORK_ODR_DLV_DATE").ToString().Substring(0, 10)
                         Next
+                        Me.Enabled = False
                         Prd_detail.Show()
                     Else
                         dataPlan = ""

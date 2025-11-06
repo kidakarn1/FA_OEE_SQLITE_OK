@@ -324,6 +324,12 @@
     <Compile Include="Alert_scan_qr_product.vb">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Alert_worng_model.Designer.vb">
+      <DependentUpon>Alert_worng_model.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Alert_worng_model.vb">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Api_Scan_FA.vb" />
     <Compile Include="AppGuard.vb" />
     <Compile Include="ApplicationEvents.vb" />
@@ -1189,6 +1195,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Alert_scan_qr_product.resx">
       <DependentUpon>Alert_scan_qr_product.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Alert_worng_model.resx">
+      <DependentUpon>Alert_worng_model.vb</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Auto_close_lot.resx">
       <DependentUpon>Auto_close_lot.vb</DependentUpon>

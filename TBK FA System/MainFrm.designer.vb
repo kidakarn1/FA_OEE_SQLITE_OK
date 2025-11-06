@@ -97,11 +97,11 @@ Partial Class MainFrm
         Me.Label9.BackColor = System.Drawing.Color.Transparent
         Me.Label9.Font = New System.Drawing.Font("Catamaran", 12.75!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
         Me.Label9.ForeColor = System.Drawing.Color.White
-        Me.Label9.Location = New System.Drawing.Point(625, 138)
+        Me.Label9.Location = New System.Drawing.Point(556, 133)
         Me.Label9.Name = "Label9"
-        Me.Label9.Size = New System.Drawing.Size(173, 19)
+        Me.Label9.Size = New System.Drawing.Size(206, 19)
         Me.Label9.TabIndex = 23
-        Me.Label9.Text = "FA VERSIONS 2.1.8"
+        Me.Label9.Text = "FA VERSIONS 2.1.8 SW"
         '
         'Panel1
         '
@@ -392,7 +392,7 @@ Partial Class MainFrm
         Me.menu1.FlatAppearance.MouseOverBackColor = System.Drawing.Color.Transparent
         Me.menu1.FlatStyle = System.Windows.Forms.FlatStyle.Flat
         Me.menu1.ForeColor = System.Drawing.Color.FromArgb(CType(CType(0, Byte), Integer), CType(CType(10, Byte), Integer), CType(CType(33, Byte), Integer))
-        Me.menu1.Location = New System.Drawing.Point(17, 158)
+        Me.menu1.Location = New System.Drawing.Point(19, 158)
         Me.menu1.Name = "menu1"
         Me.menu1.Size = New System.Drawing.Size(555, 242)
         Me.menu1.TabIndex = 15

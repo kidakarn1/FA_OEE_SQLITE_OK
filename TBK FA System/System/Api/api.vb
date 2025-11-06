@@ -94,8 +94,8 @@ Public Class api
                     End Using
                 End Using
             Catch ex As Exception
-                'Console.WriteLine("Error in Load_dataSQLite: " & ex.Message)
-                Throw
+                Console.WriteLine("Error in Load_dataSQLite: " & ex.Message & "===>" & Sql)
+                ' Throw
             End Try
         End SyncLock
     End Function

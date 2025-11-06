@@ -101,12 +101,12 @@ Partial Class Line_conf
         '
         Me.DIO_PORT.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
         Me.DIO_PORT.FlatStyle = System.Windows.Forms.FlatStyle.Flat
-        Me.DIO_PORT.Font = New System.Drawing.Font("Catamaran", 22.0!, System.Drawing.FontStyle.Bold)
+        Me.DIO_PORT.Font = New System.Drawing.Font("Catamaran", 16.0!, System.Drawing.FontStyle.Bold)
         Me.DIO_PORT.FormattingEnabled = True
         Me.DIO_PORT.Items.AddRange(New Object() {"DIO000", "DIO001", "DIO002", "DIO003", "DIO004", "DIO005", "DIO006", "DIO007", "DIO008", "DIO009"})
-        Me.DIO_PORT.Location = New System.Drawing.Point(567, 263)
+        Me.DIO_PORT.Location = New System.Drawing.Point(561, 263)
         Me.DIO_PORT.Name = "DIO_PORT"
-        Me.DIO_PORT.Size = New System.Drawing.Size(183, 40)
+        Me.DIO_PORT.Size = New System.Drawing.Size(227, 31)
         Me.DIO_PORT.TabIndex = 30
         '
         'printer

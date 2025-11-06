@@ -30,6 +30,9 @@ Partial Class TestForm
         Me.lblDefect = New System.Windows.Forms.Label()
         Me.Label3 = New System.Windows.Forms.Label()
         Me.Timer1 = New System.Windows.Forms.Timer(Me.components)
+        Me.cboExpected = New System.Windows.Forms.ComboBox()
+        Me.lblDetected = New System.Windows.Forms.Label()
+        Me.lblStatus = New System.Windows.Forms.Label()
         Me.SuspendLayout()
         '
         'btnCheckNetwork
@@ -85,6 +88,35 @@ Partial Class TestForm
         'Timer1
         '
         '
+        'cboExpected
+        '
+        Me.cboExpected.Font = New System.Drawing.Font("Microsoft Sans Serif", 15.75!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(222, Byte))
+        Me.cboExpected.FormattingEnabled = True
+        Me.cboExpected.Location = New System.Drawing.Point(39, 123)
+        Me.cboExpected.Name = "cboExpected"
+        Me.cboExpected.Size = New System.Drawing.Size(169, 33)
+        Me.cboExpected.TabIndex = 4646
+        '
+        'lblDetected
+        '
+        Me.lblDetected.AutoSize = True
+        Me.lblDetected.Font = New System.Drawing.Font("Microsoft Sans Serif", 20.25!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.lblDetected.Location = New System.Drawing.Point(277, 120)
+        Me.lblDetected.Name = "lblDetected"
+        Me.lblDetected.Size = New System.Drawing.Size(172, 31)
+        Me.lblDetected.TabIndex = 4647
+        Me.lblDetected.Text = "NormalQTY :"
+        '
+        'lblStatus
+        '
+        Me.lblStatus.AutoSize = True
+        Me.lblStatus.Font = New System.Drawing.Font("Microsoft Sans Serif", 20.25!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.lblStatus.Location = New System.Drawing.Point(277, 166)
+        Me.lblStatus.Name = "lblStatus"
+        Me.lblStatus.Size = New System.Drawing.Size(172, 31)
+        Me.lblStatus.TabIndex = 4648
+        Me.lblStatus.Text = "NormalQTY :"
+        '
         'TestForm
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
@@ -92,6 +124,9 @@ Partial Class TestForm
         Me.BackgroundImage = CType(resources.GetObject("$this.BackgroundImage"), System.Drawing.Image)
         Me.ClientSize = New System.Drawing.Size(800, 600)
         Me.ControlBox = False
+        Me.Controls.Add(Me.lblStatus)
+        Me.Controls.Add(Me.lblDetected)
+        Me.Controls.Add(Me.cboExpected)
         Me.Controls.Add(Me.lblDefect)
         Me.Controls.Add(Me.Label3)
         Me.Controls.Add(Me.lblGood)
@@ -110,4 +145,7 @@ Partial Class TestForm
     Friend WithEvents lblDefect As Label
     Friend WithEvents Label3 As Label
     Friend WithEvents Timer1 As Timer
+    Friend WithEvents cboExpected As ComboBox
+    Friend WithEvents lblDetected As Label
+    Friend WithEvents lblStatus As Label
 End Class
