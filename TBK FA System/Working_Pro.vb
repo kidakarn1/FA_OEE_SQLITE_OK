@@ -5609,7 +5609,7 @@ outNet:
             ' 2) Read and validate
             Dim states As Boolean() = CheckWindow.reader_new_dio_check_model.ReadSingleSampleMultiLine()
             If states Is Nothing OrElse states.Length < 3 Then
-                Console.WriteLine("[Pokayoke] states invalid (Nothing or Length<3)")
+                Console.WriteLine("[Pokayoke ] states invalid (Nothing or Length<3)")
                 Exit Function
             End If
 
