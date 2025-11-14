@@ -386,7 +386,7 @@ Public Class List_Emp
         ''msgBox("List EMP timeShift===>" & timeShift)
         Dim time_now As String = DateTime.Now.ToString("HH:mm:ss tt")
         Dim date_st As Integer = lotthirdDigit
-        If time_now >= "00:00:00 AM" And time_now <= "08:00:00 AM" Then
+        If time_now >= "00:00:00 AM" And time_now <= "07:59:59 AM" Then
             date_st = lotthirdDigit - 1
             If date_st <= 0 Then
                 Dim tmp_date As String = d.AddDays(-1)

@@ -436,5 +436,4 @@ Public Class Prd_detail
 
         End Try
     End Sub
-
 End Class
