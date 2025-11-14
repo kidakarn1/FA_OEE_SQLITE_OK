@@ -2283,7 +2283,7 @@ Public Class Working_Pro
             Catch ex As Exception
             End Try
         End If
-        ' Await CheckModel_Pokayoke()
+        Await CheckModel_Pokayoke()
 outNet:
     End Function
     Public Async Function CheckMN() As Task
@@ -5700,7 +5700,7 @@ outNet:
     Private Async Sub Tiemr_new_dio_Tick(sender As Object, e As EventArgs) Handles Timer_new_dio.Tick
         If rsWindow Then
             Try
-                'Await CheckModel_Pokayoke()
+                Await CheckModel_Pokayoke()
                 Dim states As Boolean() = CheckWindow.reader_new_dio.ReadSingleSampleMultiLine()
                 CheckWindow.data_new_dio = CheckWindow.reader_new_dio.ReadSingleSamplePortUInt32()
                 Console.WriteLine("[Timer] states: " & states(0) & "----->>" & states(1))
