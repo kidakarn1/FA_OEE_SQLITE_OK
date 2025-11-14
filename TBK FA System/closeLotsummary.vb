@@ -216,10 +216,12 @@ Public Class closeLotsummary
         Working_Pro.btn_desc_act.Enabled = True
         If statusPage.Text = "MAN" Then
             Sel_prd_setup.Enabled = True
+            CloseStopMenuIfOpen()
             Me.Close()
         Else
             Working_Pro.Show()
             Working_Pro.Enabled = True
+            CloseStopMenuIfOpen()
             Me.Close()
         End If
     End Sub
@@ -384,12 +386,14 @@ Public Class closeLotsummary
                 Sel_prd_setup.Close()
                 List_Emp.lb_link.Text = "working"
                 List_Emp.Show()
+                CloseStopMenuIfOpen()
                 Me.Close()
             Else
                 Working_Pro.Close()
                 Prd_detail.Close()
                 MainFrm.Enabled = True
                 MainFrm.Show()
+                CloseStopMenuIfOpen()
                 Me.Close()
             End If
         Else
@@ -426,7 +430,8 @@ Public Class closeLotsummary
             '  Prd_detail.Close()
             '  MainFrm.Enabled = True
             '  MainFrm.Show()
-            '  Me.Close() ' add on 
+            '  CloseStopMenuIfOpen()
+            Me.Close() ' add on 
             '  'msgBox("In Catch Function btnok In CloseLotSummary =>" & ex.Message)
             checkNetColselot()
         End Try
@@ -909,4 +914,18 @@ recheck_defect:
                                                 End If
                                             End Sub, TaskScheduler.FromCurrentSynchronizationContext())
     End Function
+
+
+    ' === Close StopMenu if it's open (defensive) ===
+    Private Sub CloseStopMenuIfOpen()
+        Try
+            Dim sm As StopMenu = Application.OpenForms().OfType(Of StopMenu)().FirstOrDefault()
+            If sm IsNot Nothing AndAlso Not sm.IsDisposed Then
+                Try : sm.ShutdownTimers() : Catch : End Try
+                Try : sm.Close() : Catch : End Try
+            End If
+        Catch
+        End Try
+    End Sub
+
 End Class

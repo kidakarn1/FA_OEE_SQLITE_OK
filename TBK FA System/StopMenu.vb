@@ -325,4 +325,17 @@ Public Class StopMenu
         test_time_loss_time.Text = totalMin.ToString()
     End Sub
 
+
+
+    ' === Safe shutdown for external callers ===
+    Public Sub ShutdownTimers()
+        Try
+            If TimerLossBT IsNot Nothing Then
+                RemoveHandler TimerLossBT.Tick, AddressOf TimerLossBT_Tick
+                If TimerLossBT.Enabled Then TimerLossBT.Stop()
+                'TimerLossBT.Dispose() ' uncomment if you do not reuse
+            End If
+        Catch
+        End Try
+    End Sub
 End Class
