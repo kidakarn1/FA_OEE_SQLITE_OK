@@ -1,3 +1,4 @@
+Imports System.Windows.Forms
 Imports VB = Microsoft.VisualBasic
 Imports System
 Imports System.Management
@@ -2282,7 +2283,7 @@ Public Class Working_Pro
             Catch ex As Exception
             End Try
         End If
-        Await CheckModel_Pokayoke()
+        ' Await CheckModel_Pokayoke()
 outNet:
     End Function
     Public Async Function CheckMN() As Task
@@ -3694,7 +3695,7 @@ outNet:
         closeLotsummary.statusPage.Text = "working"
         Dim totalDefectCP As Integer = (CDbl(Val(lb_nc_child_part.Text)) + CDbl(Val(lb_ng_child_part.Text)))
         If LB_COUNTER_SEQ.Text <= 0 And totalDefectCP >= 1 Then
-            'msgBox("ไม่สามารถ Close Lot ได้ เนื่องจาก ไม่มี ยอดการผลิต แต่มีงานเสียในระบบ")
+            MsgBox("ไม่สามารถ Close Lot ได้ เนื่องจาก ไม่มี ยอดการผลิต แต่มีงานเสียในระบบ")
             Me.Enabled = True
         Else
             closeLotsummary.Show()
@@ -5594,9 +5595,6 @@ outNet:
         End If
     End Function
     Private Shared ReadOnly alertLock As New Object()
-    Public Function YaTAKOI()
-    End Function
-
     Public Async Function CheckModel_Pokayoke() As Task
         Try
             ' 1) Ensure reader ready
@@ -5702,7 +5700,7 @@ outNet:
     Private Async Sub Tiemr_new_dio_Tick(sender As Object, e As EventArgs) Handles Timer_new_dio.Tick
         If rsWindow Then
             Try
-                Await CheckModel_Pokayoke()
+                'Await CheckModel_Pokayoke()
                 Dim states As Boolean() = CheckWindow.reader_new_dio.ReadSingleSampleMultiLine()
                 CheckWindow.data_new_dio = CheckWindow.reader_new_dio.ReadSingleSamplePortUInt32()
                 Console.WriteLine("[Timer] states: " & states(0) & "----->>" & states(1))
@@ -5712,7 +5710,6 @@ outNet:
                         If start_flg = 1 Then
                             Console.WriteLine("count TEST ....")
                             Await Manage_counter_NI_MAX()
-
                         End If
                     End If
                 End If
@@ -6164,4 +6161,39 @@ outNet:
     Private Sub btnTestPrint_Click(sender As Object, e As EventArgs)
         tag_print()
     End Sub
+
+
+    ' === UNIVERSAL: Stop all timers owned  by this form ===
+    Private Sub StopAllTimers()
+        Try
+            If Me.components Is Nothing Then Return
+            For Each obj In Me.components.Components
+                Dim t = TryCast(obj, System.Windows.Forms.Timer)
+                If t IsNot Nothing Then
+                    Try : t.Stop() : Catch : End Try
+                End If
+            Next
+        Catch
+        End Try
+    End Sub
+
+    ' === Find and close StopMenu form safely ===
+    Private Sub CloseStopMenuIfOpen()
+        Try
+            Dim sm As StopMenu = Application.OpenForms().OfType(Of StopMenu)().FirstOrDefault()
+            If sm IsNot Nothing AndAlso Not sm.IsDisposed Then
+                Try : sm.ShutdownTimers() : Catch : End Try
+                Try : sm.Close() : Catch : End Try
+            End If
+        Catch
+        End Try
+    End Sub
+
+    ' === Ensure cleanup order when this form is closing ===
+    Private Sub Working_Pro_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
+        Me.Enabled = False
+        CloseStopMenuIfOpen()
+        StopAllTimers()
+    End Sub
+
 End Class
