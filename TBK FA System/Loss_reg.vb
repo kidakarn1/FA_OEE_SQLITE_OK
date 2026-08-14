@@ -89,8 +89,10 @@ Public Class Loss_reg
                     While LoadSQL.Read()
                         If LoadSQL("loss_type").ToString() = "1" Then
                             btnMaintenance.Visible = True
+                            btnSetmachine.Visible = True
                         Else
                             btnMaintenance.Visible = False
+                            btnSetmachine.Visible = False
                         End If
                         Chang_Loss.ListView2.ForeColor = Color.Blue
                         Chang_Loss.ListView2.Items.Add(LoadSQL("id_mst").ToString()).SubItems.AddRange(New String() {LoadSQL("loss_cd").ToString(), LoadSQL("description_th").ToString()})
@@ -281,11 +283,13 @@ Public Class Loss_reg
             test_time_loss_time.Text = Minutes_total
         End If
         Label9.Text = TimeOfDay.ToString("H:mm:ss")
+        SetingMaching.EndLoss.Text = DateTime.Now.ToString("yyyy-MM-dd H:mm:ss")
         'Label1.Text = DateTime.Now.ToString("yyyy/MM/dd")
     End Sub
     Private Sub Loss_reg_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Timer1.Start()
         GetDefectMenuMaintenance()
+        GetSetMachine()
         date_time_commit_data.Visible = False
         test_time_loss_time.Visible = False
         Label2.Text = MainFrm.Label4.Text
@@ -297,6 +301,14 @@ Public Class Loss_reg
             btnMaintenance.Enabled = False
         Else
             btnMaintenance.Enabled = True
+        End If
+    End Sub
+    Public Sub GetSetMachine()
+        statusDefect = Backoffice_model.GetSetMachine(MainFrm.Label4.Text)
+        If statusDefect = "0" Then
+            btnSetmachine.Enabled = False
+        Else
+            btnSetmachine.Enabled = True
         End If
     End Sub
     Private Sub Label6_Click(sender As Object, e As EventArgs)
@@ -392,4 +404,9 @@ Public Class Loss_reg
         ' ปิดการเชื่อมต่อ
         ''Console.WriteLine("close Connection main")
     End Function
+
+    Private Sub btnSetmachine_Click(sender As Object, e As EventArgs) Handles btnSetmachine.Click
+        Backoffice_model.statusActionSetingMachine = 0 ' Action Confrime Step  1
+        CheckSetingMachine.Show()
+    End Sub
 End Class

@@ -407,4 +407,24 @@
             End If
         End If
     End Sub
+
+    Private Sub btnshiftleft_Click(sender As Object, e As EventArgs) Handles btnshiftleft.Click
+
+    End Sub
+
+    Private Sub PictureBox2_Click(sender As Object, e As EventArgs) Handles PictureBox2.Click
+
+    End Sub
+
+    Private Sub btnp1_Click(sender As Object, e As EventArgs) Handles btnp1.Click
+
+    End Sub
+
+    Private Sub Panel1_Paint(sender As Object, e As PaintEventArgs) Handles Panel1.Paint
+
+    End Sub
+
+    Private Sub TextBoxKeyboard_TextChanged(sender As Object, e As EventArgs) Handles TextBoxKeyboard.TextChanged
+
+    End Sub
 End Class

@@ -8,13 +8,13 @@ Imports Newtonsoft.Json.Linq
 Imports System.Threading
 Imports System.IO
 Imports System.Net.NetworkInformation
-
 Public Class Backoffice_model
     Public Shared total_nc As Integer = 0
     Public Shared statusTransfer As Integer = 0
     Public Shared flg_cat_layout_line As Integer = 0
     'Public Shared myConnection As New SqlConnection 'ตัวแปรสำหรับติดต่อฐานข้อมูล
     'Public Shared sqlConnect As String = "Server=192.168.161.101\PCSDBSV;Initial Catalog=tbkkfa01_dev;User ID=sa;Password=Te@m1nw;"
+    Public Shared statusActionSetingMachine As Integer = 0
     Public Shared temp2Str As String
     Public Shared arr_backet_camp As List(Of String) = New List(Of String)
     Public Shared sqlConnect As String
@@ -1781,6 +1781,11 @@ where
         Dim rs = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GetDefectMenuMaintenance?line_cd=" & line_cd)
         Return rs
     End Function
+    Public Shared Function GetSetMachine(line_cd As String)
+        Dim api = New api()
+        Dim rs = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GetSetMachine?line_cd=" & line_cd)
+        Return rs
+    End Function
     Public Shared Function GET_STATUS_DELAY_BY_LINE(line_cd As String)
         Dim api = New api()
         Dim rs = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GET_STATUS_DELAY_BY_LINE?line_cd=" & line_cd)
@@ -1896,6 +1901,7 @@ where
         Try
             Dim api = New api()
             Dim result_worker = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_permission_worker?emp_code=" & emp_cd & "&line_cd=" & line_cd)
+            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/Get_permission_worker?emp_code=" & emp_cd & "&line_cd=" & line_cd)
             Return result_worker
             ' SQLConn.ConnectionString = sqlConnect 'Set the Connection String
             ' SQLConn.Open()
@@ -3571,7 +3577,7 @@ re_insert_data:
             ' ❌ หยุดถ้า statusCheckData = 2 และไม่มี Network
             Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
             If statusCheckData = "2" AndAlso (rsNetwork = False) Then
-                 Console.WriteLine("❌ ไม่มี Network และ statusCheckData = 2 → ยกเลิก Transfer")
+                Console.WriteLine("❌ ไม่มี Network และ statusCheckData = 2 → ยกเลิก Transfer")
                 Exit Function
             End If
             rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
@@ -4912,4 +4918,25 @@ re_insert_rework_act:
             Return "0"
         End Try
     End Function
+    Public Shared Sub insert_info_loss_setting_machine(line_cd As String, start_loss As String, end_loss As String, created_by As String, updated_by As String, pwi_id As String, status_flg As String, loss_code As String)
+        Try
+            Dim api = New api()
+            'Dim reusult_data = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/Update_supply_dev_WorkingSpecial?wi1=" & wi1 & "&wi2=" & wi2 & "&wi3=" & wi3 & "&wi4=" & wi4 & "&wi5=" & wi5)
+            Dim result = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/insert_info_loss_setting_machine?line_cd=" & line_cd & "&start_loss=" & start_loss & "&end_loss=" & end_loss & "&created_by=" & created_by & "&updated_by=" & updated_by & "&pwi_id=" & pwi_id & "&status_flg=" & status_flg & "&loss_code=" & loss_code)
+            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/insert_info_loss_setting_machine?line_cd=" & line_cd & "&start_loss=" & start_loss & "&end_loss=" & end_loss & "&created_by=" & created_by & "&updated_by=" & updated_by & "&pwi_id=" & pwi_id & "&status_flg=" & status_flg & "&loss_code=" & loss_code)
+        Catch ex As Exception
+            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/insert_info_loss_setting_machine?line_cd=" & line_cd & "&start_loss=" & start_loss & "&end_loss=" & end_loss & "&created_by=" & created_by & "&updated_by=" & updated_by & "&pwi_id=" & pwi_id & "&status_flg=" & status_flg & "&loss_code=" & loss_code)
+            MsgBox("Error Function insert_info_loss_setting_machine In Backoffice_model")
+        End Try
+    End Sub
+    Public Shared Sub updated_info_loss_setting_machine(line_cd As String, start_loss As String, end_loss As String, created_by As String, updated_by As String, pwi_id As String, status_flg As String, loss_code As String)
+        Try
+            Dim api = New api()
+            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/updated_info_loss_setting_machine?line_cd=" & line_cd & "&start_loss=" & start_loss & "&end_loss=" & end_loss & "&created_by=" & created_by & "&updated_by=" & updated_by & "&pwi_id=" & pwi_id & "&status_flg=" & status_flg & "&loss_code=" & loss_code)
+            Dim result = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/updated_info_loss_setting_machine?line_cd=" & line_cd & "&start_loss=" & start_loss & "&end_loss=" & end_loss & "&created_by=" & created_by & "&updated_by=" & updated_by & "&pwi_id=" & pwi_id & "&status_flg=" & status_flg & "&loss_code=" & loss_code)
+        Catch ex As Exception
+            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/updated_info_loss_setting_machine?line_cd=" & line_cd & "&start_loss=" & start_loss & "&end_loss=" & end_loss & "&created_by=" & created_by & "&updated_by=" & updated_by & "&pwi_id=" & pwi_id & "&status_flg=" & status_flg & "&loss_code=" & loss_code)
+            MsgBox("Error Function updated_info_loss_setting_machine In Backoffice_model")
+        End Try
+    End Sub
 End Class

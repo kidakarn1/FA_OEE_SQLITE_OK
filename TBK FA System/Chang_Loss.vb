@@ -97,6 +97,7 @@ Public Class Chang_Loss
                     Loss_reg.ComboBox1.Visible = True
                     Loss_reg.ComboBox1.SelectedIndex = 0
                     Loss_reg.btnMaintenance.Visible = True
+                    Loss_reg.btnSetmachine.Visible = True
                 End If
                 Loss_reg.Label8.Text = TimeOfDay.ToString("H:mm:ss")
                 Dim pd As String = MainFrm.Label6.Text

@@ -1,36 +1,73 @@
 ﻿Imports NationalInstruments.DAQmx
 Imports System.Drawing
+Imports System.IO.Ports
 
 Public Class TestForm
     Private diTask As Task
     Private reader As DigitalSingleChannelReader
-
+    Private digitalTask As Task
+    Private writer As DigitalSingleChannelWriter
+    Private serialPort As SerialPort
+    Private OpenLED As Boolean
     Private Const CHAN_SPEC As String = "Dev1/port2/line0:3"
     Private Const PART_A As String = "898248-1601"
     Private Const PART_B As String = "898248-1612"
-
-    Private Sub TestForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+    Public Sub sentParameterLossIO(Boolean_value As Boolean)
         Try
-            ' ตั้งค่ารายการรุ่น
-            cboExpected.Items.Clear()
-            cboExpected.Items.Add("Model A")
-            cboExpected.Items.Add("Model B")
-            cboExpected.SelectedIndex = 0
+            ' สร้าง Task
+            digitalTask = New NationalInstruments.DAQmx.Task()
 
-            diTask = New Task()
-            diTask.DIChannels.CreateChannel(
-                CHAN_SPEC, "ProductionLines",
-                ChannelLineGrouping.OneChannelForAllLines)
-            diTask.Start()
+            digitalTask.DOChannels.CreateChannel(
+            "Dev1/port2/line0",       ' พอร์ตที่จะสั่งงาน
+            "",
+            ChannelLineGrouping.OneChannelForAllLines
+        )
 
-            reader = New DigitalSingleChannelReader(diTask.Stream)
+            writer = New DigitalSingleChannelWriter(digitalTask.Stream)
 
-            Timer1.Interval = 50
-            Timer1.Start()
+            ' ส่งค่า True/False ออกพอร์ต
+            writer.WriteSingleSampleSingleLine(True, Boolean_value)
+
+            OpenLED = Boolean_value
+
+            Console.WriteLine("LED (P1.0)")
+
         Catch ex As DaqException
-            Timer1.Stop()
-            MessageBox.Show("เกิดข้อผิดพลาดเริ่มต้น: " & ex.Message)
+            MessageBox.Show("DAQ Error: " & ex.Message)
+
+            If SerialPort.IsOpen Then
+                SerialPort.Close()
+            End If
+
         End Try
+    End Sub
+    Private Sub TestForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        'Try
+        If OpenLED = True Then
+            sentParameterLossIO(False)
+        Else
+            sentParameterLossIO(True)
+        End If
+        ' ตั้งค่ารายการรุ่น
+        '  cboExpected.Items.Clear()
+        'cboExpected.Items.Add("Model A")
+        'cboExpected.Items.Add("Model B")
+        'cboExpected.SelectedIndex = 0
+
+        '            diTask = New Task()
+        '            diTask.DIChannels.CreateChannel(
+        '            CHAN_SPEC, "ProductionLines",
+        '            ChannelLineGrouping.OneChannelForAllLines)
+        '            diTask.Start()
+        '
+        '            reader = New DigitalSingleChannelReader(diTask.Stream)
+        '
+        '            Timer1.Interval = 50
+        '            Timer1.Start()
+        '        Catch ex As DaqException
+        '            Timer1.Stop()
+        '            MessageBox.Show("เกิดข้อผิดพลาดเริ่มต้น: " & ex.Message)
+        '        End Try
     End Sub
 
     Private Function GetExpectedModel() As String
@@ -95,5 +132,13 @@ Public Class TestForm
             End If
         Catch
         End Try
+    End Sub
+
+    Private Sub btnCheckNetwork_Click(sender As Object, e As EventArgs) Handles btnCheckNetwork.Click
+        If OpenLED = True Then
+            sentParameterLossIO(False)
+        Else
+            sentParameterLossIO(True)
+        End If
     End Sub
 End Class

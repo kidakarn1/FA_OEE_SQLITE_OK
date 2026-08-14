@@ -94,8 +94,8 @@ Public Class Adm_manage
         ' End If
     End Sub
     Private Sub PictureBox4_Click(sender As Object, e As EventArgs) Handles PictureBox4.Click
-        'defectAdminhome.Show()
-        'Me.Hide()
+        defectAdminhome.Show()
+        Me.Hide()
         'msgBox("Not Permission")
     End Sub
     Private Sub Button3_Click_1(sender As Object, e As EventArgs) Handles pbOK.Click

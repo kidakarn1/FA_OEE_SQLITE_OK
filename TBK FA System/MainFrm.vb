@@ -173,6 +173,7 @@ Public Class MainFrm
     End Sub
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        'CheckSetingMachine.sentParameterLossIO(False)
         check_process()
         If CheckIfRunning() = 0 Then
             Await Task.Run(Sub()
@@ -204,7 +205,6 @@ Public Class MainFrm
             'Await F_UpdateSqlite()
             Await ShowInformationByStatus(Label6.Text, Label4.Text)
             Await checkcmd()
-
         Else
             Application.Exit()
         End If

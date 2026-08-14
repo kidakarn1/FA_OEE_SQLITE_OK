@@ -2,6 +2,7 @@
 Imports System.Net
 Imports System.Net.NetworkInformation
 Imports System.Web.Script.Serialization
+Imports QRCoder
 Public Class printDefect
     Dim lPartno As String = "NO DATA"
     Dim lPartname As String = "NO DATA"
@@ -102,6 +103,7 @@ Public Class printDefect
         End If
         ' ✅ เตรียมข้อมูล defect ล่วงหน้า
         Console.WriteLine("rs==>" & rs) ' ห้ามลบ
+        Console.WriteLine("printding")
         defectDataList = New JavaScriptSerializer().Deserialize(Of List(Of Object))(rs)
         printReady = True
         ' ✅ พิมพ์
@@ -125,12 +127,17 @@ Public Class printDefect
     ' -------- Printing --------
     Private Sub PrintDocument1_PrintPage(sender As Object, e As Printing.PrintPageEventArgs) Handles PrintDocument1.PrintPage
         ' 1) Guard: data ready?
+        Console.WriteLine("D0")
+
         If Not printReady OrElse defectDataList Is Nothing OrElse defectDataList.Count = 0 Then
+            Console.WriteLine("D0 IF")
+
             e.Cancel = True
             Return
         End If
 
         Using aPen As New Pen(Color.Black)
+            Console.WriteLine("D1")
             aPen.Width = 3.0F
 
             ' ===== Layout lines (your original coordinates) =====
@@ -151,6 +158,7 @@ Public Class printDefect
             e.Graphics.DrawLine(aPen, 120, 190, 681, 190) ' actual date
             e.Graphics.DrawLine(aPen, 8, 230, 587, 230)   ' defect header
             e.Graphics.DrawLine(aPen, 8, 280, 681, 280)   ' bottom
+            Console.WriteLine("D2")
 
             ' black headers
             e.Graphics.FillRectangle(Brushes.Black, 10, 100, 110, 20)
@@ -165,6 +173,7 @@ Public Class printDefect
             Else
                 e.Graphics.DrawString("NC", Label14.Font, Brushes.Black, 548, 1)
             End If
+            Console.WriteLine("D3")
 
             ' ===== Static info =====
             e.Graphics.DrawString("PART NO:", title.Font, Brushes.Black, 130, 10)
@@ -189,6 +198,7 @@ Public Class printDefect
             e.Graphics.DrawString(lPhase, values.Font, Brushes.Black, 390, 205)
             e.Graphics.DrawString("BOX NO :", title.Font, Brushes.Black, 470, 197)
             e.Graphics.DrawString("001", values.Font, Brushes.Black, 510, 207)
+            Console.WriteLine("D4")
 
             ' DEFECT header
             e.Graphics.DrawString("DEFECT CODE :", detail_code.Font, Brushes.Black, 15, 236)
@@ -218,6 +228,7 @@ Public Class printDefect
             Else
                 lQtydefect = totalDefectAll.ToString()
             End If
+            Console.WriteLine("D5")
 
             ' ===== Paginated defect list =====
             Dim startX As Single = 15.0F
@@ -272,21 +283,55 @@ Public Class printDefect
                 leftX += size.Width
                 i += 1
             End While
+            Console.WriteLine("D6")
 
             ' finished all items in this page
             currentIndex = 0
             e.HasMorePages = False
 
             ' final QR strings (all items)
+            Console.WriteLine("D6_1")
             qrDefectcodedetails = qrDetailsBuilder.ToString()
-            qrDefectinfo = $"DF {sDefect} {lLine} {lwi} {lSeq} {lLot} {pCd} {lBoxno} {lQtydefect} {lPartno}"
+            Console.WriteLine("qrDefectcodedetails LENGTH = " & qrDefectcodedetails.Length)
+            Console.WriteLine("qrDefectcodedetails VALUE  = " & qrDefectcodedetails)
+            Console.WriteLine("D6_2")
 
-            ' draw QRs
-            PictureBox1.Image = QR_Generator.Encode(qrDefectinfo)
-            e.Graphics.DrawImage(PictureBox1.Image, 20, 10, 85, 85)      ' top-left
-            e.Graphics.DrawImage(PictureBox1.Image, 592, 195, 80, 80)     ' bottom-right
-            PictureBox1.Image = QR_Generator.Encode(qrDefectcodedetails)
-            e.Graphics.DrawImage(PictureBox1.Image, 20, 125, 85, 85)      ' bottom-left
+            qrDefectinfo = $"DF {sDefect} {lLine} {lwi} {lSeq} {lLot} {pCd} {lBoxno} {lQtydefect} {lPartno}"
+            Console.WriteLine("qrDefectinfo LENGTH = " & qrDefectinfo.Length)
+            Console.WriteLine("qrDefectinfo VALUE  = " & qrDefectinfo)
+            Console.WriteLine("D6_3")
+
+            Try
+                Console.WriteLine("QR1 START")
+
+                ' QR1 = ใช้ตัวเดิม
+                Dim qrInfoImage As Image = QR_Generator.Encode(qrDefectinfo)
+                PictureBox1.Image = qrInfoImage
+                e.Graphics.DrawImage(qrInfoImage, 20, 10, 85, 85)      ' top-left
+                e.Graphics.DrawImage(qrInfoImage, 592, 195, 80, 80)    ' bottom-right
+
+                Console.WriteLine("QR1 OK")
+                Console.WriteLine("QR2 START")
+
+                ' QR2 = ใช้ QRCoder
+                Dim qrDetailImage As Image = GenerateQrImageByQRCoder(qrDefectcodedetails)
+                PictureBox1.Image = qrDetailImage
+                e.Graphics.DrawImage(qrDetailImage, 20, 125, 85, 85)   ' bottom-left
+
+                Console.WriteLine("QR2 OK")
+
+            Catch ex As Exception
+                Console.WriteLine("QR ERROR TYPE = " & ex.GetType().FullName)
+                Console.WriteLine("QR ERROR MSG  = " & ex.Message)
+                Console.WriteLine("QR INFO       = " & qrDefectinfo)
+                Console.WriteLine("QR DETAILS    = " & qrDefectcodedetails)
+
+                e.HasMorePages = False
+                e.Cancel = True
+                Return
+            End Try
+
+            Console.WriteLine("D6_4")
 
             ' insert tag defect
             Try
@@ -294,6 +339,30 @@ Public Class printDefect
                 Dim md = New modelDefect()
                 If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                     Dim statusTrasnffer As Integer = 1
+                    Console.WriteLine("{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16}, {17}, {18}",
+                  lwi, lLine, lPartno, lItemtype, lLot, lSeq, sDefect,
+                  CDbl(Val(lQtydefect)), TypeMenu, "001",
+                  qrDefectinfo, qrDefectcodedetails, lItemtype,
+                  date_now, lLine, date_now, lLine, Working_Pro.pwi_id)
+
+                    Console.WriteLine(String.Format(
+    "mas_mInserttagDefect => lwi={0}, lLine={1}, lPartno={2}, lItemtype={3}, lLot={4}, lSeq={5}, sDefect={6}, QtyRaw={7}, QtyConvert={8}, TypeMenu={9}, Code=001, qrDefectinfo={10}, qrDefectcodedetails={11}, date_now={12}, pwi_id={13}, statusTrasnffer={14}",
+    lwi,
+    lLine,
+    lPartno,
+    lItemtype,
+    lLot,
+    lSeq,
+    sDefect,
+    lQtydefect,
+    CDbl(Val(lQtydefect)),
+    TypeMenu,
+    qrDefectinfo,
+    qrDefectcodedetails,
+    date_now,
+    Working_Pro.pwi_id,
+    statusTrasnffer
+))
                     Dim rsInserttagdefect = md.mInserttagdefect(lwi, lLine, lPartno, lItemtype, lLot, lSeq, sDefect,
                                                                 CDbl(Val(lQtydefect)), TypeMenu, "001",
                                                                 qrDefectinfo, qrDefectcodedetails, lItemtype,
@@ -319,5 +388,15 @@ Public Class printDefect
                                                                                      date_now, lLine, date_now, lLine, Working_Pro.pwi_id, statusTrasnffer)
             End Try
         End Using
+        Console.WriteLine("D7")
+
     End Sub
+    Private Function GenerateQrImageByQRCoder(qrText As String) As Image
+        Dim qrGenerator As New QRCoder.QRCodeGenerator()
+        Dim qrData As QRCoder.QRCodeData =
+        qrGenerator.CreateQrCode(qrText, QRCoder.QRCodeGenerator.ECCLevel.L)
+
+        Dim qrCode As New QRCoder.QRCode(qrData)
+        Return qrCode.GetGraphic(5)
+    End Function
 End Class

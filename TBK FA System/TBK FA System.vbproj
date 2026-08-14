@@ -318,6 +318,12 @@
     <Compile Include="Adm_page.vb">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="AlertSuccessRmScan.Designer.vb">
+      <DependentUpon>AlertSuccessRmScan.vb</DependentUpon>
+    </Compile>
+    <Compile Include="AlertSuccessRmScan.vb">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Alert_scan_qr_product.Designer.vb">
       <DependentUpon>Alert_scan_qr_product.vb</DependentUpon>
     </Compile>
@@ -360,6 +366,12 @@
       <DependentUpon>Chang_sh.vb</DependentUpon>
     </Compile>
     <Compile Include="Chang_sh.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CheckSetingMachine.Designer.vb">
+      <DependentUpon>CheckSetingMachine.vb</DependentUpon>
+    </Compile>
+    <Compile Include="CheckSetingMachine.vb">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="CheckWindow.Designer.vb">
@@ -684,6 +696,12 @@
     <Compile Include="keyboardScanMold.vb">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="KeyboardsLeaderSetMachine.Designer.vb">
+      <DependentUpon>KeyboardsLeaderSetMachine.vb</DependentUpon>
+    </Compile>
+    <Compile Include="KeyboardsLeaderSetMachine.vb">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="LeaderConfirmDefect.Designer.vb">
       <DependentUpon>LeaderConfirmDefect.vb</DependentUpon>
     </Compile>
@@ -710,6 +728,12 @@
       <DependentUpon>load_show_OEE.vb</DependentUpon>
     </Compile>
     <Compile Include="load_show_OEE.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Lot_History.Designer.vb">
+      <DependentUpon>Lot_History.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Lot_History.vb">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="ManagePrintDefectAdmin.Designer.vb">
@@ -778,6 +802,12 @@
       <DependentUpon>ScanQRprod.vb</DependentUpon>
     </Compile>
     <Compile Include="ScanQRprod.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SetingMaching.Designer.vb">
+      <DependentUpon>SetingMaching.vb</DependentUpon>
+    </Compile>
+    <Compile Include="SetingMaching.vb">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="SetStartTime.Designer.vb">
@@ -1193,6 +1223,9 @@
     <EmbeddedResource Include="Adm_page.resx">
       <DependentUpon>Adm_page.vb</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="AlertSuccessRmScan.resx">
+      <DependentUpon>AlertSuccessRmScan.vb</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Alert_scan_qr_product.resx">
       <DependentUpon>Alert_scan_qr_product.vb</DependentUpon>
     </EmbeddedResource>
@@ -1211,6 +1244,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Chang_sh.resx">
       <DependentUpon>Chang_sh.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CheckSetingMachine.resx">
+      <DependentUpon>CheckSetingMachine.vb</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="CheckWindow.resx">
       <DependentUpon>CheckWindow.vb</DependentUpon>
@@ -1374,6 +1410,9 @@
     <EmbeddedResource Include="keyboardScanMold.resx">
       <DependentUpon>keyboardScanMold.vb</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="KeyboardsLeaderSetMachine.resx">
+      <DependentUpon>KeyboardsLeaderSetMachine.vb</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="LeaderConfirmDefect.resx">
       <DependentUpon>LeaderConfirmDefect.vb</DependentUpon>
     </EmbeddedResource>
@@ -1388,6 +1427,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="load_show_OEE.resx">
       <DependentUpon>load_show_OEE.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Lot_History.resx">
+      <DependentUpon>Lot_History.vb</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="ManagePrintDefectAdmin.resx">
       <DependentUpon>ManagePrintDefectAdmin.vb</DependentUpon>
@@ -1418,6 +1460,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="ScanQRprod.resx">
       <DependentUpon>ScanQRprod.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SetingMaching.resx">
+      <DependentUpon>SetingMaching.vb</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="SetStartTime.resx">
       <DependentUpon>SetStartTime.vb</DependentUpon>

@@ -38,6 +38,7 @@ Partial Class Loss_reg
         Me.test_time_loss_time = New System.Windows.Forms.Label()
         Me.btnMaintenance = New System.Windows.Forms.Button()
         Me.Label9 = New System.Windows.Forms.Label()
+        Me.btnSetmachine = New System.Windows.Forms.Button()
         Me.SuspendLayout()
         '
         'Label2
@@ -135,7 +136,7 @@ Partial Class Loss_reg
         'ListBox1
         '
         Me.ListBox1.FormattingEnabled = True
-        Me.ListBox1.Location = New System.Drawing.Point(234, 500)
+        Me.ListBox1.Location = New System.Drawing.Point(184, 162)
         Me.ListBox1.Name = "ListBox1"
         Me.ListBox1.Size = New System.Drawing.Size(120, 69)
         Me.ListBox1.TabIndex = 41
@@ -180,9 +181,9 @@ Partial Class Loss_reg
         Me.btnMaintenance.FlatStyle = System.Windows.Forms.FlatStyle.Flat
         Me.btnMaintenance.Font = New System.Drawing.Font("Microsoft Sans Serif", 19.0!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(222, Byte))
         Me.btnMaintenance.ForeColor = System.Drawing.SystemColors.Control
-        Me.btnMaintenance.Location = New System.Drawing.Point(320, 492)
+        Me.btnMaintenance.Location = New System.Drawing.Point(408, 494)
         Me.btnMaintenance.Name = "btnMaintenance"
-        Me.btnMaintenance.Size = New System.Drawing.Size(268, 90)
+        Me.btnMaintenance.Size = New System.Drawing.Size(183, 90)
         Me.btnMaintenance.TabIndex = 55
         Me.btnMaintenance.TabStop = False
         Me.btnMaintenance.UseVisualStyleBackColor = False
@@ -200,6 +201,25 @@ Partial Class Loss_reg
         Me.Label9.TabIndex = 38
         Me.Label9.Text = "12:35:14"
         '
+        'btnSetmachine
+        '
+        Me.btnSetmachine.BackColor = System.Drawing.Color.Transparent
+        Me.btnSetmachine.BackgroundImage = CType(resources.GetObject("btnSetmachine.BackgroundImage"), System.Drawing.Image)
+        Me.btnSetmachine.FlatAppearance.BorderSize = 0
+        Me.btnSetmachine.FlatAppearance.MouseDownBackColor = System.Drawing.Color.Transparent
+        Me.btnSetmachine.FlatAppearance.MouseOverBackColor = System.Drawing.Color.Transparent
+        Me.btnSetmachine.FlatStyle = System.Windows.Forms.FlatStyle.Flat
+        Me.btnSetmachine.Font = New System.Drawing.Font("Microsoft Sans Serif", 19.0!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(222, Byte))
+        Me.btnSetmachine.ForeColor = System.Drawing.SystemColors.Control
+        Me.btnSetmachine.Location = New System.Drawing.Point(227, 496)
+        Me.btnSetmachine.Name = "btnSetmachine"
+        Me.btnSetmachine.Size = New System.Drawing.Size(181, 90)
+        Me.btnSetmachine.TabIndex = 56
+        Me.btnSetmachine.TabStop = False
+        Me.btnSetmachine.Text = " "
+        Me.btnSetmachine.UseVisualStyleBackColor = False
+        Me.btnSetmachine.Visible = False
+        '
         'Loss_reg
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
@@ -207,6 +227,7 @@ Partial Class Loss_reg
         Me.BackColor = System.Drawing.Color.Firebrick
         Me.BackgroundImage = CType(resources.GetObject("$this.BackgroundImage"), System.Drawing.Image)
         Me.ClientSize = New System.Drawing.Size(800, 600)
+        Me.Controls.Add(Me.btnSetmachine)
         Me.Controls.Add(Me.btnMaintenance)
         Me.Controls.Add(Me.test_time_loss_time)
         Me.Controls.Add(Me.date_time_commit_data)
@@ -242,4 +263,5 @@ Partial Class Loss_reg
     Friend WithEvents test_time_loss_time As Label
     Friend WithEvents btnMaintenance As Button
     Friend WithEvents Label9 As Label
+    Friend WithEvents btnSetmachine As Button
 End Class

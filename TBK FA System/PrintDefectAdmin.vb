@@ -262,11 +262,46 @@ Public Class PrintDefectAdmin
             qrDefectinfo = "DF" & " " & sDefect & " " & lLine & " " & lwi & " " & lSeq & " " & lLot & " " & pCd & " " & lBoxno & " " & lQtydefect & " " & lPartno
             qrDefectcodedetails = dataQrdefectcodedetails
 outloop:
-            PictureBox1.Image = QR_Generator.Encode(qrDefectinfo)
-            e.Graphics.DrawImage(PictureBox1.Image, 20, 10, 85, 85) 'top left'
-            e.Graphics.DrawImage(PictureBox1.Image, 592, 195, 80, 80) 'buttom right'
-            PictureBox1.Image = QR_Generator.Encode(qrDefectcodedetails)
-            e.Graphics.DrawImage(PictureBox1.Image, 20, 125, 85, 85) 'bottom left'
+
+
+            Try
+                Console.WriteLine("QR1 START")
+
+                ' QR1 = ใช้ตัวเดิม
+                Dim qrInfoImage As Image = QR_Generator.Encode(qrDefectinfo)
+                PictureBox1.Image = qrInfoImage
+                e.Graphics.DrawImage(qrInfoImage, 20, 10, 85, 85)      ' top-left
+                e.Graphics.DrawImage(qrInfoImage, 592, 195, 80, 80)    ' bottom-right
+
+                Console.WriteLine("QR1 OK")
+                Console.WriteLine("QR2 START")
+
+                ' QR2 = ใช้ QRCoder
+                Dim qrDetailImage As Image = GenerateQrImageByQRCoder(qrDefectcodedetails)
+                PictureBox1.Image = qrDetailImage
+                e.Graphics.DrawImage(qrDetailImage, 20, 125, 85, 85)   ' bottom-left
+
+                Console.WriteLine("QR2 OK")
+
+            Catch ex As Exception
+                Console.WriteLine("QR ERROR TYPE = " & ex.GetType().FullName)
+                Console.WriteLine("QR ERROR MSG  = " & ex.Message)
+                Console.WriteLine("QR INFO       = " & qrDefectinfo)
+                Console.WriteLine("QR DETAILS    = " & qrDefectcodedetails)
+
+                e.HasMorePages = False
+                e.Cancel = True
+                Return
+            End Try
+
+
+
+
+            ' PictureBox1.Image = QR_Generator.Encode(qrDefectinfo)
+            ' e.Graphics.DrawImage(PictureBox1.Image, 20, 10, 85, 85) 'top left'
+            ' e.Graphics.DrawImage(PictureBox1.Image, 592, 195, 80, 80) 'buttom right'
+            ' PictureBox1.Image = QR_Generator.Encode(qrDefectcodedetails)
+            '            e.Graphics.DrawImage(PictureBox1.Image, 20, 125, 85, 85) 'bottom left'
             Dim date_now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
             Dim dti_status_flg = "" 'FG = 1 , 2 = CP
             'If Backoffice_model.printedTags.Contains(qrDefectinfo) Then
@@ -281,4 +316,12 @@ outloop:
         '  load_show.Show()
         '  End Try
     End Sub
+    Private Function GenerateQrImageByQRCoder(qrText As String) As Image
+        Dim qrGenerator As New QRCoder.QRCodeGenerator()
+        Dim qrData As QRCoder.QRCodeData =
+        qrGenerator.CreateQrCode(qrText, QRCoder.QRCodeGenerator.ECCLevel.L)
+
+        Dim qrCode As New QRCoder.QRCode(qrData)
+        Return qrCode.GetGraphic(5)
+    End Function
 End Class

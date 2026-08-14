@@ -448,7 +448,7 @@ Partial Class Prd_detail
         Me.picSpecial.BackgroundImage = CType(resources.GetObject("picSpecial.BackgroundImage"), System.Drawing.Image)
         Me.picSpecial.Location = New System.Drawing.Point(0, 0)
         Me.picSpecial.Name = "picSpecial"
-        Me.picSpecial.Size = New System.Drawing.Size(800, 600)
+        Me.picSpecial.Size = New System.Drawing.Size(802, 600)
         Me.picSpecial.TabIndex = 4635
         Me.picSpecial.TabStop = False
         Me.picSpecial.Visible = False

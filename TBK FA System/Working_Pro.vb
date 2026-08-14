@@ -2257,7 +2257,6 @@ Public Class Working_Pro
         'Label6.Location = New Point(43, 403)
         'Label6.BackColor = Color.FromArgb(12, 27, 45)
         '  Label6.BringToFront()
-
         'Label10.Location = New Point(41, 510)
         ' Label10.BackColor = Color.FromArgb(12, 27, 45)
         ' Label10.BringToFront()

@@ -75,6 +75,7 @@ Public Class Rm_scan
         Else
             'msgBox("Plase Check Tag.")
         End If
+        AlertSuccessRmScan.ShowDialog()
         scan_item_cd.Text = ""
         scan_item_cd.Focus()
     End Sub
@@ -217,5 +218,9 @@ Public Class Rm_scan
 
     Private Sub PictureBox1_Click(sender As Object, e As EventArgs) Handles PictureBox1.Click
         keyboardRm_Scan.showDialog
+    End Sub
+
+    Private Sub LotHistory_Click(sender As Object, e As EventArgs) Handles LotHistory.Click
+        Lot_History.Show()
     End Sub
 End Class

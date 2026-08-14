@@ -318,15 +318,11 @@ Public Class StopMenu
         lbStartCount.Text = Backoffice_model.TimeStartBreakTime
         lbEndCount.Text = DateTime.Now.ToString("H:mm:ss")
         PanelShowLoss.Visible = True
-
         ' อัปเดตรวมเวลาที่ผ่านไป ณ ตอนกด
         Dim totalMin As Integer = CInt((DateTime.Now - date_start_data).TotalMinutes)
         If totalMin < 0 Then totalMin = Math.Abs(totalMin)
         test_time_loss_time.Text = totalMin.ToString()
     End Sub
-
-
-
     ' === Safe shutdown for external callers ===
     Public Sub ShutdownTimers()
         Try
