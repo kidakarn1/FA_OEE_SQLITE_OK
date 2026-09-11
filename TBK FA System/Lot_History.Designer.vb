@@ -30,6 +30,7 @@ Partial Class Lot_History
         Me.ColumnHeader3 = CType(New System.Windows.Forms.ColumnHeader(), System.Windows.Forms.ColumnHeader)
         Me.btnUp = New System.Windows.Forms.PictureBox()
         Me.btnDown = New System.Windows.Forms.PictureBox()
+        Me.PartNo = CType(New System.Windows.Forms.ColumnHeader(), System.Windows.Forms.ColumnHeader)
         CType(Me.pbBack, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.btnUp, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.btnDown, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -53,18 +54,18 @@ Partial Class Lot_History
         Me.lvShowData.BackColor = System.Drawing.Color.FromArgb(CType(CType(8, Byte), Integer), CType(CType(24, Byte), Integer), CType(CType(50, Byte), Integer))
         Me.lvShowData.BackgroundImageTiled = True
         Me.lvShowData.BorderStyle = System.Windows.Forms.BorderStyle.None
-        Me.lvShowData.Columns.AddRange(New System.Windows.Forms.ColumnHeader() {Me.ColumnHeader1, Me.ColumnHeader2, Me.ColumnHeader3})
+        Me.lvShowData.Columns.AddRange(New System.Windows.Forms.ColumnHeader() {Me.ColumnHeader1, Me.PartNo, Me.ColumnHeader2, Me.ColumnHeader3})
         Me.lvShowData.Cursor = System.Windows.Forms.Cursors.Default
         Me.lvShowData.Font = New System.Drawing.Font("Catamaran", 18.0!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
         Me.lvShowData.ForeColor = System.Drawing.Color.White
         Me.lvShowData.FullRowSelect = True
         Me.lvShowData.HeaderStyle = System.Windows.Forms.ColumnHeaderStyle.None
         Me.lvShowData.HideSelection = False
-        Me.lvShowData.Location = New System.Drawing.Point(20, 129)
+        Me.lvShowData.Location = New System.Drawing.Point(12, 124)
         Me.lvShowData.MultiSelect = False
         Me.lvShowData.Name = "lvShowData"
         Me.lvShowData.ShowGroups = False
-        Me.lvShowData.Size = New System.Drawing.Size(643, 355)
+        Me.lvShowData.Size = New System.Drawing.Size(674, 360)
         Me.lvShowData.TabIndex = 36
         Me.lvShowData.UseCompatibleStateImageBehavior = False
         Me.lvShowData.View = System.Windows.Forms.View.Details
@@ -76,7 +77,7 @@ Partial Class Lot_History
         'ColumnHeader2
         '
         Me.ColumnHeader2.Text = "QrCode"
-        Me.ColumnHeader2.Width = 300
+        Me.ColumnHeader2.Width = 215
         '
         'ColumnHeader3
         '
@@ -86,20 +87,24 @@ Partial Class Lot_History
         'btnUp
         '
         Me.btnUp.BackColor = System.Drawing.Color.Transparent
-        Me.btnUp.Location = New System.Drawing.Point(681, 63)
+        Me.btnUp.Location = New System.Drawing.Point(692, 63)
         Me.btnUp.Name = "btnUp"
-        Me.btnUp.Size = New System.Drawing.Size(108, 203)
+        Me.btnUp.Size = New System.Drawing.Size(107, 203)
         Me.btnUp.TabIndex = 4640
         Me.btnUp.TabStop = False
         '
         'btnDown
         '
         Me.btnDown.BackColor = System.Drawing.Color.Transparent
-        Me.btnDown.Location = New System.Drawing.Point(680, 271)
+        Me.btnDown.Location = New System.Drawing.Point(696, 266)
         Me.btnDown.Name = "btnDown"
-        Me.btnDown.Size = New System.Drawing.Size(108, 232)
+        Me.btnDown.Size = New System.Drawing.Size(96, 232)
         Me.btnDown.TabIndex = 4641
         Me.btnDown.TabStop = False
+        '
+        'PartNo
+        '
+        Me.PartNo.Width = 205
         '
         'Lot_History
         '
@@ -129,4 +134,5 @@ Partial Class Lot_History
     Friend WithEvents ColumnHeader3 As ColumnHeader
     Friend WithEvents btnUp As PictureBox
     Friend WithEvents btnDown As PictureBox
+    Friend WithEvents PartNo As ColumnHeader
 End Class

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="TBK FA System" Manufacturer="TBK Technology (Thailand) Co., Ltd." Version="1.0.0.1" UpgradeCode="b4db5e4a-8d87-45aa-93c4-5b86d54b4a09" Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of TBK FA System is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Feature Id="Main" Title="TBK FA System" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+    </Feature>
+  </Package>
+  <Fragment>
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="INSTALLFOLDER" Name="TBK FA System" />
+    </StandardDirectory>
+  </Fragment>
+  <Fragment>
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.SourceDir)\**\*" />
+    </ComponentGroup>
+  </Fragment>
+</Wix>

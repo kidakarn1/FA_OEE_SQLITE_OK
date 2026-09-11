@@ -614,6 +614,33 @@ Public Class Backoffice_model
             'Application.Exit()
         End Try
     End Function
+    Public Shared Function Insert_Rm_Scan_By_API(WI As String, ITEM_CD As String, LOT_PO As String, SEQ As String, SHIFT As String, Rm_created_date As String, Rm_created_by As String, Rm_Updated_date As String, Rm_updated_by As String, Rm_line_cd As String, Rm_QR_code As String, ref_id As String, rm_componece_part As String)
+        Try
+            Dim api = New api()
+            Dim result = api.Load_data(
+                            "http://" & svApi &
+                            "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/InsertRmScan" &
+                            "?WI=" & WI &
+                            "&ITEM_CD=" & ITEM_CD &
+                            "&LOT_PO=" & LOT_PO &
+                            "&SEQ=" & SEQ &
+                            "&SHIFT=" & SHIFT &
+                            "&Rm_created_date=" & Rm_created_date &
+                            "&Rm_created_by=" & Rm_created_by &
+                            "&Rm_Updated_date=" & Rm_Updated_date &
+                            "&Rm_updated_by=" & Rm_updated_by &
+                            "&Rm_line_cd=" & Rm_line_cd &
+                            "&Rm_QR_code=" & Rm_QR_code &
+                            "&ref_id=" & ref_id &
+                            "&rm_componece_part=" & rm_componece_part
+                        )
+            Return result
+        Catch ex As Exception
+            MsgBox("Error Function Insert_Rm_Scan_By_API In Backoffice_model")
+        End Try
+        Return 0
+    End Function
+
     Public Shared Function GET_QTY_SEQ(WI, SEQ_NO)
         Dim reader As SqlDataReader
         Dim SQLConn As New SqlConnection() 'The SQL Connection
@@ -953,7 +980,6 @@ re_insert_rework_act:
             End Try
         End If
     End Function
-
     'Public Shared Async Function Check_detail_actual_insert_act(parentForm As Form) As Task(Of String)
     '    Await updated_data_to_dbsvr(parentForm, "1")
     ' Dim api = New api()
@@ -4939,4 +4965,15 @@ re_insert_rework_act:
             MsgBox("Error Function updated_info_loss_setting_machine In Backoffice_model")
         End Try
     End Sub
+    Public Shared Function GetCP(wi As String)
+        Try
+            Dim api = New api()
+            Dim result = api.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GETCP?wi=" & wi)
+            Return result
+        Catch ex As Exception
+            Console.WriteLine("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GETCP?wi=" & wi)
+            MsgBox("Error Function GetCP In Backoffice_model")
+        End Try
+        Return 0
+    End Function
 End Class

@@ -25,12 +25,16 @@ Partial Class Rm_scan
         Dim resources As System.ComponentModel.ComponentResourceManager = New System.ComponentModel.ComponentResourceManager(GetType(Rm_scan))
         Me.Panel1 = New System.Windows.Forms.Panel()
         Me.Panel_scan_picking = New System.Windows.Forms.Panel()
+        Me.lbPartNo = New System.Windows.Forms.Label()
+        Me.PictureBox2 = New System.Windows.Forms.PictureBox()
+        Me.Label1 = New System.Windows.Forms.Label()
         Me.LotHistory = New System.Windows.Forms.PictureBox()
         Me.PictureBox1 = New System.Windows.Forms.PictureBox()
         Me.Button3 = New System.Windows.Forms.Button()
         Me.scan_item_cd = New System.Windows.Forms.TextBox()
         Me.Panel1.SuspendLayout()
         Me.Panel_scan_picking.SuspendLayout()
+        CType(Me.PictureBox2, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.LotHistory, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.PictureBox1, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.SuspendLayout()
@@ -49,6 +53,9 @@ Partial Class Rm_scan
         '
         Me.Panel_scan_picking.BackColor = System.Drawing.Color.CadetBlue
         Me.Panel_scan_picking.BackgroundImage = Global.TBK_FA_System.My.Resources.Resources.scanMaterial
+        Me.Panel_scan_picking.Controls.Add(Me.lbPartNo)
+        Me.Panel_scan_picking.Controls.Add(Me.PictureBox2)
+        Me.Panel_scan_picking.Controls.Add(Me.Label1)
         Me.Panel_scan_picking.Controls.Add(Me.LotHistory)
         Me.Panel_scan_picking.Controls.Add(Me.PictureBox1)
         Me.Panel_scan_picking.Controls.Add(Me.Button3)
@@ -57,6 +64,40 @@ Partial Class Rm_scan
         Me.Panel_scan_picking.Name = "Panel_scan_picking"
         Me.Panel_scan_picking.Size = New System.Drawing.Size(763, 473)
         Me.Panel_scan_picking.TabIndex = 23
+        '
+        'lbPartNo
+        '
+        Me.lbPartNo.AutoSize = True
+        Me.lbPartNo.BackColor = System.Drawing.Color.Transparent
+        Me.lbPartNo.Font = New System.Drawing.Font("Microsoft Sans Serif", 23.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.lbPartNo.Location = New System.Drawing.Point(548, 389)
+        Me.lbPartNo.Name = "lbPartNo"
+        Me.lbPartNo.Size = New System.Drawing.Size(147, 35)
+        Me.lbPartNo.TabIndex = 13
+        Me.lbPartNo.Text = "XXXXXX"
+        '
+        'PictureBox2
+        '
+        Me.PictureBox2.Anchor = System.Windows.Forms.AnchorStyles.Top
+        Me.PictureBox2.BackColor = System.Drawing.Color.Transparent
+        Me.PictureBox2.Image = CType(resources.GetObject("PictureBox2.Image"), System.Drawing.Image)
+        Me.PictureBox2.Location = New System.Drawing.Point(12, 3)
+        Me.PictureBox2.Name = "PictureBox2"
+        Me.PictureBox2.Size = New System.Drawing.Size(277, 124)
+        Me.PictureBox2.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage
+        Me.PictureBox2.TabIndex = 12
+        Me.PictureBox2.TabStop = False
+        '
+        'Label1
+        '
+        Me.Label1.AutoSize = True
+        Me.Label1.BackColor = System.Drawing.Color.Transparent
+        Me.Label1.Font = New System.Drawing.Font("Microsoft Sans Serif", 27.0!, System.Drawing.FontStyle.Bold)
+        Me.Label1.Location = New System.Drawing.Point(529, 337)
+        Me.Label1.Name = "Label1"
+        Me.Label1.Size = New System.Drawing.Size(184, 40)
+        Me.Label1.TabIndex = 11
+        Me.Label1.Text = "PART NO"
         '
         'LotHistory
         '
@@ -120,6 +161,7 @@ Partial Class Rm_scan
         Me.Panel1.ResumeLayout(False)
         Me.Panel_scan_picking.ResumeLayout(False)
         Me.Panel_scan_picking.PerformLayout()
+        CType(Me.PictureBox2, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.LotHistory, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.PictureBox1, System.ComponentModel.ISupportInitialize).EndInit()
         Me.ResumeLayout(False)
@@ -132,4 +174,7 @@ Partial Class Rm_scan
     Friend WithEvents Panel1 As Panel
     Friend WithEvents PictureBox1 As PictureBox
     Friend WithEvents LotHistory As PictureBox
+    Friend WithEvents lbPartNo As Label
+    Friend WithEvents PictureBox2 As PictureBox
+    Friend WithEvents Label1 As Label
 End Class

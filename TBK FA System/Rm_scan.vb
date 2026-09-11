@@ -1,4 +1,5 @@
 Imports System.Globalization
+Imports System.Web.Script.Serialization
 
 Public Class Rm_scan
     Dim x As ListViewItem
@@ -68,8 +69,10 @@ Public Class Rm_scan
             Dim Rm_updated_by = ""
             Dim Rm_line_cd = Prd_detail.Label3.Text
             Dim Rm_QR_code = dataTag
+            Dim rm_componece_part = lbPartNo.Text 'ComboBoxSelectPart.Text
+            ' MsgBox("rm_componece_part===>" & rm_componece_part)
             ''msgBox("arr_ITEM_CD(21) = " & arr_ITEM_CD(21))
-            Backoffice_model.Insert_Rm_Scan(WI, ITEM_CD2, LOT_PO, SEQ, SHIFT, Rm_created_date, Rm_created_by, Rm_Updated_date, Rm_updated_by, Rm_line_cd, Rm_QR_code, "-")
+            Backoffice_model.Insert_Rm_Scan_By_API(WI, ITEM_CD2, LOT_PO, SEQ, SHIFT, Rm_created_date, Rm_created_by, Rm_Updated_date, Rm_updated_by, Rm_line_cd, Rm_QR_code, "-", rm_componece_part)
             'msgBox("OK")
             keyboardRm_Scan.Close()
         Else
@@ -215,12 +218,55 @@ Public Class Rm_scan
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles Button3.Click
         Me.Close()
     End Sub
-
     Private Sub PictureBox1_Click(sender As Object, e As EventArgs) Handles PictureBox1.Click
-        keyboardRm_Scan.showDialog
+        keyboardRm_Scan.ShowDialog()
     End Sub
 
     Private Sub LotHistory_Click(sender As Object, e As EventArgs) Handles LotHistory.Click
         Lot_History.Show()
+    End Sub
+
+    Private Sub PictureBox2_Click(sender As Object, e As EventArgs) Handles PictureBox2.Click
+        OrderSelectPart.Show()
+    End Sub
+
+
+    Public Sub loadCP()
+        Dim result = Backoffice_model.GetCP(Prd_detail.lb_wi.Text)
+        '====================================================
+        ' Check Result
+        '====================================================
+        If String.IsNullOrWhiteSpace(result) Then
+            MsgBox("Component Part Not Found.")
+            Exit Sub
+        End If
+        '====================================================
+        ' Convert JSON
+        '====================================================
+        Dim serializer As New JavaScriptSerializer()
+
+        Dim rows As Object() =
+                serializer.Deserialize(Of Object())(result)
+
+
+        '====================================================
+        ' For Each API Result
+        '====================================================
+        Dim No As Integer = 1
+        For Each obj As Object In rows
+            Dim row As Dictionary(Of String, Object) =
+                    DirectCast(
+                        obj,
+                        Dictionary(Of String, Object)
+                    )
+            '================================================
+            ' Add To ListView
+            '================================================
+            lbPartNo.Text = row("ITEM_CD").ToString()
+        Next
+    End Sub
+
+    Private Sub Rm_scan_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        loadCP()
     End Sub
 End Class

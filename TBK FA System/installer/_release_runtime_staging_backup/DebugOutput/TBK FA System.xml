@@ -1,0 +1,661 @@
+﻿<?xml version="1.0"?>
+<doc>
+<assembly>
+<name>
+TBK FA System
+</name>
+</assembly>
+<members>
+<member name="T:TBK_FA_System.My.Resources.Resources">
+<summary>
+  A strongly-typed resource class, for looking up localized strings, etc.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.ResourceManager">
+<summary>
+  Returns the cached ResourceManager instance used by this class.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.Culture">
+<summary>
+  Overrides the current thread's CurrentUICulture property for all
+  resource lookups using this strongly typed resource class.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.addActualNumpad1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.addActualNumpad3">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.addActualNumpad4">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.addActualNumpadspa">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.addActualNumpadspaissue">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.addLossNumpad">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.addSpeNumpad">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.addSpeNumpad1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.autoLoss">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.BLOCK">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.breaktime2">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.breaktime3">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnBack">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnbacknew">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnbacknew1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnClearRemainDMC">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnClose">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnClose1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnCloseLotNew">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnDefectNew">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnDescNew">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnDetail">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnIncNew">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnInfoNew">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnOK">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnokkk">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnSetUpNew">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnSetUpNewnew">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnStart">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnStart1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnstartbreaktime">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnstartbreaktime1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnstartbreaktime2">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnStartnew">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnStartNewnew">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnStop">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnStop1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnStopp">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.btnUser">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.closeLotsummary1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.closeLotsummaryNew23">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.configLineGemba">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.decreaseActualNumpad">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdmindetailadjustNC1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdmindetailNC1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdmindetailNC2">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdmindetailNG">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdmindetailselectadjustNC1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdminnumpadadjust">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdminnumpadregister">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdminnumpadregister1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdminnumpadregister2">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdminregister1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdminsearchNC">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdminsearchNG">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdminselectcodeNC">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdminselectcodeNG">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdminselecttypeNC1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAdminselecttypeNG">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAlertsure">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAlertsure1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectAlertupdate">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectDetailadjustNew23">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectDetailadjustNew231">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectHome1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectHome3">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectHomeNew23">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectNumpadadjustNew23">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectNumpadadjusttNew23">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.defectSelectcodeNew23">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.dis">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.dwdd">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.eadb74787dda41cc6333341e552934323">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.ErrorTime">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.ErrorTImeOld">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.exitProgram">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.giphy">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.IconBreakTime">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.Information2">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.ingif">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.insertQTY">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.JgIO">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.JU">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.LoadinfOEE2">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.loading">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.Loading_image">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.Loading_image1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.LOADOEE3">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.LOADOEE4">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.loginAdmin1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.logoTBKK">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.logScanProduction">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.LossE1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.MainMenu4">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.man">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.manageEmp4">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.manualLossAfter1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.manualLossBefor1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.menuLogin">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.NumSettingTime2">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.NumSettingTime3">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.ok">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.point2">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.productionDetail">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.productionListDetailNewNotext">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.red">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.reprintTag1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.result22">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.result221">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.scanAdminAccount1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.scanEmpCard">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.scanMaterial">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.selectLoss">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.selectNormalRework">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.selectShift">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.setupMenu1">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.STOP2">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.STOP21">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.stopProd">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.sw">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.sweetAlertSuccess">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.sweetAlertWarningUnseccess">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.IncompleteBoxWarning">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.tabStartProd">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.tabStopProd">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.waitingnetwork">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+<member name="P:TBK_FA_System.My.Resources.Resources.ww2">
+<summary>
+  Looks up a localized resource of type System.Drawing.Bitmap.
+</summary>
+</member>
+</members>
+</doc>

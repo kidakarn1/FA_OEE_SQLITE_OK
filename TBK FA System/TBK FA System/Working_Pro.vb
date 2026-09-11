@@ -1,0 +1,8797 @@
+Imports System.Windows.Forms
+Imports VB = Microsoft.VisualBasic
+Imports System
+Imports System.Management
+Imports System.ComponentModel
+Imports System.Threading
+Imports System.IO
+Imports System.IO.Ports
+Imports System.Text
+Imports System.Globalization
+Imports System.Data.SQLite
+Imports System.Drawing.Imaging
+Imports IDAutomation.Windows.Forms.LinearBarCode
+Imports System.Drawing.Printing
+Imports System.Configuration
+Imports GenCode128
+Imports BarcodeLib.Barcode
+'Imports NationalInstruments.DAQmx
+Imports System.Net
+Imports System.Web.Script.Serialization
+Imports Microsoft.Web.WebView2.Core
+Imports Microsoft.Web.WebView2.WinForms
+Imports QRCoder
+
+Public Class Working_Pro
+    Private Enum IncompleteTransferRecoveryResult
+        NoActive = 0
+        Recovered = 1
+        Failed = 2
+        BlockedUnresolvedOldActive = 3
+    End Enum
+
+    Private ReadOnly _resumeContext As New ProductionResumeContext()
+    ' A POST /start request may have committed even when the client did not
+    ' receive a trustworthy response. This retains the selected source until
+    ' GET /active proves the outcome.
+    Private _incompleteTransferStartReservationUncertain As Boolean = False
+    Private _continueTagPersistenceFailed As Boolean = False
+    Private _continueTagAttemptedNewTagId As Integer = 0
+    Private _pendingContinueTagPersistence As ContinueTagPersistenceRequest
+    ' Technical control only: when the source-box tag cannot be persisted, retain
+    ' the unprocessed tail of the same submitted input. It is not a production
+    ' quantity, a box state, or a database record.
+    Private _pendingContinueInputRemaining As Integer = 0
+    Private _pendingContinueInputIsAcceptedRework As Boolean = False
+    ' Set only by the durable /partial branch so Close Lot can distinguish a
+    ' server failure from a normal tag-print return.
+    Private _durablePartialCloseLotFailed As Boolean = False
+    ' After an old source box is completed, the Current-WI Actual counter still
+    ' includes the pieces diverted into that source.  Keep a small in-memory
+    ' baseline so normal Current-WI packaging continues from its own position.
+    ' This is not Production Actual and is cleared when the WI changes.
+    Private _normalPackagingRebaseActive As Boolean = False
+    Private _normalPackagingRebaseWi As String = String.Empty
+    Private _normalPackagingActualBaseline As Integer = 0
+    Private _normalPackagingGoodBaseline As Integer = 0
+    Private _normalAcceptedReworkPackagingQuantity As Integer = 0
+    ' Normal New Box packaging is intentionally independent from cumulative
+    ' production Actual.  This identity-scoped baseline is used only when
+    ' calculating a physical normal box/tag quantity.
+    Private _normalNewBoxPackagingBaselineActive As Boolean = False
+    Private _normalNewBoxPackagingBaselineWi As String = String.Empty
+    Private _normalNewBoxPackagingBaselinePwi As String = String.Empty
+    Private _normalNewBoxPackagingBaselineSeq As String = String.Empty
+    Private _normalNewBoxPackagingBaselineLot As String = String.Empty
+    Private _normalNewBoxPackagingGoodBaseline As Integer = 0
+    Private _normalNewBoxPackagingActualBaseline As Integer = 0
+    ' A hardware/button event can cross the source boundary before its normal
+    ' Actual save block. Keep only the tag work deferred until that existing
+    ' save succeeds; no production quantity is replayed from these fields.
+    Private _deferredSourceTagAfterActual As Boolean = False
+    Private _deferredSourceTagQuantity As Integer = 0
+    Private _deferredSourceExpectedActual As Integer = 0
+    Private _deferredSourceExpectedGood As Integer = 0
+    Private _deferredNormalOverflowAfterSource As Integer = 0
+    ' Manual Good assigns its UI counters before its legacy Actual save block.
+    ' Keep an explicit acceptance gate so a deferred source tag cannot commit
+    ' merely because those UI values were assigned.
+    Private _deferredSourceRequiresActualAcceptance As Boolean = False
+    Private _deferredSourceActualAccepted As Boolean = False
+    Private _startSelectorShowing As Boolean = False
+    ' UI-only guard for the PictureBox START shown after stop_working().
+    ' It does not alter Start_Production sequencing or any production state;
+    ' it only ignores a second click while the first resume is still running.
+    Private _resumeStartInFlight As Boolean = False
+    Private _pendingStartActionQueued As Boolean = False
+
+    ' Diagnostic console output is useful while debugging hardware and printing,
+    ' but must not flood the Release debugger/console on a live production line.
+    ' Conditional removes only the call sites in Release; it changes no counter,
+    ' tag, database, or UI behavior.
+    <System.Diagnostics.Conditional("DEBUG")>
+    Private Shared Sub WriteDebugDiagnostic(message As String)
+        Console.WriteLine(message)
+    End Sub
+
+    Private NotInheritable Class ContinueTagPersistenceRequest
+        ' The replacement request belongs to one selected historical source tag.
+        ' Keep that identity in memory so a stale flag can never block a different
+        ' Continue source after a temporary stop/loss resume.
+        Public Property SourceTagId As Integer
+        Public Property SourceWi As String
+        Public Property SourceBoxNo As Integer
+        Public Property CurrentWi As String
+        Public Property QrDetail As String
+        ' This remains the legacy value until the durable Option A ownership
+        ' phase explicitly activates CurrentBoxNo=001 persistence.
+        Public Property CurrentBoxNo As Integer
+        Public Property PrintCount As Integer
+        Public Property SeqNo As String
+        Public Property Shift As String
+        Public Property FlgControl As Integer
+        Public Property ItemCd As String
+        Public Property PwiId As String
+        Public Property TagGroupNo As String
+        Public Property GoodQty As Integer
+        Public Property NextProcess As String
+        Public Property IsPartialSourceReplacement As Boolean
+        Public Property IsFullSourceReplacement As Boolean
+    End Class
+
+    Public ReadOnly Property ResumeContext As ProductionResumeContext
+        Get
+            Return _resumeContext
+        End Get
+    End Property
+
+    ' A durable transfer has no implicit cancel/release path.  Navigation and
+    ' plan setup must use this guard before changing the Current sequence.
+    Public Function HasDurableIncompleteTransferOwnership() As Boolean
+        Return _resumeContext.IsResumeActive AndAlso
+               _resumeContext.DurableActiveConfirmed AndAlso
+               _resumeContext.BackendTransferId > 0
+    End Function
+
+    Public Function HasIncompleteTransferOwnershipPendingConfirmation() As Boolean
+        Return _oldRecoveryFullPending OrElse HasDurableIncompleteTransferOwnership() OrElse
+               (_incompleteTransferStartReservationUncertain AndAlso _resumeContext.IsResumeActive)
+    End Function
+
+    ' Returns only the live, selected Continue source for the Production Detail
+    ' display. It does not mutate production counters, Good, or the base source
+    ' quantity retained by the resume context.
+    Public Function TryGetResumeDetailValues(ByRef sourceWi As String,
+                                             ByRef currentPackagingQty As Integer) As Boolean
+        sourceWi = String.Empty
+        currentPackagingQty = 0
+
+        ' Old ACTIVE recovery is not a Continue transfer.  It only contributes
+        ' the selected historical source label and the live packaging counter.
+        Dim oldRecovery = ProductionStartFlowState.SelectedOldActiveRecovery
+        If ProductionStartFlowState.OldActiveRecoverySeedApplied AndAlso
+           oldRecovery IsNot Nothing AndAlso oldRecovery.Transfer IsNot Nothing Then
+            sourceWi = Trim(oldRecovery.Transfer.CurrentWi)
+            currentPackagingQty = GetLiveCurrentBoxQuantity()
+            Return Not String.IsNullOrWhiteSpace(sourceWi)
+        End If
+
+        ' Production Detail is a faithful view of the live Continue context.  Do
+        ' not make the display depend on a later plan/detail refresh: a durable
+        ' transfer that remains ACTIVE after a failed /complete must still show
+        ' its source WI and packaging quantity.
+        If Not _resumeContext.IsResumeActive OrElse _resumeContext.SelectedBox Is Nothing Then
+            LogResumeUiTrace("TryGetResumeDetailValues", sourceWi, currentPackagingQty, False)
+            Return False
+        End If
+
+        sourceWi = Trim(_resumeContext.SourceWiAtResume)
+        If String.IsNullOrWhiteSpace(sourceWi) Then
+            LogResumeUiTrace("TryGetResumeDetailValues", sourceWi, currentPackagingQty, False)
+            Return False
+        End If
+
+        ' lb_qty_for_box is the existing live physical current-box counter. It
+        ' is seeded from the selected source at Continue start and updated by
+        ' established counter/manual-adjustment paths. Detail must present that
+        ' same source of truth, not a reconstructed formula.
+        currentPackagingQty = GetLiveCurrentBoxQuantity()
+        LogResumeUiTrace("TryGetResumeDetailValues", sourceWi, currentPackagingQty, True)
+        Return True
+    End Function
+
+    ' Read-only UI state for Production Detail. Both flags are established by
+    ' the existing successful Full handoff and cleared by existing new-sequence
+    ' initialization; this query changes no production or persistence state.
+    Public Function IsContinueIncompleteDisplayFinished() As Boolean
+        Return _oldRecoveryBoxFinished OrElse _normalPackagingRebaseActive
+    End Function
+
+    ' Runs after the current PWI/sequence has been finalized and the existing
+    ' normal baseline has completed. Seeds packaging, then durably moves only the
+    ' ACTIVE recovery anchor before enabling production. Accounting is untouched.
+    Private _oldRecoveryBoxFinished As Boolean
+    Private _oldRecoveryFullPending As Boolean
+    Private _oldRecoveryFullTransferId As Integer
+    Private _oldRecoveryFullOverflow As Integer
+    Private _oldRecoveryFullTagId As Integer
+    Private _oldRecoveryFullRequest As ContinueTagPersistenceRequest
+    Private _oldRecoveryFullPrintSubmitted As Boolean
+
+    Private Function IsOldActiveRecoveryFull() As Boolean
+        If Not IsSelectedOldActiveRecoveryBox() Then Return False
+        If ProductionStartFlowState.SelectedMode <> ProductionStartMode.NewBox Then Return False
+        Dim transfer = ProductionStartFlowState.SelectedOldActiveRecovery.Transfer
+        Dim snp As Integer = CInt(Val(Label27.Text))
+        Return transfer.TransferId > 0 AndAlso transfer.SourceTagId > 0 AndAlso transfer.Flag = 0 AndAlso
+            transfer.CurrentBoxNo = 1 AndAlso CInt(Val(lb_box_count.Text)) <= 1 AndAlso
+            String.Equals(Trim(transfer.CurrentWi), Trim(wi_no.Text), StringComparison.OrdinalIgnoreCase) AndAlso
+            transfer.CurrentSnp = snp AndAlso snp > 1 AndAlso snp <> 999999 AndAlso
+            GetLiveCurrentBoxQuantity() >= snp
+    End Function
+
+    Private Sub PrepareOldRecoveryFull(overflow As Integer)
+        If _oldRecoveryFullPending OrElse Not IsOldActiveRecoveryFull() Then Return
+        _oldRecoveryFullPending = True
+        _oldRecoveryFullTransferId = ProductionStartFlowState.SelectedOldActiveRecovery.Transfer.TransferId
+        _oldRecoveryFullOverflow = Math.Max(0, overflow)
+        _oldRecoveryFullTagId = 0
+        _oldRecoveryFullRequest = Nothing
+        _oldRecoveryFullPrintSubmitted = False
+        ' Split the accepted event into the full source and retained normal tail.
+        ' Production Actual is never changed by this packaging operation.
+        lb_qty_for_box.Text = CInt(Val(Label27.Text)).ToString(CultureInfo.InvariantCulture)
+        Console.WriteLine("[OLD-RECOVERY] FULL BEGIN HBL=" & _oldRecoveryFullTransferId.ToString() &
+                          " PWI=" & Trim(pwi_id) & " Seq=" & Trim(Label22.Text) &
+                          " Packaging=" & lb_qty_for_box.Text & " SNP=" & Label27.Text)
+    End Sub
+
+    Private Sub FailOldRecoveryFull(reason As String)
+        _continueTagPersistenceFailed = True
+        Console.WriteLine("[OLD-RECOVERY] FULL FAILED HBL=" & _oldRecoveryFullTransferId.ToString() & " Reason=" & reason)
+        MessageBox.Show("Recovered box completion is not confirmed. Production is blocked." & vbCrLf & reason,
+                        "Old Active Recovery", MessageBoxButtons.OK, MessageBoxIcon.Error)
+    End Sub
+
+    Private Sub CompleteOldRecoveryFullHandoff()
+        If Not _oldRecoveryFullPending OrElse _oldRecoveryFullTagId <= 0 Then Return
+        Dim hblId As Integer = _oldRecoveryFullTransferId
+        Dim overflow As Integer = _oldRecoveryFullOverflow
+        ' Use the same committed BOX001 position and rebase as normal Continue.
+        lb_box_count.Text = ProductionStartFlowState.SelectedOldActiveRecovery.Transfer.CurrentBoxNo.ToString(CultureInfo.InvariantCulture)
+        ' The retained tail is packaging (including accepted rework), not a
+        ' reconstructed Good/Actual delta. Snapshot current totals unchanged.
+        ApplyNormalPackagingRebase(overflow, 0)
+        ProductionStartFlowState.SelectedOldActiveRecovery = Nothing
+        ProductionStartFlowState.OldActiveRecoverySeedApplied = False
+        _oldRecoveryBoxFinished = True
+        _oldRecoveryFullPending = False
+        _oldRecoveryFullRequest = Nothing
+        _oldRecoveryFullTagId = 0
+        _oldRecoveryFullTransferId = 0
+        _oldRecoveryFullOverflow = 0
+        _oldRecoveryFullPrintSubmitted = False
+        _continueTagPersistenceFailed = False
+        _deferredNormalOverflowAfterSource = overflow
+        ' tag_print owns its print latch until it returns; its caller processes
+        ' the tail through ProcessDeferredNormalOverflowAfterSourceCommit.
+        Console.WriteLine("[OLD-RECOVERY] FULL HANDOFF HBL=" & hblId.ToString() &
+                          " RecoveryCleared=True NextBox=" & (CInt(Val(lb_box_count.Text)) + 1).ToString() &
+                          " Overflow=" & overflow.ToString())
+        For Each detail As show_detail_production In Application.OpenForms.OfType(Of show_detail_production)()
+            detail.RefreshOldIncompleteResumeDisplay()
+        Next
+    End Sub
+
+    Public Function IsSelectedOldActiveRecoveryBox() As Boolean
+        Dim recovery = ProductionStartFlowState.SelectedOldActiveRecovery
+        Return ProductionStartFlowState.OldActiveRecoverySeedApplied AndAlso Not _oldRecoveryBoxFinished AndAlso
+            recovery IsNot Nothing AndAlso recovery.Transfer IsNot Nothing AndAlso
+            (check_tag_type = "1" OrElse check_tag_type = "3") AndAlso
+            recovery.Transfer.CurrentPwi = Trim(pwi_id) AndAlso recovery.Transfer.CurrentSeq = Trim(Label22.Text)
+    End Function
+
+    Private Function SeedOldActiveRecoveryPackagingForCurrentNewSequence() As Boolean
+        If ProductionStartFlowState.OldActiveRecoverySeedApplied Then
+            Dim seeded = ProductionStartFlowState.SelectedOldActiveRecovery
+            Return seeded IsNot Nothing AndAlso seeded.Transfer IsNot Nothing AndAlso
+                seeded.Transfer.CurrentPwi = Trim(pwi_id) AndAlso seeded.Transfer.CurrentSeq = Trim(Label22.Text)
+        End If
+        Dim recovery = ProductionStartFlowState.SelectedOldActiveRecovery
+        If recovery Is Nothing Then Return True
+        If recovery.Transfer Is Nothing OrElse Not recovery.DetailQuerySucceeded OrElse
+            recovery.RecoveredQty > Integer.MaxValue OrElse recovery.RecoveredQty < 0 OrElse
+            String.IsNullOrWhiteSpace(pwi_id) OrElse String.IsNullOrWhiteSpace(Label22.Text) Then Return False
+
+        lb_qty_for_box.Text = CInt(recovery.RecoveredQty).ToString(CultureInfo.InvariantCulture)
+        Console.WriteLine("[OLD-RECOVERY] SEED HBL=" & recovery.Transfer.TransferId.ToString() &
+                          " OldPWI=" & recovery.Transfer.CurrentPwi &
+                          " OldSeq=" & recovery.Transfer.CurrentSeq &
+                          " NewPWI=" & Trim(pwi_id) &
+                          " NewSeq=" & Trim(Label22.Text) &
+                          " Packaging=" & recovery.RecoveredQty.ToString() &
+                          " Actual=" & Label6.Text)
+        Dim reason As String = String.Empty
+        Dim baseQty As Integer = CInt(recovery.RecoveredQty)
+        If Not Backoffice_model.RollForwardActiveRecovery(recovery.Transfer, baseQty, Trim(wi_no.Text), Trim(pwi_id), Trim(Label22.Text), reason) Then
+            MessageBox.Show(reason & Environment.NewLine & "Production was not started. Reopen recovery selection before retrying.",
+                            "Old Active Recovery", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return False
+        End If
+        Console.WriteLine("[OLD-RECOVERY] ROLL-FORWARD HBL=" & recovery.Transfer.TransferId.ToString() &
+                          " Base=" & baseQty.ToString() & " OldPWI=" & recovery.Transfer.CurrentPwi &
+                          " OldSeq=" & recovery.Transfer.CurrentSeq & " NewPWI=" & Trim(pwi_id) & " NewSeq=" & Trim(Label22.Text))
+        recovery.Transfer.BaseQty = baseQty
+        recovery.Transfer.CurrentWi = Trim(wi_no.Text)
+        recovery.Transfer.CurrentPwi = Trim(pwi_id)
+        recovery.Transfer.CurrentSeq = Trim(Label22.Text)
+        recovery.NetMovement = 0
+        _oldRecoveryBoxFinished = False
+        ProductionStartFlowState.OldActiveRecoverySeedApplied = True
+        For Each detail As show_detail_production In Application.OpenForms.OfType(Of show_detail_production)()
+            detail.RefreshOldIncompleteResumeDisplay()
+        Next
+        Return True
+    End Function
+
+    Public Function GetLiveCurrentBoxQuantity() As Integer
+        Return Math.Max(0, CInt(Val(lb_qty_for_box.Text)))
+    End Function
+
+    ' ins_qty_fn_manual is the established accepted manual-production path: the
+    ' same delta has already increased Good and has passed the local Actual
+    ' acceptance point.  Continue packaging owns no second formula; it advances
+    ' this existing live box counter exactly once here.
+    Private Sub AddDurableContinueAcceptedProductionQuantity(delta As Integer)
+        If delta <= 0 OrElse Not _resumeContext.IsResumeActive OrElse Not _resumeContext.DurableActiveConfirmed Then Return
+        Dim beforeQty As Integer = GetLiveCurrentBoxQuantity()
+        Dim afterQty As Integer = beforeQty + delta
+        lb_qty_for_box.Text = afterQty.ToString()
+#If DEBUG Then
+        System.Diagnostics.Debug.WriteLine("[BOX-QTY] EVENT | Type=AcceptedProduction | Delta=" & delta.ToString() &
+                                           " | Before=" & beforeQty.ToString() & " | After=" & afterQty.ToString() &
+                                           " | ResumeActive=" & _resumeContext.IsResumeActive.ToString() &
+                                           " | Durable=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                                           " | TransferId=" & _resumeContext.BackendTransferId.ToString())
+#End If
+        Console.WriteLine("[BOX-QTY] EVENT | Type=AcceptedProduction | Delta=" & delta.ToString() &
+                          " | Before=" & beforeQty.ToString() & " | After=" & afterQty.ToString() &
+                          " | ResumeActive=" & _resumeContext.IsResumeActive.ToString() &
+                          " | Durable=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                          " | TransferId=" & _resumeContext.BackendTransferId.ToString())
+    End Sub
+
+    <System.Diagnostics.Conditional("DEBUG")>
+    Private Sub LogResumeUiTrace(caller As String,
+                                 displayedWi As String,
+                                 displayedBase As Integer,
+                                 hasDetailValues As Boolean)
+        Dim selectedSourceWi As String = If(_resumeContext.SelectedBox Is Nothing, String.Empty, _resumeContext.SourceWiAtResume)
+        Dim baseQuantity As Integer = _resumeContext.BaseBoxQuantity
+        System.Diagnostics.Debug.WriteLine("[RESUME-UI] caller=" & caller &
+                                           " | IsActive=" & _resumeContext.IsResumeActive.ToString() &
+                                           " | Durable=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                                           " | TransferId=" & _resumeContext.BackendTransferId.ToString() &
+                                           " | SourceWi=" & selectedSourceWi &
+                                           " | Base=" & baseQuantity.ToString() &
+                                           " | lb_qty_for_box=" & lb_qty_for_box.Text &
+                                           " | HasDetailValues=" & hasDetailValues.ToString() &
+                                           " | DisplayedWi=" & displayedWi &
+                                           " | DisplayedBase=" & displayedBase.ToString())
+    End Sub
+
+    Public ReadOnly Property HasUnresolvedContinueTagPersistence As Boolean
+        Get
+            Return HasPendingContinuePersistenceForCurrentSource()
+        End Get
+    End Property
+
+    Private Shared isAlertShowing As Boolean = False
+    Private Shared lastPokayokeAlarmUtc As DateTime = DateTime.MinValue
+    Public Shared last_start_time As DateTime = DateTime.Now
+    Public map_OP
+    Private _breakTimer As System.Windows.Forms.Timer
+    Private _breakTarget As DateTime
+    Private _timerHooked As Boolean = False
+    Private _autoBreakStopMenu As StopMenu
+    Public Property MinValue As Integer
+    Public Property MaxValue As Integer
+    Public Property ColorRGB As String
+    Dim oeeLevelList As New List(Of Working_Pro)
+    Dim ALevelList As New List(Of Working_Pro)
+    Dim PLevelList As New List(Of Working_Pro)
+    Dim QLevelList As New List(Of Working_Pro)
+    Dim tmpActual As Integer = 0
+    Private lossPopupCts As CancellationTokenSource
+    Private WithEvents WebViewProgressbar As WebView2
+    Private WithEvents WebViewEmergency As WebView2
+    ' Public Shared comportTowerLamp = "COM7"
+    ' Public Shared ArrayDataSpecial As New List(Of DataPlan)
+    Public check_cal_eff As Integer = 0
+    Public Shared Gobal_NEXT_PROCESS As String
+    Public Gdate_now_date As Date
+    Public Gtime As Date
+    Public counterNewDIO
+    Dim QR_Generator As New MessagingToolkit.QRCode.Codec.QRCodeEncoder
+    Public Shared start_flg As Integer = 0
+    Dim comp_flg As Integer = 0
+    Dim start_year As Integer = 0
+    Dim start_month As Integer = 0
+    Dim start_days As Integer = 0
+    Public Shared tmp_good As Integer = 0
+    Dim Id As Short                             ' Device ID
+    Dim Ret As Integer                          ' Return Code
+    Dim szError As New StringBuilder("", 256)   ' Error String
+    Dim szText As New String("", 100)
+    Public Spwi_id As New List(Of String)
+    Dim UpCount(2) As Short                     'zr Up Counter
+    Dim DownCount(2) As Short                   'Down Counter
+    Public Shared PK_pad_id As String = "0"
+    Public Shared checkManualQtySpec As Integer = 0
+    Public Shared signalScanQrProd As Integer = 0
+    Dim Check(7) As CheckBox
+    Dim Edit_Up(1) As TextBox
+    Dim Edit_Down(7) As TextBox
+    Dim loadingForm As New loadData()
+    Friend WithEvents TimerCheckDIO As System.Windows.Forms.Timer
+    Dim delay_btn As Integer = 0
+    Public Shared check_bull As Integer = 0
+    Public Shared check_bull_op As New List(Of Integer) From {0}
+    Public check_in_up_seq As Integer = 0
+    Dim value_next_process As String = ""
+    Public check_format_tag As String = Backoffice_model.B_check_format_tag()
+    Public Shared api = New api()
+    Public Shared check_tag_type = api.Load_data("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GET_LINE_TYPE?line_cd=" & MainFrm.Label4.Text)
+    Public Shared load_data = api.Load_data("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GET_DATA_WORKING?WI=" & Prd_detail.lb_wi.Text)
+    Public Shared V_check_line_reprint As String = Backoffice_model.check_line_reprint()
+    Public WithEvents serialPort As New SerialPort
+    Public Shared RemainScanDmc As Integer = 0
+    Public Shared RemainScanDmcDefect As Integer = 0
+    Public Shared RemainScanDmcAddQty As Integer = 0
+    Public Shared RemainScanDmcDelQty As Integer = 0
+    Public Shared flg_tag_print As Integer = 0
+    'Dim digitalReadTask_new_dio As New Task()
+    'Dim reader_new_dio As DigitalSingleChannelReader
+    'Dim data_new_dio As UInt32
+    Public G_plan_date As String = ""
+    Public s_mecg_name As String = ""
+    Public s_delay As String = ""
+    Public Shared wiNo As String = ""
+    Public Shared pFg As String = ""
+    Public Shared lineCd As String = ""
+    Public Shared lotNo As String = ""
+    Public Shared seqNo As String = ""
+    Public Shared model As String = ""
+    Public Shared pwi_id As String = ""
+    Public Shared rsWindow
+    Public Shared status_conter As String = ""
+    Public Shared slm_flg_qr_prod As String = ""
+    Public Shared statusDefect As String = ""
+    Public Shared tag_group_no As String = ""
+    Public Shared mec_name As String = ""
+    Public Shared comportTowerLamp = ""
+    Public Shared status_emergency As String = ""
+    Public Shared GoodQty As Double = 0.0
+    Public Shared carvity As Integer = MainFrm.cavity.Text
+    Public Shared ResultPrint As Integer = 0
+    Public Shared StatusClickStart = 1
+    Public Shared statusPrint As String = "Normal"
+    Delegate Sub SetTextCallback(ByVal [text] As String)
+    Public Shared moe_min_a As Integer = 0
+    Public Shared moe_min_p As Integer = 0
+    Public Shared moe_min_q As Integer = 0
+    Public Shared moe_min_oee As Integer = 0
+    Public Shared gobal_stTimeModel As String = ""
+    Public Shared statusSwitchModel As String = ""
+    Public Shared IsOnlyone As String = ""
+    Public Shared Product_type As String = ""
+    Public Shared checkLossA As Integer = 0
+    Public Shared checkLossE1 As Integer = 0
+
+    Private ReadOnly logDir As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs")
+    Private Shared handlersInstalled As Boolean = False
+    Private Sub InstallGlobalHandlers()
+        If handlersInstalled Then Return
+        AddHandler Application.ThreadException, Sub(s, e)
+                                                    LogPrintError(e.Exception, "Application.ThreadException")
+                                                End Sub
+        AddHandler AppDomain.CurrentDomain.UnhandledException, Sub(s, e)
+                                                                   Dim ex = TryCast(e.ExceptionObject, Exception)
+                                                                   If ex IsNot Nothing Then LogPrintError(ex, "UnhandledException")
+                                                               End Sub
+        handlersInstalled = True
+    End Sub
+    Private Sub EnsureLogDir()
+        Try
+            If Not Directory.Exists(logDir) Then Directory.CreateDirectory(logDir)
+        Catch
+        End Try
+    End Sub
+    Private Sub LogObject(prefix As String, obj As Object)
+        Try
+            EnsureLogDir()
+            Dim p = Path.Combine(logDir, $"print_{DateTime.Now:yyyyMMdd}.log")
+            Using w As New StreamWriter(p, append:=True)
+                w.WriteLine("===== {0} @ {1:yyyy-MM-dd HH:mm:ss.fff} =====", prefix, DateTime.Now)
+                If obj Is Nothing Then
+                    w.WriteLine("(null)")
+                Else
+                    For Each prop In obj.GetType().GetProperties()
+                        Dim v = prop.GetValue(obj, Nothing)
+                        w.WriteLine("{0}: {1}", prop.Name, If(v Is Nothing, "(null)", v.ToString()))
+                    Next
+                End If
+                w.WriteLine()
+            End Using
+        Catch
+        End Try
+    End Sub
+
+    Private Function SafeText(lbl As Control) As String
+        If lbl Is Nothing OrElse lbl.IsDisposed Then Return ""
+        Return If(lbl.Text, "").Trim()
+    End Function
+
+    '========== ฟังก์ชันหลัก: พิมพ์ 1 ใบ ==========
+    Public Sub tag_print()
+        If _oldRecoveryFullPending AndAlso _oldRecoveryFullPrintSubmitted Then Return
+        If _oldRecoveryFullPending AndAlso _deferredSourceTagAfterActual AndAlso
+            ((_deferredSourceRequiresActualAcceptance AndAlso Not _deferredSourceActualAccepted) OrElse
+             CInt(Val(Label6.Text)) < _deferredSourceExpectedActual OrElse
+             CInt(Val(lb_good.Text)) < _deferredSourceExpectedGood) Then Return
+        Dim oldRecoveryHandedOff As Boolean = False
+        If Interlocked.Exchange(flg_tag_print, 1) = 1 Then
+            ' มีงานกำลังพิมพ์อยู่
+            Return
+        End If
+        Try
+            If IsOldActiveRecoveryFull() AndAlso Not _oldRecoveryFullPending Then
+                PrepareOldRecoveryFull(Math.Max(0, GetLiveCurrentBoxQuantity() - CInt(Val(Label27.Text))))
+            End If
+            ' ป้องกันปัญหา CreateHandle/Win32Exception (#Event 1026, KERNELBASE.dll)
+            If Me.IsDisposed OrElse Not Me.IsHandleCreated Then
+                Throw New InvalidOperationException("Form ยังไม่พร้อม (Handle ไม่พร้อมหรือถูก Dispose).")
+            End If
+            If check_tag_type = "1" Or check_tag_type = "3" Then
+                ' ตรวจเครื่องพิมพ์
+                Dim ps As New PrinterSettings()
+                If PrinterSettings.InstalledPrinters Is Nothing OrElse PrinterSettings.InstalledPrinters.Count = 0 Then
+                    Throw New InvalidOperationException("ไม่พบเครื่องพิมพ์ที่ติดตั้ง")
+                End If
+                If Not ps.IsValid Then
+                    Throw New InvalidOperationException("เครื่องพิมพ์ไม่พร้อมใช้งาน")
+                End If
+
+                ' ===== เตรียมข้อมูล snapshot (ไม่อ่านตอน PrintPage) =====
+                ' *** ตัวอย่างนี้อ้าง Label ต่าง ๆ จากฟอร์มของคุณ ***
+                Dim sqlite = New ModelSqliteDefect()
+                Dim wi = SafeText(Me.wi_no)
+                Dim lot = SafeText(Me.Label18)
+                Dim startShift = SafeText(Me.DateTimeStartofShift)
+                Dim lineName = SafeText(MainFrm.Label4)
+                Dim defectAll As Integer = 0
+                Try
+                    defectAll = sqlite.mSqlieGetDataNGbyWILot(lineName, lot, startShift, wi)
+                Catch ex As Exception
+                    LogPrintError(ex, "mSqlieGetDataNGbyWILot")
+                End Try
+
+                ' Capture the physical-box and resume values before the DB
+                ' commit.  A successful resume commit restores the normal box
+                ' counter, but this tag must still print the source box.
+                Dim currentBox As Integer = Math.Max(0, CInt(Val(SafeText(Me.lb_box_count))))
+                If _oldRecoveryFullPending Then currentBox = 1
+                If IsDurableContinueFullCompletionPending() Then
+                    currentBox = _resumeContext.CurrentBoxNo
+                End If
+                Dim isResumePackagingForTag As Boolean = IsResumeContextForCurrentWi()
+                Dim recoveryTagQty As Nullable(Of Integer) = If(IsSelectedOldActiveRecoveryBox(), CType(GetLiveCurrentBoxQuantity(), Nullable(Of Integer)), Nothing)
+                Dim packagingGoodForTag As Integer = GetResumePackagingGoodQuantity(CInt(Val(SafeText(Me.lb_good))))
+                Me.keep_data_and_gen_qr_tag_fa_completed()
+                If _oldRecoveryFullPending AndAlso (_continueTagPersistenceFailed OrElse _oldRecoveryFullTagId <= 0) Then Return
+                If _continueTagPersistenceFailed AndAlso IsDurableContinueFullCompletionPending() Then
+                    LogTransferTrace("TAG PRINT ABORTED | DurableCompleteUnresolved=True")
+                    Return
+                End If
+                If _durablePartialCloseLotFailed Then
+                    LogTransferTrace("TAG PRINT ABORTED | DurablePartialFailed=True")
+                    Return
+                End If
+                If _continueTagPersistenceFailed AndAlso Not IsDurableContinueFullCompletionPending() Then
+                    If Not ResolvePendingContinueTagPersistence() Then
+                        MessageBox.Show("Continue Box tag save failed. Production cannot continue until the tag is successfully saved.",
+                                        "Continue Tag Persistence Failed",
+                                        MessageBoxButtons.OK,
+                                        MessageBoxIcon.Error)
+                        Return
+                    End If
+                End If
+                Dim prdtype As String
+                Dim prdTypeText = SafeText(Me.lb_prd_type)
+                If prdTypeText = "10" Then
+                    prdtype = "FG"
+                ElseIf prdTypeText = "40" Then
+                    prdtype = "Parts"
+                Else
+                    prdtype = "FW"
+                End If
+                Dim data As New TagPrintData With {
+                .iden_cd = If(SafeText(MainFrm.Label6) = "K1PD01", "GA", "GB"),
+                .PartNo = SafeText(Me.Label3),
+                .PartName = SafeText(Me.Label12).Replace(vbCrLf, ""),
+                .Model = SafeText(Me.lb_model),
+                .NextProcess = Backoffice_model.NEXT_PROCESS,
+                .Location = SafeText(Me.lb_location),
+                .Shift = SafeText(Me.Label14),
+                .PlanSeq = SafeText(Me.Label22),
+                .BoxSeq = currentBox.ToString(),
+                .PlanDate = Me.lb_dlv_date.Text,
+                .LotNo = lot,
+                .WiNo = wi,
+                .PrdType = prdtype,
+                .LineCode = SafeText(Me.Label24),
+                .GoodQty = CInt(Val(Me.GoodQty)),
+                .LbGood = packagingGoodForTag,
+                .PackSize = Math.Max(1, CInt(Val(SafeText(Me.Label27)))),
+                .StatusPrint = Me.statusPrint,
+                .V_CheckLineReprint = Me.V_check_line_reprint,
+                .FactoryCd = If(SafeText(MainFrm.Label6) = "K2PD06", "Phase8", "Phase10"),
+                .PlanCd = If(SafeText(MainFrm.Label6) = "K2PD06", "52", "51"),
+                .BoxCount = currentBox,
+                .DefectAll = defectAll,
+                .RemainWi = CInt(Val(SafeText(Me.Label10))),
+                .IsResumePackaging = isResumePackagingForTag,
+                .RecoveryPackagingQty = recoveryTagQty
+            }
+                LogObject("TagPrintData (snapshot)", data)
+                Dim dataCopy As TagPrintData = data  ' snapshot ไว้ในตัวแปร local
+                Dim committedRecoveryQr As String = If(_oldRecoveryFullPending AndAlso _oldRecoveryFullRequest IsNot Nothing,
+                                                       _oldRecoveryFullRequest.QrDetail, Nothing)
+                ' ===== ใช้ PrintDocument เฉพาะงานนี้ =====
+                Using pd As New PrintDocument()
+                    pd.PrinterSettings = ps
+                    pd.PrintController = New StandardPrintController() ' suppress dialog
+                    AddHandler pd.PrintPage,
+                      Sub(sender As Object, e As PrintPageEventArgs)
+                          Try
+                              PrintPageWithData(e, dataCopy, committedRecoveryQr)  ' ส่ง snapshot เข้าไป
+                          Catch ex As Exception
+                              e.HasMorePages = False
+                              LogPrintError(ex, "PrintPage")
+                              If _oldRecoveryFullPending Then _continueTagPersistenceFailed = True
+                              MessageBox.Show("พิมพ์แท็กล้มเหลว: " & ex.Message,
+                            "Print Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error)
+                          End Try
+                      End Sub
+
+                    ' ===== พิมพ์แบบ synchronous (กัน race) =====
+                    If _oldRecoveryFullPending Then _oldRecoveryFullPrintSubmitted = True
+                    pd.Print()
+                End Using
+                If _oldRecoveryFullPending AndAlso Not _continueTagPersistenceFailed Then
+                    CompleteOldRecoveryFullHandoff()
+                    oldRecoveryHandedOff = True
+                End If
+                ' สำเร็จ: +1 ให้กล่องถัดไป
+                '  Me.lb_box_count.Text = (currentBox + 1).ToString()
+            ElseIf check_tag_type = "2" Then
+                Try
+                    Backoffice_model.flg_cat_layout_line = "2"
+                    print_back.print()
+                Catch ex As Exception
+                    Console.WriteLine("Print Back ข้อผิดพลาดในการพิมพ์: " & ex.Message)
+                    MessageBox.Show("Print Back  เกิดข้อผิดพลาดในการพิมพ์: " & ex.Message, "ข้อผิดพลาดการพิมพ์", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                End Try
+                'print_back.PrintDocument1.Print()
+            Else
+                ' หากฟอร์มไม่พร้อม
+                'MessageBox.Show("ไม่สามารถใช้ UI Thread ได้", "ข้อผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            End If
+        Catch ex As Exception
+            ' LogPrintError(ex, "TagPrintOne")
+            If _oldRecoveryFullPending Then FailOldRecoveryFull(ex.Message)
+            '  MessageBox.Show("เกิดข้อผิดพลาดในการพิมพ์แท็ก: " & ex.Message, "ระบบ",
+            'MessageBoxButtons.OK, MessageBoxIcon.Error)
+        Finally
+            Interlocked.Exchange(flg_tag_print, 0)
+            If oldRecoveryHandedOff Then ProcessDeferredNormalOverflowAfterSourceCommit()
+        End Try
+    End Sub
+
+    '========== พิมพ์หลายใบจากจำนวนชิ้น (เช่น Manual 15 pcs → 3 ใบ) ==========
+    Public Sub TagPrintMany(totalPcs As Integer)
+        If totalPcs <= 0 Then Exit Sub
+
+        ' ทำ snapshotของ PackSize หนึ่งครั้ง เพื่อคำนวณจำนวนใบ
+        Dim packSize As Integer = Math.Max(1, CInt(Val(SafeText(Me.Label27))))
+        Dim pages As Integer = CInt(Math.Ceiling(totalPcs / Math.Max(1.0, packSize)))
+
+        For i = 1 To pages
+            'TagPrintOne() ' แต่ละใบจะจับค่า Box ณ ตอนเริ่มพิมพ์ของตัวเอง
+        Next
+    End Sub
+    '========== ตัวสร้างหน้าเอกสาร โดยใช้ snapshot d ==========
+    Private Sub PrintPageWithData(e As PrintPageEventArgs, d As TagPrintData, Optional committedRecoveryQr As String = Nothing)
+
+        Using aPen As New Pen(Color.Black)
+            aPen.Width = 2.0F
+            e.Graphics.DrawLine(aPen, 150, 10, 150, 290)
+            e.Graphics.DrawLine(aPen, 300, 175, 300, 290)
+            e.Graphics.DrawLine(aPen, 590, 10, 590, 175)
+            e.Graphics.DrawLine(aPen, 410, 120, 410, 235)
+            e.Graphics.DrawLine(aPen, 410, 175, 410, 235)
+            e.Graphics.DrawLine(aPen, 225, 175, 225, 235)
+            e.Graphics.DrawLine(aPen, 490, 10, 490, 65)
+            e.Graphics.DrawLine(aPen, 520, 175, 520, 290)
+            e.Graphics.DrawLine(aPen, 610, 175, 610, 290)
+            e.Graphics.DrawLine(aPen, 700, 10, 700, 290)
+            e.Graphics.DrawLine(aPen, 150, 11, 700, 11)
+            e.Graphics.DrawLine(aPen, 150, 65, 590, 65)
+            e.Graphics.DrawLine(aPen, 150, 120, 700, 120)
+            e.Graphics.DrawLine(aPen, 150, 175, 700, 175)
+            e.Graphics.DrawLine(aPen, 150, 235, 610, 235)
+            e.Graphics.DrawLine(aPen, 150, 289, 700, 289)
+        End Using
+        '--- คำนวณ QTY ต่อแท็ก ---
+        Dim modsucc As Integer
+
+
+
+        If d.IsResumePackaging Then
+            modsucc = d.GoodQty
+        ElseIf d.StatusPrint = "CloseLot" OrElse d.StatusPrint = "Normal" Then
+            modsucc = d.GoodQty
+        Else
+            modsucc = If(d.RemainWi = 0, d.GoodQty - d.DefectAll, d.GoodQty)
+        End If
+
+        Dim result_snp As Integer = modsucc Mod d.PackSize
+        Dim status_tag As String = "[ Incomplete Tag ]"
+        If d.V_CheckLineReprint = "0" Then
+            If result_snp = 0 Then result_snp = d.PackSize : status_tag = " "
+        Else
+            If d.PackSize = 1 OrElse d.PackSize = 999999 Then
+                result_snp = d.BoxCount : status_tag = " "
+            Else
+                If result_snp = 0 Then
+                    result_snp = d.PackSize : status_tag = " "
+                Else
+                    result_snp = If(d.IsResumePackaging, d.GoodQty, d.LbGood) Mod d.PackSize
+                    status_tag = "[ Incomplete Tag ]"
+                End If
+            End If
+        End If
+
+        If d.RecoveryPackagingQty.HasValue Then
+            result_snp = d.RecoveryPackagingQty.Value
+            status_tag = If(result_snp >= d.PackSize, " ", "[ Incomplete Tag ]")
+        End If
+
+        '--- ใช้ PlanDate จาก snapshot + TryParse ---
+        Dim planDt As DateTime
+        If Not DateTime.TryParse(d.PlanDate, planDt) Then
+            Throw New InvalidOperationException("Plan Date ไม่ถูกต้อง: " & d.PlanDate)
+        End If
+        Dim planDateDMY As String = planDt.ToString("dd/MM/yyyy")
+        Dim planDateYMD As String = planDt.ToString("yyyyMMdd")
+
+        '--- วาดข้อความ ---
+        e.Graphics.DrawString("PART NO.", lb_font1.Font, Brushes.Black, 152, 13)
+        e.Graphics.DrawString(d.PartNo, lb_font2.Font, Brushes.Black, 152, 25)
+        e.Graphics.DrawString("QTY.", lb_font1.Font, Brushes.Black, 492, 13)
+        e.Graphics.DrawString(result_snp.ToString(), lb_font2.Font, Brushes.Black, 505, 25)
+
+        e.Graphics.DrawString("PART NAME.", lb_font1.Font, Brushes.Black, 152, 67)
+        Dim partName As String = If(d.PartName, "")
+        If partName.Length > 36 Then
+            e.Graphics.DrawString(partName.Substring(0, 30), Label9_fontModel.Font, Brushes.Black, 152, 79)
+            e.Graphics.DrawString(partName.Substring(30), Label9_fontModel.Font, Brushes.Black, 152, 98)
+        Else
+            e.Graphics.DrawString(partName, lb_font2.Font, Brushes.Black, 152, 79)
+        End If
+
+        e.Graphics.DrawString("MODEL", lb_font1.Font, Brushes.Black, 152, 123)
+        e.Graphics.DrawString(d.Model, lb_font4.Font, Brushes.Black, 152, 141)
+        e.Graphics.DrawString("NEXT PROCESS", lb_font1.Font, Brushes.Black, 412, 123)
+        e.Graphics.DrawString(d.NextProcess, lb_font4.Font, Brushes.Black, 414, 141)
+        e.Graphics.DrawString("LOCATION", lb_font1.Font, Brushes.Black, 592, 123)
+        e.Graphics.DrawString(d.Location, lb_font4.Font, Brushes.Black, 596, 141)
+        e.Graphics.DrawString("SHIFT", lb_font1.Font, Brushes.Black, 152, 178)
+        e.Graphics.DrawString(d.Shift, lb_font2.Font, Brushes.Black, 170, 190)
+        e.Graphics.DrawString("PRO. SEQ.", lb_font1.Font, Brushes.Black, 227, 178)
+        e.Graphics.DrawString(d.PlanSeq.PadLeft(3, "0"c), lb_font2.Font, Brushes.Black, 231, 190)
+        e.Graphics.DrawString("BOX NO.", lb_font1.Font, Brushes.Black, 302, 178)
+        e.Graphics.DrawString(d.BoxSeq.PadLeft(3, "0"c), lb_font2.Font, Brushes.Black, 320, 190)
+        e.Graphics.DrawString("ACTUAL DATE", lb_font1.Font, Brushes.Black, 412, 178)
+        e.Graphics.DrawString(DateTime.Now.ToString("dd/MM/yyyy"), lb_fontACTUALDATE.Font, Brushes.Black, 412, 196)
+        e.Graphics.DrawString("FACTORY", lb_font1.Font, Brushes.Black, 522, 178)
+        e.Graphics.DrawString(d.FactoryCd, lb_font5.Font, Brushes.Black, 522, 196)
+        e.Graphics.DrawString("INFO.", lb_font1.Font, Brushes.Black, 612, 178)
+
+        e.Graphics.DrawString("LINE", lb_font1.Font, Brushes.Black, 152, 238)
+        e.Graphics.DrawString(d.LineCode, lb_font2.Font, Brushes.Black, 152, 250)
+        e.Graphics.DrawString("PLAN DATE", lb_font1.Font, Brushes.Black, 302, 238)
+        e.Graphics.DrawString(planDateDMY, lb_font6.Font, Brushes.Black, 334, 250)
+        e.Graphics.DrawString("LOT NO.", lb_font1.Font, Brushes.Black, 522, 238)
+        e.Graphics.DrawString(d.LotNo, lb_font2.Font, Brushes.Black, 522, 250)
+
+        e.Graphics.DrawString("TBKK", lb_font2.Font, Brushes.Black, 15, 13)
+        e.Graphics.DrawString("(Thailand) Co., Ltd.", lb_font1.Font, Brushes.Black, 15, 45)
+        e.Graphics.DrawString("Shop floor system", lb_font3.Font, Brushes.Black, 15, 73)
+        e.Graphics.DrawString("(New FA system)", lb_font3.Font, Brushes.Black, 15, 85)
+        e.Graphics.DrawString("WI : " & d.WiNo, lb_font3.Font, Brushes.Black, 15, 123)
+        e.Graphics.DrawString("PART TYPE : " & d.PrdType, lb_font3.Font, Brushes.Black, 15, 136)
+
+        If status_tag = "[ Incomplete Tag ]" Then
+            e.Graphics.FillRectangle(Brushes.Black, 15, 160, 119, 25)
+        End If
+        e.Graphics.DrawString(status_tag, lb_font3.Font, Brushes.White, 15, 166)
+
+        '--- QR ---
+        Dim qty_num As String = result_snp.ToString().PadLeft(6, " "c)
+        Dim plan_seq As String = d.PlanSeq.PadLeft(3, "0"c)
+        ' Dim part_no_res1 As String = (If(d.PartNo, "")).PadRight(24, " "c)' old Before K1M158
+        Dim part_no_res1 As String = (If(d.PartNo, "")).PadRight(25, " "c)
+        Dim act_date As String = DateTime.Now.ToString("yyyyMMdd")
+        Dim lot_padded As String = (If(d.LotNo, "")).PadRight(5, " "c)
+        ' Dim cus_part_no As String = "".PadRight(25, " "c)
+        Dim cus_part_no As String = "                        "
+        Dim qr As String = BuildQr103(d.iden_cd, d.LineCode, planDateYMD, plan_seq, part_no_res1,
+                                      act_date, qty_num, lot_padded, cus_part_no, d.PlanCd,
+                                      d.BoxSeq.PadLeft(3, "0"c))
+        WriteDebugDiagnostic("QR length=" & Len(qr).ToString())
+
+        If committedRecoveryQr IsNot Nothing Then qr = committedRecoveryQr
+        If Not String.IsNullOrEmpty(qr) Then
+            Dim qrGenerator As New QRCoder.QRCodeGenerator()
+            Using qrData = qrGenerator.CreateQrCode(qr, QRCoder.QRCodeGenerator.ECCLevel.Q)
+                Using qrCode As New QRCoder.QRCode(qrData)
+                    Using bmp As Bitmap = qrCode.GetGraphic(5)
+                        e.Graphics.DrawImage(bmp, 590, 13, 106, 106)
+                        e.Graphics.DrawImage(bmp, 31, 190, 110, 110)
+                        e.Graphics.DrawImage(bmp, 614, 199, 84, 84)
+                    End Using
+                End Using
+            End Using
+        End If
+
+        e.HasMorePages = False
+    End Sub
+    '========== สร้างสตริงสำหรับ QR (ปรับตามระบบจริงของคุณ) ==========
+    ' สร้างสตริง QR ความยาวคงที่ 103 ตัวอักษร
+    Private Function BuildQr103(iden As String,
+                            lineCd As String,
+                            planDateYMD As String,      ' yyyyMMdd
+                            planSeq As String,           ' เลข 0-padding 3 หลัก
+                            partNo As String,            ' จะ PadRight(24)
+                            actDateYMD As String,        ' yyyyMMdd
+                            qty As String,              ' จะ PadLeft(6, space)
+                            lotNo As String,             ' จะ PadRight(5)
+                            cusPart As String,           ' จะ PadRight(25)
+                            planCd As String,
+                            BoxNo As String) ' 2 หลัก
+        Dim qr = Trim(iden & lineCd & planDateYMD & planSeq & partNo & actDateYMD & qty & lotNo & cusPart & actDateYMD & planSeq & planCd & BoxNo)
+        If qr.Length <> 103 Then
+            Throw New InvalidOperationException($"QR length invalid: {qr.Length}, expected 103")
+        End If
+        Return Trim(qr)
+    End Function
+    '==================== ตัวอย่างการเรียกใช้ ====================
+
+    Private Sub LogPrintError(ex As Exception, Optional hint As String = Nothing)
+        Try
+            EnsureLogDir()
+            Dim p = Path.Combine(logDir, $"print_{DateTime.Now:yyyyMMdd}.log")
+            Using w As New StreamWriter(p, True)
+                w.WriteLine("===== ERROR @ {0:yyyy-MM-dd HH:mm:ss.fff} =====", DateTime.Now)
+                If Not String.IsNullOrEmpty(hint) Then w.WriteLine("HINT: " & hint)
+                w.WriteLine(ex.ToString())
+                w.WriteLine()
+            End Using
+        Catch
+        End Try
+    End Sub
+    Private Sub Timer1_Tick(sender As Object, e As EventArgs) Handles Timer1.Tick
+        'Label44.Text = TimeOfDay.ToString("H:mm:ss")
+        Label17.Text = TimeOfDay.ToString("H:mm:ss")
+        'Label1.Text = DateTime.Now.ToString("D")
+        Label1.Text = DateTime.Now.ToString("yyyy, MMMM dd")
+        Label43.Text = DateTime.Now.ToString("yyyy/MM/dd")
+        lb_loss_status.Text = lb_loss_status.Text
+        If Backoffice_model.gobal_Flg_autoTranferProductions = 1 Then
+            SetStartTime.Crr_time.Text = TimeOfDay.ToString("HH:mm:ss")
+            SetStartTime.lb_dateCrr.Text = DateTime.Now.ToString("yyyy-MM-dd")
+        End If
+        If lb_loss_status.Right < 0 Then
+            lb_loss_status.Left = Panel6.ClientSize.Width
+        Else
+            lb_loss_status.Left -= 10
+        End If
+    End Sub
+    Public Function checkStatusEmergency(line_cd As String)
+        Try
+            Dim api = New api()
+            Dim result_data As String = api.Load_data("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/checkStatusEmergency?line_cd=" & line_cd)
+            ' ''''Console.WriteLine("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/checkStatusEmergency?line_cd=" & line_cd)
+            If result_data <> "0" Then
+                Dim dict2 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(result_data)
+                For Each item As Object In dict2
+                    status_emergency = item("me_status_emergency").ToString()
+                Next
+            End If
+        Catch ex As Exception
+            status_emergency = "0"
+        End Try
+        Return status_emergency
+    End Function
+    Public Async Sub RunCmd(line_cd As String)
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Try
+                    Dim api = New api()
+                    Dim Command As String = ""
+                    Dim parameters As String = ""
+                    Dim result_data As String = api.Load_data("http://" & Backoffice_model.svApi & "/API_NEW_FA/GET_DATA_NEW_FA/RunCmd?line_cd=" & line_cd)
+                    ' ''''Console.WriteLine("http://" & Backoffice_model.svApi & "/API_NEW_FA/GET_DATA_NEW_FA/RunCmd?line_cd=" & line_cd)
+                    If result_data <> "0" Then
+                        Dim dict2 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(result_data)
+                        For Each item As Object In dict2
+                            Command = item("command").ToString()
+                            parameters = item("parameters").ToString()
+                            System.Diagnostics.Process.Start(Command, parameters)
+                        Next
+                    End If
+                Catch ex As Exception
+                    status_emergency = "0"
+                End Try
+            End If
+        Catch ex As Exception
+            'No Net
+        End Try
+    End Sub
+    Public Function load_data_defeult_master_server(line_cd As String)
+        Dim api = New api()
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Dim result_data As String = api.Load_data("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/JOIN_CHECK_LINE_MASTER?line_cd=" & line_cd)
+                If result_data <> "0" Then
+                    Dim dict2 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(result_data)
+                    For Each item As Object In dict2
+                        s_mecg_name = item("mecg_name").ToString()
+                        mec_name = item("mec_name").ToString()
+                        comportTowerLamp = item("metl_comport").ToString()
+                        If Backoffice_model.GET_STATUS_DELAY_BY_LINE(MainFrm.Label4.Text) = 0 Then
+                            status_conter = 0
+                            s_delay = item("me_sig_del").ToString()
+                        Else
+                            status_conter = 1
+                        End If
+                    Next
+                End If
+            Else
+                status_conter = 1
+            End If
+        Catch ex As Exception
+            status_conter = 1
+        End Try
+    End Function
+    Public Async Function setlvA(line_cd As String, lot_no As String, shift As String, dateStart As String, timeShift As String, stTimeModel As String, special_flg As String) As Task
+        Dim OEE = New OEE_NODE
+        Dim OEE_LOCAL = New OEE_SQLITE
+        lvA.Items.Clear()
+        lbOverTimeAvailability.Text = 0
+        'stTimeModel = OEE.OEE_getDataGetWorkingTimeModel(timeShift, line_cd, Label3.Text)
+        '  Dim rslvA = OEE.OEE_GET_Data_LOSS(line_cd, lot_no, shift, dateStart, stTimeModel, statusSwitchModel, IsOnlyone)
+        Dim rslvA = OEE_LOCAL.OEE_GET_Data_LOSS(line_cd, lot_no, shift, dateStart, stTimeModel, statusSwitchModel, IsOnlyone, special_flg)
+        If rslvA <> "0" Then
+            Dim dict3 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(rslvA)
+            Try
+                For Each item As Object In dict3
+                    lbOverTimeAvailability.Text = item("AllLossTime").ToString()
+                    datlvDefectsumary = New ListViewItem(item("loss_cd").ToString())
+                    datlvDefectsumary.SubItems.Add(item("lossTime").ToString())
+                    lvA.Items.Add(datlvDefectsumary)
+                Next
+            Catch ex As Exception
+            End Try
+        End If
+    End Function
+    Public Sub showWorkker()
+        Dim emp_cd As String = List_Emp.ListView1.Items(0).Text
+        Dim tImage As Bitmap = Nothing ' Initialize tImage to avoid potential null reference exceptions
+        Using tclient As New WebClient
+            Try
+                Dim url As String = "http://" & Backoffice_model.svApi & "/tbkk_shopfloor_sys/asset/img_emp/" & emp_cd & ".jpg"
+                Dim data As Byte() = tclient.DownloadData(url)
+                Using stream As New MemoryStream(data)
+                    Using loadedImage As New Bitmap(stream)
+                        tImage = New Bitmap(loadedImage)
+                    End Using
+                End Using
+            Catch ex As Exception
+                ' If there's an error downloading or creating the image, load a default image
+                Dim defaultUrl As String = "http://" & Backoffice_model.svApi & "/tbkk_shopfloor_sys/asset/img_emp/no_user.jpg"
+                Dim defaultData As Byte() = tclient.DownloadData(defaultUrl)
+                Using defaultStream As New MemoryStream(defaultData)
+                    Using loadedImage As New Bitmap(defaultStream)
+                        tImage = New Bitmap(loadedImage)
+                    End Using
+                End Using
+            End Try
+            ' Release the previous GDI image before replacing it.
+            Dim oldWorkerImage = pcWorker1.Image
+            pcWorker1.Image = tImage
+            If oldWorkerImage IsNot Nothing AndAlso Not Object.ReferenceEquals(oldWorkerImage, tImage) Then oldWorkerImage.Dispose()
+            Label48.Text = "1"
+            If CDbl(Val(Label29.Text)) > 1 Then
+                tImage = Nothing
+                emp_cd = List_Emp.ListView1.Items(1).Text
+                Try
+                    Dim url As String = "http://" & Backoffice_model.svApi & "/tbkk_shopfloor_sys/asset/img_emp/" & emp_cd & ".jpg"
+                    Dim data As Byte() = tclient.DownloadData(url)
+                    Using stream As New MemoryStream(data)
+                        Using loadedImage As New Bitmap(stream)
+                            tImage = New Bitmap(loadedImage)
+                        End Using
+                    End Using
+                Catch ex As Exception
+                    ' If there's an error downloading or creating the image, load a default image
+                    Dim defaultUrl As String = "http://" & Backoffice_model.svApi & "/tbkk_shopfloor_sys/asset/img_emp/no_user.jpg"
+                    Dim defaultData As Byte() = tclient.DownloadData(defaultUrl)
+                    Using defaultStream As New MemoryStream(defaultData)
+                        Using loadedImage As New Bitmap(defaultStream)
+                            tImage = New Bitmap(loadedImage)
+                        End Using
+                    End Using
+                End Try
+                Dim oldWorkerImage2 = pcWorker2.Image
+                pcWorker2.Image = tImage
+                If oldWorkerImage2 IsNot Nothing AndAlso Not Object.ReferenceEquals(oldWorkerImage2, tImage) Then oldWorkerImage2.Dispose()
+                Label48.Text = "2"
+            End If
+        End Using
+    End Sub
+    Public Function cal_progressbarQ(NGAll As String, Good As String) As Integer
+        Dim ngCount As Integer = 0
+        Dim goodCount As Integer = 0
+        ' ป้องกัน error กรณีค่าที่ไม่ใช่ตัวเลข
+        Integer.TryParse(NGAll, ngCount)
+        Integer.TryParse(Good, goodCount)
+        Dim totalCount As Integer = ngCount + goodCount
+        Dim totalProgressbar As Double = 100
+        If totalCount > 0 Then
+            totalProgressbar = (goodCount / totalCount) * 100
+        End If
+        ' Clamp ค่าให้อยู่ในช่วง 0–100
+        totalProgressbar = Math.Max(0, Math.Min(100, totalProgressbar))
+        Dim intProgress As Integer = CInt(Math.Floor(totalProgressbar))
+        ' กำหนดค่า ProgressBar
+        progressbarQ.Text = intProgress.ToString()
+        progressbarQ.Value = intProgress
+        ' หาสีจากช่วงที่เหมาะสมใน oeeLevelList
+        For Each level As Working_Pro In QLevelList
+            If intProgress >= level.MinValue AndAlso intProgress <= level.MaxValue Then
+                Dim rgbParts() As String = level.ColorRGB.Split(","c)
+                If rgbParts.Length = 3 Then
+                    Dim R As Integer = Convert.ToInt32(rgbParts(0).Trim())
+                    Dim G As Integer = Convert.ToInt32(rgbParts(1).Trim())
+                    Dim B As Integer = Convert.ToInt32(rgbParts(2).Trim())
+                    progressbarQ.ProgressColor = Color.FromArgb(R, G, B)
+                End If
+                Exit For
+            End If
+        Next
+        Return intProgress
+    End Function
+    Public Sub calProgressOEE(A As Double, Q As Double, P As Double)
+        ' Clamp ค่าไม่เกิน 100%
+        A = Math.Max(0, Math.Min(100, A))
+        Q = Math.Max(0, Math.Min(100, Q))
+        P = Math.Max(0, Math.Min(100, P))
+        ' คำนวณ OEE
+        Dim result As Double = (A / 100) * (Q / 100) * (P / 100)
+        Dim totalProgressbar As Integer = CInt(Math.Floor(result * 100))
+        ' กำหนดค่า ProgressBar
+        progressbarOEE.Text = totalProgressbar.ToString()
+        progressbarOEE.Value = totalProgressbar
+        ' หาสีจากช่วงที่เหมาะสมใน oeeLevelList
+        For Each level As Working_Pro In oeeLevelList
+            If totalProgressbar >= level.MinValue AndAlso totalProgressbar <= level.MaxValue Then
+                Dim rgbParts() As String = level.ColorRGB.Split(","c)
+                If rgbParts.Length = 3 Then
+                    Dim R As Integer = Convert.ToInt32(rgbParts(0).Trim())
+                    Dim G As Integer = Convert.ToInt32(rgbParts(1).Trim())
+                    Dim B As Integer = Convert.ToInt32(rgbParts(2).Trim())
+                    progressbarOEE.ProgressColor = Color.FromArgb(R, G, B)
+                End If
+                Exit For
+            End If
+        Next
+    End Sub
+    Public Function cal_progressbarA(line_cd As String, st_shift As String, end_shift As String) As Integer
+        Dim OEE_LOCAL = New OEE_SQLITE
+        Dim totalProgressbar As Integer = OEE_LOCAL.mas_GetDataProgressbarA(
+        st_shift, end_shift, line_cd,
+        gobal_stTimeModel, statusSwitchModel,
+        IsOnlyone, MainFrm.chk_spec_line)
+
+        ' Clamp ค่าให้อยู่ระหว่าง 0-100
+        totalProgressbar = Math.Max(0, Math.Min(100, totalProgressbar))
+
+        ' กำหนดค่า ProgressBar
+        progressbarA.Text = totalProgressbar.ToString()
+        progressbarA.Value = totalProgressbar
+        ' หาสีจากช่วงที่เหมาะสมใน oeeLevelList
+        For Each level As Working_Pro In ALevelList
+            If totalProgressbar >= level.MinValue AndAlso totalProgressbar <= level.MaxValue Then
+                Dim rgbParts() As String = level.ColorRGB.Split(","c)
+                If rgbParts.Length = 3 Then
+                    Dim R As Integer = Convert.ToInt32(rgbParts(0).Trim())
+                    Dim G As Integer = Convert.ToInt32(rgbParts(1).Trim())
+                    Dim B As Integer = Convert.ToInt32(rgbParts(2).Trim())
+                    progressbarA.ProgressColor = Color.FromArgb(R, G, B)
+                End If
+                Exit For
+            End If
+        Next
+        ' แสดงค่า % แบบ RichText
+        Dim rtb As New RichTextBox()
+        rtb.SelectionFont = New Font("Panton-Trial", 18, FontStyle.Bold)
+        rtb.AppendText(totalProgressbar.ToString())
+        rtb.SelectionFont = New Font("Broadway", 20, FontStyle.Bold)
+        rtb.AppendText("%")
+        Return totalProgressbar
+    End Function
+
+
+
+    Public Function setgetSpeedLoss(NG As String, Good As String, timeShift As String, std_cd As String, line_cd As String, stTimeModel As String)
+        Dim OEE_LOCAL As New OEE_SQLITE()
+        Dim startDate As DateTime
+
+        ' 1. คำนวณเวลาเริ่มต้น (startDate)
+        If MainFrm.chk_spec_line = "2" OrElse Backoffice_model.S_chk_spec_line <> "0" Then
+            startDate = Backoffice_model.date_time_start_master_shift
+            If TimeOfDay < TimeValue("08:00:00") Then startDate = startDate.AddDays(-1)
+        ElseIf statusSwitchModel = 0 OrElse (statusSwitchModel <= 2 AndAlso IsOnlyone = "1") Then
+            startDate = DateTime.Parse(DateTimeStartofShift.Text)
+        Else
+            startDate = DateTime.Parse(stTimeModel)
+        End If
+
+        ' 2. เวลาที่ผ่านไป (sec/min)
+        Dim secDiff As Long = DateDiff("s", startDate, Now())
+        Dim minSwitchModel As Integer = CInt(secDiff / 60)
+
+        ' 3. actualP (จำนวนที่ผลิตจริงในช่วงเวลา)
+        Dim actualP_val As Integer = CInt(OEE_LOCAL.mas_getProduction_actual_detailByHour(line_cd, minSwitchModel, startDate, Label3.Text, MainFrm.chk_spec_line))
+        actualP.Text = actualP_val.ToString()
+
+        ' 4. stdJobP (คำนวณจากเวลาทำงาน / std_cd)
+        Dim stdJobP_val As Integer
+        If secDiff < 3600 Then
+            stdJobP_val = CInt(Math.Ceiling(secDiff / Val(std_cd)))
+        Else
+            Dim lossTime = CInt(OEE_LOCAL.mas_OEE_GetLossByHouseP1(line_cd))
+            Dim usableTime = If(lossTime > 0, secDiff - lossTime, secDiff)
+            stdJobP_val = CInt(Math.Ceiling(usableTime / Val(std_cd)))
+        End If
+        stdJobP.Text = stdJobP_val.ToString()
+
+        ' 5. คำนวณ P% และ Clamp ค่า
+        Dim totalProgressbar As Double = If(actualP_val = 0 Or stdJobP_val = 0, 0, (actualP_val / stdJobP_val) * 100)
+        totalProgressbar = Math.Max(0, Math.Min(100, totalProgressbar))
+        Dim intProgress As Integer = CInt(Math.Floor(totalProgressbar))
+
+        ' 6. ตั้งค่า ProgressBar
+        progressbarP.Text = intProgress.ToString()
+        progressbarP.Value = intProgress
+
+        ' 7. ตั้งสีตามช่วงที่กำหนดใน oeeLevelList
+        For Each level As Working_Pro In PLevelList
+            If intProgress >= level.MinValue AndAlso intProgress <= level.MaxValue Then
+                Dim rgbParts() As String = level.ColorRGB.Split(","c)
+                If rgbParts.Length = 3 Then
+                    progressbarP.ProgressColor = Color.FromArgb(
+                    CInt(rgbParts(0).Trim()),
+                    CInt(rgbParts(1).Trim()),
+                    CInt(rgbParts(2).Trim()))
+                End If
+                Exit For
+            End If
+        Next
+        Return intProgress
+    End Function
+    Public Sub setNgByHour(line_cd As String, lot_no As String)
+        'Dim sqlite = New ModelSqliteDefect
+        'Dim rs = sqlite.mSqliteGetDataNG_BYHOUR(line_cd, lot_no)
+        'If rs <> "0" Then
+        'Dim dict3 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(rs)
+        'Try
+        'For Each item As Object In dict3a
+        'Next
+        'Catch ex As Exception
+        'End Try
+        'End If
+        'lbNG.Text = lbOverTimeQuality.Text
+    End Sub
+    Public Async Function set_AccTarget(TimestartShift As String, std_ct As String, stTimeModel As String) As Task
+        ' Dim OEE = New OEE_NODE
+        Dim OEE_LOCAL = New OEE_SQLITE
+        'lbAccTarget.Text = OEE.OEE_GET_Data_AccTarget(TimestartShift, std_ct)
+        lbAccTarget.Text = OEE_LOCAL.mas_OEE_GET_Data_AccTarget(TimestartShift, std_ct)
+    End Function
+    Public Async Function setlvQ(line_cd As String, lot_no As String, TimeShift As String, stTimeModel As String) As Task
+        lvQ.Items.Clear()
+        lbOverTimeQuality.Text = "0"
+        lbNG.Text = "0"
+        Dim OEE = New OEE_NODE
+        Dim sqlite = New ModelSqliteDefect
+        Dim startDate As Date
+        ''msgBox("DateTimeStartofShift.Text.ToString=====>" & DateTimeStartofShift.Text.ToString)
+        If statusSwitchModel = 0 Then
+            startDate = DateTime.Parse(DateTimeStartofShift.Text.ToString)
+            startDate = Convert.ToDateTime(startDate).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            '''''Console.WriteLine("setlvQ IFFFFFFFFFFFF0001")
+        ElseIf statusSwitchModel = 1 Or statusSwitchModel = 2 Then
+            If IsOnlyone = "1" Then
+                startDate = DateTime.Parse(DateTimeStartofShift.Text.ToString)
+                '  ''''Console.WriteLine("setlvQ IFFFFFFFFFFFF0002")
+                startDate = Convert.ToDateTime(startDate).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Else
+                ' ''''Console.WriteLine("setlvQ ELSE")
+                startDate = Convert.ToDateTime(stTimeModel).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            End If
+        End If
+        Dim rslvQ = sqlite.mSqliteGetDataQuality(line_cd, lot_no, startDate)
+        Dim rsOverAllNG = sqlite.mSqliteGetDataQualityOverAllNG(line_cd, lot_no, DateTimeStartofShift.Text)
+        ' 'msgBox("DateTimeStartofShift ===>" & DateTimeStartofShift.Text)
+        If rsOverAllNG <> "0" Then
+            Dim dictOverall As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(rsOverAllNG)
+            For Each item As Object In dictOverall
+                lbNG.Text = item("AllDefect").ToString()
+            Next
+        End If
+        If rslvQ <> "0" Then
+            Dim dict3 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(rslvQ)
+            Try
+                For Each item As Object In dict3
+                    lbOverTimeQuality.Text = item("AllDefect").ToString()
+                    datlvDefectsumary = New ListViewItem(item("dt_code").ToString())
+                    datlvDefectsumary.SubItems.Add(item("TotalQ").ToString())
+                    lvQ.Items.Add(datlvDefectsumary)
+                Next
+            Catch ex As Exception
+            End Try
+        End If
+    End Function
+    Private Async Function ShowLoadingAndLoadData() As Task
+        loadingForm.Show()
+        ' loadingForm.Dock = DockStyle.Fill
+        ' loadingForm.BringToFront()
+        ' เริ่มต้นการโหลดข้อมูลหรือทำงานที่ต้องการ
+        Await LoadDataAsync()
+        ' ปิดหน้าต่างกำลังโหลดเมื่อเสร็จสิ้นการโหลดข้อมูล
+    End Function
+    Private Async Function LoadDataAsync() As Task
+        ' จำลองการโหลดข้อมูล (แทนที่ด้วยการโหลดข้อมูลจริง)
+        Await Task.Delay(5000) ' รอ 3 วินาที
+    End Function
+    Private Async Sub Working_Pro_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        _oldRecoveryBoxFinished = False
+        loadWebviewEmergency()
+        'GenQrScanChecklist(MainFrm.Label4.Text)
+        Me.Enabled = False
+        statusPrint = "Normal"
+        PanelProgressbar.BringToFront()
+        Label29.BringToFront()
+        'Me.Enabled = False
+        If CheckOs() Then
+            counterNewDIO = New CheckWindow
+            counterNewDIO.Per_CheckCounter()
+        End If
+        Dim OEE = New OEE_NODE
+        showWorkker()
+        lbCT.Text = Label38.Text & "  sec"
+        checkLossA = 0 ' set A = 0 ไว้
+        Try
+            ' เรียกใช้ฟังก์ชัน loadDataProgressBar แบบ Async
+            Await loadDataProgressBar(MainFrm.Label4.Text, Label14.Text)
+        Catch ex As Exception
+            MessageBox.Show($"Failed to load data: {ex.Message}")
+        End Try
+        st_time.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss") ' ไม่งั้น พอ auto close lot ทำงาน close lot ไม่ได้ 
+        Await ShowLoadingAndLoadData()
+        ALevelList.Clear()
+        PLevelList.Clear()
+        QLevelList.Clear()
+        oeeLevelList.Clear()
+        moe_min_a = 0
+        moe_min_p = 0
+        moe_min_q = 0
+        moe_min_oee = 0
+        Dim mastOEE = OEE.OEE_LOAD_MSTOEEColor(MainFrm.Label4.Text)
+        Dim i As Integer = 1S
+        Dim mastOEEItems As System.Collections.IEnumerable = TryCast(mastOEE, System.Collections.IEnumerable)
+        Dim hasMasterOeeRows As Boolean = False
+        Try
+            If mastOEEItems IsNot Nothing Then
+                For Each item As Object In mastOEEItems
+                    hasMasterOeeRows = True
+                    If Not IsDBNull(item("mcc_min")) Then
+                        If item("mch_name").ToString = "A" Then
+                            Dim Alevel As New Working_Pro With {
+                                .MinValue = Convert.ToInt32(item("mcc_min")),
+                                .MaxValue = Convert.ToInt32(item("mcc_max")),
+                                .ColorRGB = item("mc_code").ToString()
+                                }
+                            moe_min_a = item("mcc_min").ToString()
+                            ALevelList.Add(Alevel)
+                        ElseIf item("mch_name").ToString = "P" Then
+                            Dim Plevel As New Working_Pro With {
+                                .MinValue = Convert.ToInt32(item("mcc_min")),
+                                .MaxValue = Convert.ToInt32(item("mcc_max")),
+                                .ColorRGB = item("mc_code").ToString()
+                                }
+                            moe_min_p = item("mcc_min").ToString()
+                            PLevelList.Add(Plevel)
+                        ElseIf item("mch_name").ToString = "Q" Then
+                            Dim Qlevel As New Working_Pro With {
+                            .MinValue = Convert.ToInt32(item("mcc_min")),
+                            .MaxValue = Convert.ToInt32(item("mcc_max")),
+                            .ColorRGB = item("mc_code").ToString()
+                            }
+                            moe_min_q = item("mcc_min").ToString()
+                            QLevelList.Add(Qlevel)
+                        ElseIf item("mch_name").ToString = "OEE" Then
+                            Dim OEElevel As New Working_Pro With {
+                            .MinValue = Convert.ToInt32(item("mcc_min")),
+                            .MaxValue = Convert.ToInt32(item("mcc_max")),
+                            .ColorRGB = item("mc_code").ToString()
+                            }
+                            moe_min_oee = item("mcc_min").ToString()
+                            oeeLevelList.Add(OEElevel)
+                        End If
+                    End If
+                Next
+            End If
+        Catch ex As Exception
+            MessageBox.Show("โหลดข้อมูล OEE ล้มเหลว: " & ex.Message)
+        Finally
+            load_show_OEE.HideIfOpen()
+        End Try
+        If mastOEEItems IsNot Nothing AndAlso Not hasMasterOeeRows Then
+            MessageBox.Show("OEE master data is missing for this line. OEE color criteria could not be loaded.",
+                            "OEE Master Data",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning)
+        End If
+        check_format_tag = Backoffice_model.B_check_format_tag()
+        Dim date_now As String = DateTime.Now.ToString("dd-MM-yyyy")
+        Dim date_now_date As Date = DateTime.Now.ToString("dd-MM-yyyy")
+        Gdate_now_date = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
+        Dim time As Date = DateTime.Now.ToString("H:m:s")
+        Dim date_st = DateTime.Now.ToString("dd-MM-yyyy")
+        Dim date_end = DateTime.Now.ToString("dd-MM-yyyy")
+        Dim result_qty = DateTime.Now.ToString("dd-MM-yyyy")
+        lb_dlv_date.Text = Prd_detail.LB_PLAN_DATE.Text
+        G_plan_date = lb_dlv_date.Text
+        Dim time_st = " 00:00:00"
+        Dim time_end = " 23:59:59"
+        If Label14.Text = "A" Then
+            time_st = " 08:00:00"
+            time_end = " 17:00:00"
+        ElseIf Label14.Text = "P" Then
+            time_st = " 08:00:00"
+            time_end = " 20:00:00"
+        ElseIf Label14.Text = "B" Then
+            time_st = " 20:00:00"
+            time_end = " 05:00:00"
+        ElseIf Label14.Text = "Q" Then
+            time_st = " 20:00:00"
+            time_end = " 08:00:00"
+        ElseIf Label14.Text = "S" Then
+            time_st = " 17:00:00"
+            time_end = " 02:00:00"
+        End If
+        If time > "23:59:59" Then
+            date_st = date_now_date.AddDays(-1)
+            date_st = Convert.ToDateTime(date_st).ToString("dd-MM-yyyy")
+            date_end = date_now_date
+            date_end = Convert.ToDateTime(date_end).ToString("dd-MM-yyyy")
+            ' time_st = " 20:00:00"
+            ' time_end = " 08:00:00"
+        End If
+        If time >= "00:00:00" And time <= "08:00:00" Then
+            date_st = date_now_date.AddDays(-1)
+            date_st = Convert.ToDateTime(date_st).ToString("dd-MM-yyyy")
+            date_end = date_now_date
+            date_end = Convert.ToDateTime(date_end).ToString("dd-MM-yyyy")
+            '  time_st = " 20:00:00"
+            '  time_end = " 08:00:00"
+        End If
+        map_OP = Backoffice_model.GetDeviceCounterByop(MainFrm.Label4.Text)
+        WriteDebugDiagnostic("Device-counter mapping loaded")
+        DateTimeStartofShift.Text = OEE.OEE_getDateTimeStart(Prd_detail.Label12.Text.Substring(3, 5), MainFrm.Label4.Text)
+        ''msgBox("DateTimeStartofShift.Text===>" & DateTimeStartofShift.Text)
+        ' 'msgBox("LOAD 1 DateTimeStartofShift ===>" & DateTimeStartofShift.Text)
+        Dim DateTimeStartmasterShift As Date = date_st & " " & time_st
+        tag_group_no = Backoffice_model.Get_tag_group_no()
+        CircularProgressBar2.Visible = False
+        Dim ObjGetmodel = OEE.OEE_getDataGetWorkingTimeModel(Prd_detail.Label12.Text.Substring(3, 5), MainFrm.Label4.Text, Label3.Text)
+        statusSwitchModel = ObjGetmodel("status").ToString()
+        IsOnlyone = ObjGetmodel("IsOnlyone").ToString()
+        Backoffice_model.Get_close_lot_time(Label14.Text)
+        If ObjGetmodel("item_cd").ToString() = "New_Model" Then
+            gobal_stTimeModel = DateTimeStartmasterShift.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+        ElseIf ObjGetmodel("item_cd").ToString() = "Switch_Model" Then
+            gobal_stTimeModel = ObjGetmodel("rs").ToString
+        Else
+            If ObjGetmodel("item_cd").ToString = Label3.Text Then
+                gobal_stTimeModel = ObjGetmodel("rs").ToString
+            Else
+                gobal_stTimeModel = DateTimeStartmasterShift.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            End If
+        End If
+        'Label7.Text = OEE.OEE_GET_NEW_TARGET(Prd_detail.Label12.Text.Substring(3, 5), Prd_detail.Label12.Text.Substring(11, 5), Label38.Text, Label14.Text)
+        Label7.Text = OEE_NODE.OEE_GET_NEW_TARGET_PERCEN(Prd_detail.Label12.Text.Substring(3, 5), Prd_detail.Label12.Text.Substring(11, 5), Label38.Text, Label14.Text, MainFrm.Label4.Text)
+        Await setlvA(MainFrm.Label4.Text, Label18.Text, Label14.Text, DateTime.Now.ToString("yyyy-MM-dd"), Prd_detail.Label12.Text.Substring(3, 5), gobal_stTimeModel, MainFrm.chk_spec_line)
+        Await setlvQ(MainFrm.Label4.Text, Label18.Text, Prd_detail.Label12.Text.ToString.Substring(3, 5), gobal_stTimeModel)
+        Await set_AccTarget(Prd_detail.Label12.Text.Substring(3, 5), Label38.Text, gobal_stTimeModel)
+        setNgByHour(MainFrm.Label4.Text, Label18.Text)
+        'PictureBox12.Visible = False
+        PictureBox10.Visible = True
+        'PictureBox11.Visible = False
+        Wait_data.Close()
+        'Prd_detail.Timer3.Enabled = False
+        Label47.Visible = False
+        Timer1.Start()
+        'sc_prd_plan.SerialPort1.Close()
+        wiNo = wi_no.Text
+        pFg = Label3.Text
+        lineCd = MainFrm.Label4.Text
+        lotNo = Label18.Text
+        seqNo = Label22.Text
+        model = lb_model.Text
+        lb_loss_status.Parent = Panel6
+        check_tag_type = api.Load_data("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GET_LINE_TYPE?line_cd=" & MainFrm.Label4.Text)
+        load_data = api.Load_data("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GET_DATA_WORKING?WI=" & Prd_detail.lb_wi.Text)
+        BreakTime = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Label14.Text)
+        lbNextTime.Text = BreakTime
+        HourOverAllShift.Text = OEE.OEE_GET_Hour(Label14.Text)
+        'TimerLossBT.Start()
+        V_check_line_reprint = Backoffice_model.check_line_reprint()
+        Dim next_process = Backoffice_model.GET_NEXT_PROCESS()
+        Backoffice_model.S_chk_spec_line = Backoffice_model.chk_spec_line()
+        While next_process.read()
+            value_next_process = next_process("NEXT_PROCESS").ToString
+        End While
+        next_process.Close()
+        lb_loss_status.Location = New Point(Panel6.ClientSize.Width,
+        Panel6.ClientSize.Height / 2 - (lb_loss_status.Height / 2))
+        Check(0) = _Check_0
+        Check(1) = _Check_1
+        Edit_Up(0) = _Edit_Up_0
+        Edit_Up(1) = _Edit_Up_1
+        'Edit_DeviceName.Text = "DIO000"
+        Edit_DeviceName.Text = MainFrm.lb_dio_port.Text
+        Label24.Text = Backoffice_model.GET_LINE_PRODUCTION()
+        For ii = 0 To 1
+            Edit_Up(ii).Text = ""
+        Next ii
+        For iii = 0 To 1
+            Check(iii).Checked = True
+        Next
+        connect_counter_qty()
+        If Backoffice_model.GET_STATUS_DELAY_BY_LINE(MainFrm.Label4.Text) = 1 Then
+            s_delay = (Prd_detail.lb_ct.Text * 60) / 2
+            status_conter = 1
+        Else
+            status_conter = 0
+        End If
+        Dim reader_shift = Backoffice_model.GET_QTY_SHIFT(MainFrm.Label4.Text, wi_no.Text, Label14.Text, date_st, date_end, time_st, time_end, Label18.Text) '
+        Dim reader_defact_nc = Backoffice_model.GET_QTY_DEFACT_NC(wi_no.Text, MainFrm.Label4.Text)
+        While reader_defact_nc.read()
+            lb_nc_qty.Text = reader_defact_nc("QTY_DEFACT_NC").ToString()
+            If lb_nc_qty.Text = "" Then
+                lb_nc_qty.Text = 0
+            End If
+        End While
+        reader_defact_nc.close()
+        'While reader_shift.read()
+        'LB_COUNTER_SHIP.Text = reader_shift("QTY_SHIFT").ToString()
+        'End While
+        LB_COUNTER_SHIP.Text = OEE.OEE_getProduction_actual_detailByShift(MainFrm.Label4.Text, Label14.Text)
+        If LB_COUNTER_SHIP.Text = "" Then
+            LB_COUNTER_SHIP.Text = 0
+        Else
+            If MainFrm.chk_spec_line = "2" Then
+                LB_COUNTER_SHIP.Text = CDbl(Val(LB_COUNTER_SHIP.Text)) / Confrime_work_production.ArrayDataPlan.Count
+                Label44.Text = "set"
+                Label42.Text = "set"
+            End If
+        End If
+        Dim reader_seq = Backoffice_model.GET_QTY_SEQ(wi_no.Text, CDbl(Val(Label22.Text))) '
+        While reader_seq.read()
+            If reader_seq.read Then
+                LB_COUNTER_SEQ.Text = reader_seq("QTY_SEQ").ToString()
+            Else
+                LB_COUNTER_SEQ.Text = 0
+            End If
+        End While
+        Dim mdDf = New modelDefect
+        lb_good.Text = mdDf.mGetGoodWILot(wi_no.Text, Label18.Text)
+        pb_netdown.Visible = False
+        ' Main() ' P1 Loss Code 36 
+        Dim P = setgetSpeedLoss(lbOverTimeQuality.Text, lb_good.Text, Prd_detail.Label12.Text.Substring(3, 5), Label38.Text, MainFrm.Label4.Text, gobal_stTimeModel)
+        Dim GoodByPartNo As Integer = CDbl(Val(actualP.Text)) - CDbl(Val(lbOverTimeQuality.Text))
+        Dim Q = cal_progressbarQ(lbOverTimeQuality.Text, GoodByPartNo)
+        Dim A = cal_progressbarA(MainFrm.Label4.Text, Prd_detail.Label12.Text.Substring(3, 5), Prd_detail.Label12.Text.Substring(11, 5))
+        calProgressOEE(A, Q, P)
+        Timer2.Start()
+        Me.Enabled = True
+        loadingForm.Hide()
+        If Backoffice_model.gobal_Flg_autoTranferProductions = 1 Then
+            'SetStartTime.Show()
+            SetStartTime.ShowDialog()
+        End If
+        lbPlanOEE.Text = Await Backoffice_model.GetPercenPlanned_OEE(MainFrm.Label4.Text)
+        load_popup_loss_E1()
+    End Sub
+    Public Sub check_seq_data()
+        If CDbl(Val(LB_COUNTER_SEQ.Text)) <> "0" Then
+            lb_box_count.Text = lb_box_count.Text + 1
+            Label_bach.Text += 1
+            GoodQty = GetResumePackagingActualQuantity(CInt(Val(Label6.Text)))
+            tag_print()
+            lb_box_count.Text = 0
+            Label_bach.Text = 0
+        End If
+    End Sub
+    Public Sub connect_counter_qty()
+        Dim load_total As String = load_data_defeult_master_server(MainFrm.Label4.Text)
+        If s_mecg_name = "DIO-3232LX-USB" Then
+            Dim checkRet As Integer
+            Dim errorStr As String = ""
+            Try
+                ' ====== 1. เชื่อมต่อ DIO ======
+                Dim szDeviceName As String
+                Dim deviceNames As String() = {Edit_DeviceName.Text}
+                For Each name As String In deviceNames
+                    szDeviceName = name
+                    Ret = DioInit(szDeviceName, Id)
+                    Call DioGetErrorString(Ret, szError)
+                    If Ret <> 10000 Then
+                        Edit_DeviceName.Text = name ' อัปเดต DeviceName บนหน้าจอด้วย
+                        Exit For
+                    End If
+                Next
+                ' ====== 2. ตั้งค่าการทำงานเบื้องต้น ======
+                Dim i As Short
+                Dim BitNo As Short
+                Dim Kind As Short
+                Dim Tim As Integer
+
+                For i = 0 To 1
+                    UpCount(i) = 0
+                    DownCount(i) = 0
+                Next i
+
+                Tim = 100
+                Kind = DIO_TRG_RISE
+
+                For BitNo = 0 To 1
+                    If Check(BitNo).CheckState = 1 Then
+                        Ret = DioNotifyTrg(Id, BitNo, Kind, Tim, Me.Handle.ToInt32)
+                        If (Ret <> DIO_ERR_SUCCESS) Then
+                            Exit For
+                        End If
+                    Else
+                        Ret = DioStopNotifyTrg(Id, BitNo)
+                        If (Ret <> DIO_ERR_SUCCESS) Then
+                            Exit For
+                        End If
+                    End If
+                Next BitNo
+                ' ====== 3. ซ่อน Error Panel หลังเชื่อมต่อ ======
+                PictureBox10.Visible = False
+                Label2.Visible = False
+                Panel2.Visible = False
+                PictureBox16.Visible = False
+                Call DioGetErrorString(Ret, szError)
+                ' ====== 4. เริ่มเช็คการเชื่อมต่อทุกๆ 3 วินาที ======
+                TimerCheckDIO = New System.Windows.Forms.Timer()
+                TimerCheckDIO.Interval = 3000 ' เช็คทุก 3 วินาที
+                TimerCheckDIO.Start()
+            Catch ex As Exception
+                If StatusClickStart = 1 Then
+                    'Button1.Enabled = False
+                    btnStart.Enabled = False
+                    btn_back.Enabled = False
+                    panelpcWorker1.Enabled = False
+                    btnInfo.Enabled = False
+                    Dim listdetail = "Please check DIO Contect !"
+                    PictureBox10.BringToFront()
+                    PictureBox10.Show()
+                    PictureBox16.BringToFront()
+                    PictureBox16.Show()
+                    Panel2.BringToFront()
+                    Panel2.Show()
+                    Label2.Text = listdetail
+                    Label2.BringToFront()
+                    Label2.Show()
+                End If
+            End Try
+        ElseIf s_mecg_name = "RS232" Then
+            Try
+                serialPort = Backoffice_model.OpenRS232(mec_name)
+                If serialPort.IsOpen Then
+                Else
+                    serialPort.PortName = mec_name
+                    serialPort.BaudRate = 9600
+                    serialPort.Parity = IO.Ports.Parity.None
+                    serialPort.StopBits = IO.Ports.StopBits.One
+                    serialPort.DataBits = 8
+                    serialPort.Open()
+                    serialPort.RtsEnable = True
+                End If
+                'serialPort = serialPort(mec_name, 9600, Parity.None, 8, StopBits.One)
+
+                PictureBox10.Visible = False
+                Label2.Visible = False
+                Panel2.Visible = False
+                PictureBox16.Visible = False
+            Catch ex As Exception
+                If StatusClickStart = 1 Then
+                    'Button1.Enabled = False
+                    btnStart.Enabled = False
+                    btn_back.Enabled = False
+                    panelpcWorker1.Enabled = False
+                    btnInfo.Enabled = False
+                    Dim listdetail = "Port Not Found Please Check Port. " & mec_name & "."
+                    PictureBox10.BringToFront()
+                    PictureBox10.Show()
+                    PictureBox16.BringToFront()
+                    PictureBox16.Show()
+                    Panel2.BringToFront()
+                    Panel2.Show()
+                    Label2.Text = listdetail
+                    Label2.BringToFront()
+                    Label2.Show()
+                End If
+            End Try
+        ElseIf s_mecg_name = "NO DEVICE" Then
+            PictureBox10.Visible = False
+            Label2.Visible = False
+            PictureBox16.Visible = False
+            PictureBox15.Visible = False
+        Else
+            ''''Console.WriteLine("CHECK OS")
+            If CheckOs() Then
+                Dim rs = counterNewDIO.count_NIMAX()
+                If rs <> "OK" Then
+                    If StatusClickStart = 1 Then
+                        'Button1.Enabled = False
+                        btnStart.Enabled = False
+                        btn_back.Enabled = False
+                        panelpcWorker1.Enabled = False
+                        btnInfo.Enabled = False
+                        Dim listdetail = "Please check NI MAX DIO !"
+                        PictureBox10.BringToFront()
+                        PictureBox10.Show()
+                        PictureBox16.BringToFront()
+                        PictureBox16.Show()
+                        Panel2.BringToFront()
+                        Panel2.Show()
+                        Label2.Text = listdetail
+                        Label2.BringToFront()
+                        Label2.Show()
+                    End If
+                Else
+                    PictureBox10.Visible = False
+                    Label2.Visible = False
+                    Panel2.Visible = False
+                    PictureBox16.Visible = False
+                End If
+            Else
+                ''msgBox("")
+                'Button1.Enabled = False
+                btnStart.Enabled = False
+                btn_back.Enabled = False
+                panelpcWorker1.Enabled = False
+                btnInfo.Enabled = False
+                Dim listdetail = "Not Support Counter NI MAX because  OS window 7."
+                PictureBox10.BringToFront()
+                PictureBox10.Show()
+                PictureBox16.BringToFront()
+                PictureBox16.Show()
+                Panel2.BringToFront()
+                Panel2.Show()
+                Label2.Text = listdetail
+                Label2.BringToFront()
+                Label2.Show()
+            End If
+        End If
+    End Sub
+    Private Sub TimerCheckDIO_Tick(sender As Object, e As EventArgs) Handles TimerCheckDIO.Tick
+        CheckDIOConnection()
+    End Sub
+
+    Private Sub CheckDIOConnection()
+        Try
+            Dim checkRet As Integer
+            Dim errorStr As New System.Text.StringBuilder(256)
+            Dim dummyData As Byte = 0
+            ' อ่านบิต 0 เท่านั้น, เร็วสุด
+            checkRet = DioInpBit(Id, 0, dummyData)
+            If checkRet <> DIO_ERR_SUCCESS Then
+                Call DioGetErrorString(checkRet, errorStr)
+                TimerCheckDIO.Stop()
+                HandleDIOError("DIO Disconnected! Error: " & errorStr.ToString())
+            End If
+        Catch ex As Exception
+            TimerCheckDIO.Stop()
+            HandleDIOError("Unexpected error while checking DIO: " & ex.Message)
+        End Try
+    End Sub
+
+
+
+    ' ====== 7. ฟังก์ชันจัดการเมื่อเจอ Error ======
+    Private Sub HandleDIOError(message As String)
+        ' ปิดการใช้งานปุ่มที่เกี่ยวข้อง
+        btnStart.Enabled = False
+        btn_back.Enabled = False
+        panelpcWorker1.Enabled = False
+        btnInfo.Enabled = False
+
+        ' แสดงข้อความเตือนบนหน้าจอ
+        PictureBox10.BringToFront()
+        PictureBox10.Show()
+        PictureBox16.BringToFront()
+        PictureBox16.Show()
+        Panel2.BringToFront()
+        Panel2.Show()
+
+        Label2.Text = message
+        Label2.BringToFront()
+        Label2.Show()
+    End Sub
+    Private Sub Label8_Click(sender As Object, e As EventArgs)
+    End Sub
+    Private Sub btn_setup_Click(sender As Object, e As EventArgs) Handles btn_setup.Click, btnSetUp.Click
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Sel_prd_setup.Show()
+                Me.Enabled = False
+            Else
+                load_show.Show()
+            End If
+        Catch ex As Exception
+            load_show.Show()
+        End Try
+        'Dim i As Integer
+        'ProgressBar1.Minimum = 0
+        'ProgressBar1.Maximum = 200
+        'For i = 0 To 200
+        'ProgressBar1.Value = i
+        'Next
+    End Sub
+
+    Private Sub SendMessageLong(hwnd As Object, prgBrClr As Object, p1 As Object, p2 As Object)
+        Throw New NotImplementedException()
+    End Sub
+    Private Sub ProgressBar1_Click(sender As Object, e As EventArgs)
+    End Sub
+    Public Sub stop_working()
+        StatusClickStart = 0
+        '''Console.WriteLine("READY 1")
+        PanelProgressbar.Visible = False
+        btnInfo.Visible = True
+        ' btn_start is the initial-production selector.  It occupies the same
+        ' area as btnStart, which is the legacy resume control shown while
+        ' production is temporarily stopped.  Only btnStart may receive a
+        ' click in the stopped state.
+        btn_start.Visible = False
+        btn_start.Enabled = False
+        btnStart.BringToFront()
+        pb_netdown.Visible = False
+        '''Console.WriteLine("READY 2")
+        ' LB_COUNTER_SHIP.Visible = False
+        'btnStart.Visible = True
+        'PictureBox11.Visible = True
+        'panelpcWorker1.BackColor = Color.FromArgb(63, 63, 63)
+        'Panel3.Location = New Point(47, 209)
+        'Label6.Location = New Point(38, 324)
+        'Label10.Location = New Point(38, 439)
+        'Label24.BackColor = Color.FromArgb(63, 63, 63)
+        'Label17.BackColor = Color.FromArgb(63, 63, 63)
+        ' Label1.BackColor = Color.FromArgb(63, 63, 63)
+        'Label3.BackColor = Color.FromArgb(63, 63, 63)
+        'Label18.BackColor = Color.FromArgb(63, 63, 63)
+        'Label18.Location = New Point(490, 121)
+        'Label16.BackColor = Color.FromArgb(63, 63, 63)
+        Label20.Visible = False
+        'Label20.BackColor = Color.FromArgb(63, 63, 63)
+        LB_COUNTER_SEQ.SendToBack()
+        CircularProgressBar2.Visible = False
+        'CircularProgressBar2.BackColor = Color.FromArgb(63, 63, 63)
+        'CircularProgressBar2.InnerColor = Color.FromArgb(63, 63, 63)
+        ' Label7.Location = New Point(150, 25)
+        '        Label7.BackColor = Color.FromArgb(12, 27, 45)
+        ''        Label7.BringToFront()
+
+        ' Label8.Location = New Point(56, 297)
+        'Label8.BackColor = Color.FromArgb(12, 27, 45)
+        'Label8.BringToFront()
+
+        ' Label6.Location = New Point(43, 403)
+        'Label6.BackColor = Color.FromArgb(12, 27, 45)
+        'Label6.BringToFront()
+        '   Label10.Location = New Point(41, 510)
+        'Label10.BackColor = Color.FromArgb(12, 27, 45)
+        'Label10.BringToFront()
+        '''Console.WriteLine("READY 3")
+        Dim line_id As String = MainFrm.line_id.Text
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Backoffice_model.line_status_upd(line_id)
+            Else
+                Backoffice_model.line_status_upd_sqlite(line_id)
+            End If
+        Catch ex As Exception
+            Backoffice_model.line_status_upd_sqlite(line_id)
+        End Try '
+        Dim date_st As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
+        Dim date_end As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
+        '''Console.WriteLine("READY 4")
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Backoffice_model.line_status_ins(line_id, date_st, date_end, "1", "0", 24, "0", Prd_detail.lb_wi.Text)
+            Else
+                Backoffice_model.line_status_ins_sqlite(line_id, date_st, date_end, "1", "0", 24, "0", Prd_detail.lb_wi.Text)
+            End If
+        Catch ex As Exception
+            Backoffice_model.line_status_ins_sqlite(line_id, date_st, date_end, "1", "0", 24, "0", Prd_detail.lb_wi.Text)
+        End Try
+        ' ''Console.WriteLine("READY 5")
+        pb_netdown.Visible = False
+        start_flg = 0
+        Try
+            If slm_flg_qr_prod = 1 Then
+                If StopMenu.Visible Then
+                    check_bull = 0
+                    start_flg = 1
+                End If
+            End If
+        Catch ex As Exception
+
+        End Try
+        'Chang_Loss.Show()
+        'Button1.Visible = False
+        Panel1.BackColor = Color.Red
+        Label30.Text = "STOPPED"
+        ' ''Console.WriteLine("READY 6")
+        'btn_back.Visible = True
+        btnSetUp.Visible = True
+        btn_ins_act.Visible = True
+        btn_desc_act.Visible = True
+        btnDefects.Visible = True
+        btnInfo.Visible = True
+        btnCloseLot.Visible = True
+        PictureBox11.Visible = True
+        redBox.Visible = True
+        btn_stop.Visible = True
+        btnStart.Visible = True
+        ' A previous DIO/NI MAX fault may have disabled these controls.  The
+        ' stopped/ready screen is the point where the legacy flow restores them.
+        btnStart.Enabled = True
+        btnDefects.Enabled = True
+        '''Console.WriteLine("READY 7")progressbarOEE
+        CheckMenu()
+        '''Console.WriteLine("READY 8")
+    End Sub
+    Private Sub btn_stop_Click(sender As Object, e As EventArgs) Handles btn_stop.Click
+        check_network_frist = 1
+        Try
+            If s_mecg_name = "RS232" Then
+                serialPort.Close()
+                serialPort.Close()
+            End If
+            serialPort.Close()
+        Catch ex As Exception
+        End Try
+        stop_working()
+    End Sub
+    Private Sub Button3_Click(sender As Object, e As EventArgs)
+        Dim dfHome = New defectHome()
+        dfHome.Show()
+        'defectHome.Show()
+        Me.Enabled = False
+        'Close_lot.Show()
+        'Me.Close()
+    End Sub
+    Private Sub Label10_Click(sender As Object, e As EventArgs)
+
+    End Sub
+    Private Sub Label7_Click(sender As Object, e As EventArgs)
+
+    End Sub
+
+    Private Sub Label28_Click(sender As Object, e As EventArgs) Handles Label28.Click
+
+    End Sub
+    Private Sub Label29_Click(sender As Object, e As EventArgs) Handles Label29.Click
+
+    End Sub
+    Private Sub Label10_Click_1(sender As Object, e As EventArgs) Handles Label10.Click
+
+    End Sub
+    Private Sub CircularProgressBar1_Click(sender As Object, e As EventArgs) Handles CircularProgressBar1.Click
+
+    End Sub
+    Private Sub Button6_Click(sender As Object, e As EventArgs) Handles btn_back.Click
+        ' If the operator returns before pressing Start, release the Continue
+        ' reservation made by the selector.  Once production has started the
+        ' ownership is transferred to _resumeContext and must not be released here.
+        If start_flg = 0 AndAlso
+           ProductionStartFlowState.SelectedMode = ProductionStartMode.ContinueExistingBox AndAlso
+           ProductionStartFlowState.SelectedBox IsNot Nothing Then
+            ProductionStartFlowState.Reset(True)
+        ElseIf start_flg = 0 AndAlso ProductionStartFlowState.SelectedOldActiveRecovery IsNot Nothing Then
+            ProductionStartFlowState.Reset(False)
+        End If
+
+        Dim line_id As String = MainFrm.line_id.Text
+        Backoffice_model.line_status_upd(line_id)
+        Prd_detail.Enabled = True
+        Prd_detail.Timer3.Enabled = True
+        Insert_list.ListView1.View = View.Details
+        Dim line_cd As String = MainFrm.Label4.Text
+        Dim LoadSQL = Backoffice_model.get_prd_plan(line_cd)
+        Dim numberOfindex As Integer = 0
+        While LoadSQL.Read()
+            ''msgBox(LoadSQL("prd_flg").ToString())
+            If LoadSQL("prd_flg").ToString() = 1 Then
+                ''msgBox("Red")
+                Insert_list.ListView1.ForeColor = Color.Red
+                Insert_list.ListView1.Items.Add(LoadSQL("WI").ToString()).SubItems.AddRange(New String() {LoadSQL("ITEM_CD").ToString(), LoadSQL("ITEM_NAME").ToString(), LoadSQL("QTY").ToString(), LoadSQL("remain_qty").ToString()})
+                Insert_list.ListView1.Items(numberOfindex).ForeColor = Color.Red
+            Else
+                ''msgBox("Blue")
+                Insert_list.ListView1.ForeColor = Color.Blue
+                Insert_list.ListView1.Items.Add(LoadSQL("WI").ToString()).SubItems.AddRange(New String() {LoadSQL("ITEM_CD").ToString(), LoadSQL("ITEM_NAME").ToString(), LoadSQL("QTY").ToString(), LoadSQL("remain_qty").ToString()})
+                Insert_list.ListView1.Items(numberOfindex).ForeColor = Color.Blue
+            End If
+            Insert_list.ListBox1.Items.Add(LoadSQL("PS_UNIT_NUMERATOR"))
+            Insert_list.ListBox2.Items.Add(LoadSQL("CT"))
+            Insert_list.ListBox3.Items.Add(LoadSQL("seq_count"))
+            Insert_list.lbx_dlv_date.Items.Add(LoadSQL("DLV_DATE"))
+            Insert_list.lbx_location.Items.Add(LoadSQL("LOCATION_PART"))
+            Insert_list.lbx_model.Items.Add(LoadSQL("MODEL"))
+            Insert_list.lbx_prd_type.Items.Add(LoadSQL("PRODUCT_TYP"))
+            numberOfindex = numberOfindex + 1
+            'Insert_list.ListView1.ForeColor = Color.Red
+            'Insert_list.ListView1.Items.Add(LoadSQL("WI").ToString()).SubItems.AddRange(New String() {LoadSQL("ITEM_CD").ToString(), LoadSQL("ITEM_NAME").ToString(), LoadSQL("QTY").ToString(), LoadSQL("remain_qty").ToString()})
+            'line_id.Text = LoadSQL("line_id").ToString()
+        End While
+        'Insert_list.Show()
+        Prd_detail.Show()
+        Me.Close()
+    End Sub
+    Public Sub close_lot_seq()
+        Dim st_counter As String = Label32.Text
+        If st_counter = "0" Then
+            Label16.Text = TimeOfDay.ToString("H : mm")
+            Label32.Text = "1"
+            btn_back.Enabled = False
+            If lb_ch_man_flg.Text = "1" Then
+                Dim value_temps1 As Double
+                value_temps1 = Double.TryParse(Label34.Text, value_temps1)
+                Dim testt1 As Integer = Label34.Text
+                Dim newDate1 As Date = DateAdd("n", testt1, Now)
+                Label20.Text = newDate1.ToString("H : mm")
+            End If
+            Dim pd As String = MainFrm.Label6.Text
+            Dim line_cd As String = MainFrm.Label4.Text
+            Dim wi_plan As String = wi_no.Text
+            Dim item_cd As String = Label3.Text
+            Dim item_name As String = Label12.Text
+            Dim staff_no As String = Label29.Text
+            Dim seq_no As String = Label22.Text
+            Dim prd_qty As Integer = 0
+            Dim start_time As Date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Dim end_time As Date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Dim use_time As Double = 0.00
+            Dim tr_status As String = "0"
+            Dim number_qty As Integer = Label6.Text
+            Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Try
+                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    tr_status = "1"
+                    Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                    Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, use_time, number_qty, pwi_id, tr_status)
+                    ''msgBox("Ping completed")
+                Else
+                    tr_status = "0"
+                    Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                    ''msgBox("Ping incompleted")
+                End If
+            Catch ex As Exception
+                tr_status = "0"
+                Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+            End Try
+            st_time.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            st_count_ct.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            btnSetUp.Enabled = True
+            btn_ins_act.Enabled = True
+            btn_desc_act.Enabled = True
+            btnDefects.Enabled = True
+            PictureBox11.Enabled = True
+            btnInfo.Enabled = True
+            btnCloseLot.Enabled = True
+            redBox.Enabled = True
+            'Dim temppo As Double = Label34.Text
+            CircularProgressBar2.Text = 0
+            CircularProgressBar2.Value = 0
+            Dim value_temps As Double
+            value_temps = Double.TryParse(Label34.Text, value_temps)
+            Dim testt As Integer = Label34.Text
+            Dim newDate As Date = DateAdd("n", testt, Now)
+            Label20.Text = newDate.ToString("H : mm")
+            ''msgBox(Label20.Text)
+        Else
+            'Label32.Text = "0"
+        End If
+        Panel1.BackColor = Color.Green
+        Label30.Text = "NORMAL"
+        btnStart.Visible = False
+        btn_back.Visible = False
+        btnSetUp.Visible = False
+        btn_ins_act.Visible = False
+        btn_desc_act.Visible = False
+        btnDefects.Visible = False
+        PictureBox11.Visible = False
+        btnInfo.Visible = False
+        btnCloseLot.Visible = False
+        redBox.Visible = False
+        btn_stop.Visible = True
+        Prd_detail.Timer3.Enabled = False
+    End Sub
+    Private Async Sub btn_start_Click(sender As Object, e As EventArgs) Handles btn_start.Click
+        If start_flg = 1 OrElse _startSelectorShowing OrElse Not btn_start.Enabled Then Return
+        btn_start.Enabled = False
+        Try
+            Await BeginInitialProductionFlowAsync()
+        Finally
+            ' A failed initial Continue action returns to the ready screen.  It
+            ' may be started again only by a later explicit operator click.
+            If start_flg <> 1 AndAlso btn_start.Visible Then btn_start.Enabled = True
+        End Try
+    End Sub
+
+    Public Async Sub ShowPendingProductionActionWhenReady()
+        _oldRecoveryBoxFinished = False
+        Dim selectedMode = ProductionStartFlowState.SelectedMode
+        If selectedMode = ProductionStartMode.None Then Return
+        ' Detail/NEXT only opens the Working_Pro ready screen.  Keep the pending
+        ' selection until the operator explicitly presses START; btn_start_Click
+        ' is the sole first-click entry point for BeginInitialProductionFlowAsync.
+        Await Task.CompletedTask
+    End Sub
+
+    Public Async Function BeginInitialProductionFlowAsync() As Task
+        If start_flg = 1 OrElse _startSelectorShowing Then Return
+
+        ' A new sequence is always a fresh user-selection session.  A different
+        ' historical ACTIVE transfer is not a line-wide ownership claim and must
+        ' not block Start New or candidate selection here.  Same-session recovery
+        ' remains in Start_Production through the exact Current PWI/Seq /active
+        ' lookup; /active_for_line is retained only as a diagnostic endpoint.
+
+        If _incompleteTransferStartReservationUncertain AndAlso _resumeContext.IsResumeActive Then
+            Dim uncertainReason As String = String.Empty
+            Dim uncertainResult As IncompleteTransferRecoveryResult = TryResolveUncertainIncompleteTransferStart(uncertainReason)
+            If uncertainResult = IncompleteTransferRecoveryResult.Recovered Then
+                _incompleteTransferStartReservationUncertain = False
+                Await Start_Production()
+            ElseIf uncertainResult = IncompleteTransferRecoveryResult.NoActive Then
+                _incompleteTransferStartReservationUncertain = False
+                RestoreNormalBoxSequenceAfterResume()
+                LogTransferTrace("CONTEXT RESET reason=uncertain /start reconciled no active before new flow")
+                _resumeContext.Reset()
+                ProductionStartFlowState.Reset(False)
+            Else
+                MessageBox.Show("Unable to confirm Continue Box reservation. Retry connection/recovery." & vbCrLf & uncertainReason,
+                                "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            End If
+            Return
+        End If
+
+        _startSelectorShowing = True
+        Try
+            Select Case ProductionStartFlowState.SelectedMode
+                Case ProductionStartMode.ContinueExistingBox
+                    Await ContinueExistingBoxAsync()
+                Case ProductionStartMode.ReprintIncompleteTag
+                    ReprintIncompleteTag()
+                    ProductionStartFlowState.SelectedMode = ProductionStartMode.NewBox
+                Case Else
+                    ' None is treated as NewBox for backward compatibility with
+                    ' entry paths that do not originate at MainFrm.PRODUCTION.
+                    LogTransferTrace("CONTEXT RESET reason=BeginInitialProductionFlow NewBox path")
+                    _resumeContext.Reset()
+                    ClearNormalPackagingRebase()
+                    ClearNormalNewBoxPackagingBaseline()
+                    _resumeContext.Mode = ProductionStartMode.NewBox
+                    ProductionStartFlowState.SelectedMode = ProductionStartMode.NewBox
+                    Await Start_Production()
+            End Select
+        Finally
+            _startSelectorShowing = False
+        End Try
+    End Function
+
+    Private Async Function VerifyLineTransferOwnershipBeforeInitialStartAsync() As Task(Of Boolean)
+        Dim lineCd As String = Trim(MainFrm.Label4.Text)
+        Dim runtimePwi As String = ResolveRuntimePwiForLineOwnership()
+        Dim hasActive As Boolean = False
+        Dim transfer As IncompleteTransferApiRecord = Nothing
+        Dim reason As String = String.Empty
+
+        LogTransferTrace("LINE OWNERSHIP | CALL ACTIVE_FOR_LINE | line=" & lineCd)
+#If DEBUG Then
+        System.Diagnostics.Debug.WriteLine("[TRANSFER] LINE OWNERSHIP stack=" & New System.Diagnostics.StackTrace(True).ToString())
+#End If
+        If Not Backoffice_model.GetActiveIncompleteTransferForLine(lineCd, hasActive, transfer, reason) Then
+            LogTransferTrace("LINE OWNERSHIP | FAILED | Reason=" & reason)
+            MessageBox.Show("Unable to verify active Continue Box ownership for this line." & vbCrLf & reason,
+                            "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return False
+        End If
+
+        If Not hasActive Then
+            LogTransferTrace("LINE OWNERSHIP | NO ACTIVE | line=" & lineCd)
+            Return True
+        End If
+
+        If transfer Is Nothing OrElse transfer.TransferId <= 0 Then
+            LogTransferTrace("LINE OWNERSHIP | FAILED malformed active response")
+            MessageBox.Show("Unable to verify active Continue Box ownership for this line.",
+                            "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return False
+        End If
+
+        If String.IsNullOrWhiteSpace(runtimePwi) Then
+            LogTransferTrace("LINE OWNERSHIP | FAILED runtime PWI unavailable")
+            MessageBox.Show("Unable to determine the current PWI for active Continue Box ownership validation.",
+                            "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return False
+        End If
+
+        Dim samePwi As Boolean = String.Equals(Trim(transfer.CurrentPwi), runtimePwi, StringComparison.OrdinalIgnoreCase)
+        Dim sameSeq As Boolean = AreEquivalentNumericIdentity(transfer.CurrentSeq, Label22.Text)
+        LogTransferTrace("LINE OWNERSHIP | ACTIVE | TransferId=" & transfer.TransferId.ToString() &
+                         " | OwnedPwi=" & transfer.CurrentPwi & " | OwnedSeq=" & transfer.CurrentSeq &
+                         " | RuntimePwi=" & runtimePwi & " | RuntimeSeq=" & Trim(Label22.Text) &
+                         " | SamePwi=" & samePwi.ToString() & " | SameSeq=" & sameSeq.ToString())
+
+        If Not (samePwi AndAlso sameSeq) Then
+            MessageBox.Show("Line " & lineCd & " has an unfinished Continue Box transfer." & vbCrLf &
+                            "Owned PWI: " & transfer.CurrentPwi & vbCrLf &
+                            "Owned Seq: " & transfer.CurrentSeq & vbCrLf &
+                            "Complete or recover that transfer before starting another sequence.",
+                            "Durable Continue Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return False
+        End If
+
+        Dim recoveryReason As String = String.Empty
+        Dim recoveryResult As IncompleteTransferRecoveryResult = TryRecoverActiveIncompleteTransfer(recoveryReason)
+        If recoveryResult = IncompleteTransferRecoveryResult.Recovered Then
+            LogTransferTrace("LINE OWNERSHIP | SAME OWNER RECOVERED | TransferId=" & _resumeContext.BackendTransferId.ToString())
+            Await Start_Production()
+        Else
+            LogTransferTrace("LINE OWNERSHIP | SAME OWNER RECOVERY FAILED | Result=" & recoveryResult.ToString() & " | Reason=" & recoveryReason)
+            MessageBox.Show("Unable to recover the active Continue Box transfer for this line." & vbCrLf & recoveryReason,
+                            "Durable Continue Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+        End If
+        Return False
+    End Function
+
+    ' Uses the same read-only PWI lookup that the legacy Start path uses after
+    ' setup.  It runs before ownership comparison and performs no insert/update.
+    Private Function ResolveRuntimePwiForLineOwnership() As String
+        Dim currentPwi As String = Trim(pwi_id)
+        If Not String.IsNullOrWhiteSpace(currentPwi) Then Return currentPwi
+
+        Dim indRow As String = Trim(LB_IND_ROW.Text)
+        Dim lotNo As String = Trim(Label18.Text)
+        Dim seqNo As String = Trim(Label22.Text)
+        LogTransferTrace("PWI RESOLVE INPUT | Line=" & Trim(MainFrm.Label4.Text) &
+                         " | IndRow=" & indRow & " | Lot=" & lotNo & " | Seq=" & seqNo &
+                         " | ExistingPwi=" & currentPwi)
+        If String.IsNullOrWhiteSpace(indRow) OrElse String.IsNullOrWhiteSpace(lotNo) OrElse String.IsNullOrWhiteSpace(seqNo) Then
+            LogTransferTrace("PWI RESOLVE RESULT | ApiSuccess=False | RowCount=NotCalled | ReturnedPwi= | ReturnedIndRow=" & indRow &
+                             " | ReturnedLot=" & lotNo & " | ReturnedSeq=" & seqNo & " | Error=lookup key unavailable")
+            Return String.Empty
+        End If
+
+        Dim found As Boolean = False
+        Dim resolved As String = String.Empty
+        Dim rawResponse As String = String.Empty
+        Dim reason As String = String.Empty
+        Dim apiSuccess As Boolean = Backoffice_model.TryGetProductionWorkingInfoReadOnly(indRow, lotNo, seqNo, found, resolved, rawResponse, reason)
+        LogTransferTrace("PWI RESOLVE RESULT | ApiSuccess=" & apiSuccess.ToString() &
+                         " | RowCount=" & If(found, "1", "0") & " | Raw=" & rawResponse &
+                         " | ReturnedPwi=" & resolved & " | ReturnedIndRow=" & indRow &
+                         " | ReturnedLot=" & lotNo & " | ReturnedSeq=" & seqNo & " | Error=" & reason)
+        If Not apiSuccess OrElse Not found OrElse String.IsNullOrWhiteSpace(resolved) Then
+            Return String.Empty
+        End If
+
+        pwi_id = resolved
+        LogTransferTrace("LINE OWNERSHIP | RUNTIME PWI resolved | Pwi=" & resolved & " | IndRow=" & indRow & " | Lot=" & lotNo & " | Seq=" & seqNo)
+        Return resolved
+    End Function
+
+    Private Function SelectIncompleteBox(mode As ProductionStartMode) As IncompleteBoxRecord
+        If MainFrm.chk_spec_line = "2" Then
+            MessageBox.Show("This selection flow currently supports normal FA tags only.",
+                            "Incomplete Box",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information)
+            Return Nothing
+        End If
+
+        Dim snp As Integer = CInt(Val(Label27.Text))
+        If snp <= 0 Then
+            MessageBox.Show("SNP is invalid. Please reload the production plan.",
+                            "Incomplete Box",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning)
+            Return Nothing
+        End If
+
+        Using picker As New IncompleteBoxSelect(mode,
+                                                wi_no.Text,
+                                                MainFrm.Label4.Text,
+                                                Label3.Text,
+                                                Label12.Text,
+                                                lb_model.Text,
+                                                snp,
+                                                value_next_process)
+            If picker.ShowDialog(Me) = DialogResult.OK Then Return picker.SelectedBox
+        End Using
+        Return Nothing
+    End Function
+
+    Private Async Function ContinueExistingBoxAsync() As Task
+        ' Defensive guard for stale/alternate entry paths.  The main menu blocks
+        ' type 2 before the picker; never allow it to create a resume context.
+        If String.Equals(Backoffice_model.GetCurrentLineTagType(), "2", StringComparison.OrdinalIgnoreCase) Then
+            MessageBox.Show("Continue Existing Box is not supported for this tag type.",
+                            "Continue Existing Box",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information)
+            ProductionStartFlowState.Reset(False)
+            Return
+        End If
+
+        Dim selected As IncompleteBoxRecord = ProductionStartFlowState.SelectedBox
+        If selected IsNot Nothing Then
+            Dim refreshed As IncompleteBoxRecord = Nothing
+            Dim reason As String = String.Empty
+            If Not Backoffice_model.RevalidateIncompleteBox(selected.TagId,
+                                                             wi_no.Text,
+                                                             MainFrm.Label4.Text,
+                                                             Label3.Text,
+                                                             CInt(Val(Label27.Text)),
+                                                             value_next_process,
+                                                              refreshed,
+                                                               reason,
+                                                               False,
+                                                               True,
+                                                               True) Then
+                ProductionStartFlowState.Reset(False)
+                MessageBox.Show(reason,
+                                "Continue Existing Box",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning)
+                Return
+            End If
+            selected = refreshed
+        Else
+            selected = SelectIncompleteBox(ProductionStartMode.ContinueExistingBox)
+        End If
+        If selected Is Nothing Then Return
+
+        Dim freshSequenceReason As String = String.Empty
+        If Not IsOptionACurrentSequenceFresh(freshSequenceReason) Then
+            MessageBox.Show(freshSequenceReason,
+                            "Continue Existing Box",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning)
+            ProductionStartFlowState.Reset(False)
+            Return
+        End If
+
+        ' A new source must never inherit a failed replacement request from an
+        ' earlier source.  Preserve a genuine request for the currently active
+        ' source and require it to be resolved before another source is selected.
+        If HasPendingContinuePersistenceForCurrentSource() Then
+            MessageBox.Show("The previous Continue Box tag save is still unresolved. Resolve it before selecting another incomplete box.",
+                            "Continue Tag Persistence Failed",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning)
+            Return
+        End If
+        If _continueTagPersistenceFailed OrElse _pendingContinueTagPersistence IsNot Nothing Then
+            ClearPendingContinueTagPersistence()
+        End If
+
+        Dim actualAtResume As Integer = CInt(Val(Label6.Text))
+        Dim goodAtResume As Integer = CInt(Val(lb_good.Text))
+        Dim normalBoxCounterAtResume As Integer = CInt(Val(lb_box_count.Text))
+        Dim normalBatchCounterAtResume As Integer = CInt(Val(Label_bach.Text))
+        Dim normalBoxQuantityAtResume As Integer = CInt(Val(lb_qty_for_box.Text))
+        ClearNormalPackagingRebase()
+        _durablePartialCloseLotFailed = False
+        _resumeContext.BeginResume(selected, actualAtResume, goodAtResume, True, False, wi_no.Text,
+                                   normalBoxCounterAtResume, normalBatchCounterAtResume,
+                                   normalBoxQuantityAtResume)
+
+        ' Packaging state is seeded independently. Production actual and the raw
+        ' counter remain exactly where the current plan left them.
+        lb_qty_for_box.Text = selected.Quantity.ToString()
+        lb_box_count.Text = Math.Max(0, _resumeContext.CurrentBoxNo - 1).ToString()
+        If check_tag_type = "2" Then Label_bach.Text = Math.Max(0, _resumeContext.CurrentBoxNo - 1).ToString()
+        LogTransferTrace("CONTINUE SELECTED | SourceTagId=" & selected.TagId.ToString() &
+                         " | SourceWi=" & _resumeContext.SourceWiAtResume &
+                         " | SourceQty=" & selected.Quantity.ToString() &
+                         " | ContextActive=" & _resumeContext.IsResumeActive.ToString() &
+                         " | lb_qty_for_box=" & lb_qty_for_box.Text)
+
+        Dim wasStarted As Boolean = (start_flg = 1)
+        ' Start_Production may clear the shared hand-off state when /start is
+        ' definitively rejected. Keep the operator's original intent locally so
+        ' that reset cannot turn this Continue attempt into a NewBox attempt.
+        Dim continueWasSelectedForThisAttempt As Boolean = True
+        Try
+            Await Start_Production()
+        Catch ex As Exception
+            If HasDurableIncompleteTransferOwnership() OrElse _incompleteTransferStartReservationUncertain Then
+                LogTransferTrace("DURABLE START FAILURE PRESERVED | Reason=" & ex.Message)
+                MessageBox.Show("The Continue Existing Box reservation remains active. Production did not start; retry recovery after resolving the error." & vbCrLf & ex.Message,
+                                "Durable Continue Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Return
+            End If
+            RestoreNormalBoxSequenceAfterResume()
+            LogTransferTrace("CONTEXT RESET reason=Continue Start_Production exception")
+            _resumeContext.Reset()
+            lb_qty_for_box.Text = "0"
+            MessageBox.Show("Production could not start. The incomplete box remains pending." & vbCrLf & ex.Message,
+                            "Continue Existing Box",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error)
+            Return
+        End Try
+
+        LogTransferTrace("CONTEXT STATE AFTER START | IsActive=" & _resumeContext.IsResumeActive.ToString() &
+                         " | SourceWi=" & _resumeContext.SourceWiAtResume &
+                         " | BaseBoxQuantity=" & _resumeContext.BaseBoxQuantity.ToString() &
+                         " | lb_qty_for_box=" & lb_qty_for_box.Text &
+                         " | Durable=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                         " | TransferId=" & _resumeContext.BackendTransferId.ToString())
+
+        If continueWasSelectedForThisAttempt AndAlso Not _resumeContext.DurableActiveConfirmed Then
+            LogTransferTrace("CONTINUE FAILURE STOP | Durable=False; do not fall through to NewBox")
+            ProductionStartFlowState.Reset(False)
+            Return
+        End If
+
+        If Not wasStarted AndAlso start_flg <> 1 AndAlso
+           ProductionStartFlowState.SelectedMode = ProductionStartMode.ContinueExistingBox Then
+            If HasDurableIncompleteTransferOwnership() OrElse _incompleteTransferStartReservationUncertain Then
+                LogTransferTrace("DURABLE START RETURNED WITHOUT ACTIVE STATE PRESERVED")
+                MessageBox.Show("The Continue Existing Box reservation remains active. Production did not start; retry recovery before selecting another box.",
+                                "Durable Continue Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Return
+            End If
+            RestoreNormalBoxSequenceAfterResume()
+            LogTransferTrace("CONTEXT RESET reason=Continue Start_Production returned without active start")
+            _resumeContext.Reset()
+            lb_qty_for_box.Text = "0"
+            MessageBox.Show("Production did not start. The incomplete box remains pending.",
+                            "Continue Existing Box",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning)
+        Else
+            ' The source tag stays pending until the replacement complete tag
+            ' succeeds.  The selected identity now lives in resume context.
+            ProductionStartFlowState.SelectedBox = Nothing
+            ProductionStartFlowState.SelectedMode = ProductionStartMode.NewBox
+        End If
+    End Function
+
+    Private Sub ReprintIncompleteTag()
+        Dim selected As IncompleteBoxRecord = ProductionStartFlowState.SelectedBox
+        If selected IsNot Nothing Then
+            Dim refreshed As IncompleteBoxRecord = Nothing
+            Dim reason As String = String.Empty
+            If Not Backoffice_model.RevalidateIncompleteBox(selected.TagId,
+                                                             wi_no.Text,
+                                                             MainFrm.Label4.Text,
+                                                             Label3.Text,
+                                                             CInt(Val(Label27.Text)),
+                                                             value_next_process,
+                                                             refreshed,
+                                                             reason) Then
+                ProductionStartFlowState.Reset(False)
+                MessageBox.Show(reason,
+                                "Reprint Incomplete Tag",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning)
+                Return
+            End If
+            selected = refreshed
+        Else
+            selected = SelectIncompleteBox(ProductionStartMode.ReprintIncompleteTag)
+        End If
+        If selected Is Nothing Then Return
+
+        Try
+            Dim printer As New tag_print_normal()
+            If Not printer.ReprintIncompleteBox(selected) Then
+                MessageBox.Show("The printer did not complete the reprint. No production or tag status was changed.",
+                                "Reprint Incomplete Tag",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning)
+                Return
+            End If
+            If Not Backoffice_model.IncrementIncompleteTagPrintCount(selected.TagId) Then
+                MessageBox.Show("The tag was printed, but its server print count could not be updated.",
+                                "Reprint Incomplete Tag",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning)
+            Else
+                Backoffice_model.ins_log_print(MainFrm.Label4.Text, "2", selected.TagId.ToString())
+            End If
+        Catch ex As Exception
+            MessageBox.Show("Unable to reprint the selected tag." & vbCrLf & ex.Message,
+                            "Reprint Incomplete Tag",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error)
+        End Try
+    End Sub
+    Public Sub ins_loss_code(pd As String, line_cd As String, wi_plan As String, item_cd As String, seq_no As String, shift_prd As String, start_loss As String, end_loss As String, total_loss As String, loss_type As String, loss_cd_id As String, op_id As String, pwi_id As String, statusLossManualE1 As Integer)
+        Dim flg_control As String = "0"
+        If loss_cd_id = "36" Then
+            flg_control = "1"
+            op_id = "0"
+        Else
+            flg_control = "1"
+        End If
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                transfer_flg = "1"
+                Backoffice_model.ins_loss_act(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id, statusLossManualE1)
+                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id, statusLossManualE1)
+            Else
+                transfer_flg = "0"
+                Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id, statusLossManualE1)
+            End If
+        Catch ex As Exception
+            transfer_flg = "0"
+            Backoffice_model.ins_loss_act_sqlite(pd, line_cd, wi_plan, item_cd, seq_no, shift_prd, start_loss, end_loss, total_loss, loss_type, loss_cd_id, op_id, transfer_flg, flg_control, pwi_id, statusLossManualE1)
+        End Try
+    End Sub
+    Public Sub insLossClickStart_Loss_X(dateNow As String, timeNow As String)
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Dim bf = New Backoffice_model
+                ' Dim RsCheckProduction_Plan = bf.Get_Plan_All_By_Line(Backoffice_model.GET_LINE_PRODUCTION(), Label14.Text, DateTime.Now.ToString("yyyy-MM-dd"))
+                Dim RsCheckProduction_Plan = bf.Get_Plan_All_By_Line_Auto_Loss_X(Backoffice_model.GET_LINE_PRODUCTION(), Label14.Text, dateNow, timeNow, Backoffice_model.S_chk_spec_line, Label3.Text)
+                ''''Console.WriteLine(RsCheckProduction_Plan)
+                If RsCheckProduction_Plan <> "0" Then
+                    Dim loss_type As String = "0"
+                    Dim op_id As String = "0"
+                    Dim dict3 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(RsCheckProduction_Plan)
+                    Dim start_loss As String = ""
+                    Dim end_loss_codex As String = ""
+                    Dim start_loss_codex As String = ""
+                    Dim Loss_Time_codex As String = ""
+                    Dim Loss_Code As String = ""
+                    Try
+                        Dim statusLossManualE1 As Integer = 0
+                        For Each item As Object In dict3
+                            start_loss_codex = item("Start_Loss").ToString()
+                            end_loss_codex = item("End_Loss").ToString()
+                            Loss_Time_codex = item("Loss_Time").ToString()
+                            Loss_Code = item("Loss_Code").ToString()
+                            If CDbl(Val(Loss_Time_codex)) > 0 Then
+                                If MainFrm.chk_spec_line = "2" Then
+                                    Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                                    Dim Iseq = GenSEQ
+                                    Dim j As Integer = 0
+                                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                                        Iseq += 1
+                                        Dim indRow As String = itemPlanData.IND_ROW
+                                        Dim wi As String = itemPlanData.wi
+                                        Dim item_cd As String = itemPlanData.item_cd
+                                        ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j), statusLossManualE1)
+                                        j = j + 1
+                                    Next
+                                Else
+                                    ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id, statusLossManualE1)
+                                End If
+                            End If
+                        Next
+                    Catch ex As Exception
+                        'msgBox(ex.Message)
+                    End Try
+                End If
+            End If
+        Catch ex As Exception
+        End Try
+    End Sub
+    Public Sub insLossClickStart_Loss_X_adjust_loss(dateNow As String, timeNow As String, dateEnd As String, timeEnd As String)
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Dim bf = New Backoffice_model
+                ' Dim RsCheckProduction_Plan = bf.Get_Plan_All_By_Line(Backoffice_model.GET_LINE_PRODUCTION(), Label14.Text, DateTime.Now.ToString("yyyy-MM-dd"))
+                Dim RsCheckProduction_Plan = bf.Get_Plan_All_By_Line_Auto_Loss_X_adjust_loss(Backoffice_model.GET_LINE_PRODUCTION(), Label14.Text, dateNow, timeNow, Backoffice_model.S_chk_spec_line, Label3.Text, dateEnd, timeEnd)
+                ''''Console.WriteLine(RsCheckProduction_Plan)
+                If RsCheckProduction_Plan <> "0" Then
+                    Dim loss_type As String = "0"
+                    Dim op_id As String = "0"
+                    Dim dict3 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(RsCheckProduction_Plan)
+                    Dim start_loss As String = ""
+                    Dim end_loss_codex As String = ""
+                    Dim start_loss_codex As String = ""
+                    Dim Loss_Time_codex As String = ""
+                    Dim Loss_Code As String = ""
+                    Dim statusLossManualE1 As Integer = 0
+
+                    Try
+                        For Each item As Object In dict3
+                            start_loss_codex = item("Start_Loss").ToString()
+                            end_loss_codex = item("End_Loss").ToString()
+                            Loss_Time_codex = item("Loss_Time").ToString()
+                            Loss_Code = item("Loss_Code").ToString()
+                            If CDbl(Val(Loss_Time_codex)) > 0 Then
+                                If MainFrm.chk_spec_line = "2" Then
+                                    Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                                    Dim Iseq = GenSEQ
+                                    Dim j As Integer = 0
+                                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                                        Iseq += 1
+                                        Dim indRow As String = itemPlanData.IND_ROW
+                                        Dim wi As String = itemPlanData.wi
+                                        Dim item_cd As String = itemPlanData.item_cd
+                                        ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j), statusLossManualE1)
+                                        j = j + 1
+                                    Next
+                                Else
+                                    ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id, statusLossManualE1)
+                                End If
+                            End If
+                        Next
+                    Catch ex As Exception
+                        'msgBox(ex.Message)
+                    End Try
+                End If
+            End If
+        Catch ex As Exception
+        End Try
+    End Sub
+    Public Sub insLossClickStart_Loss_A(dateNow As String, timeNow As String)
+        Try
+            If checkLossA = 0 Then
+                checkLossA = 1
+                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    Dim bf = New Backoffice_model
+                    ' Dim RsCheckProduction_Plan = bf.Get_Plan_All_By_Line(Backoffice_model.GET_LINE_PRODUCTION(), Label14.Text, DateTime.Now.ToString("yyyy-MM-dd"))
+                    ' Dim Data_pwi_id As String = ""
+                    ' If MainFrm.chk_spec_line = "2" Then
+                    ' Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                    ' Dim Iseq = GenSEQ
+                    ' Dim j As Integer = 0
+                    ' For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                    ' Iseq += 1
+                    ' Data_pwi_id = Data_pwi_id & Spwi_id(j)
+                    ' If j < Confrime_work_production.ArrayDataPlan.Count - 1 Then
+                    ' Data_pwi_id = Data_pwi_id & ","
+                    'End If
+                    '    j = j + 1
+                    '    Next
+                    'Else
+                    '    Data_pwi_id = pwi_id
+                    'End If
+                    Dim RsCheckProduction_Plan = bf.Get_Plan_All_By_Line_Loss_A(Backoffice_model.GET_LINE_PRODUCTION(), Label14.Text, dateNow, timeNow, Backoffice_model.S_chk_spec_line, Label3.Text)
+                    ''''Console.WriteLine(RsCheckProduction_Plan)
+                    Dim statusLossManualE1 As Integer = 0
+                    If RsCheckProduction_Plan <> "0" Then
+                        Dim loss_type As String = "0"
+                        Dim op_id As String = "0"
+                        Dim dict3 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(RsCheckProduction_Plan)
+                        Dim start_loss As String = ""
+                        Dim end_loss_codex As String = ""
+                        Dim start_loss_codex As String = ""
+                        Dim Loss_Time_codex As String = ""
+                        Dim Loss_Code As String = ""
+                        Dim Status_Los_A As String = ""
+                        Try
+                            For Each item As Object In dict3
+                                start_loss_codex = item("Start_Loss").ToString()
+                                end_loss_codex = item("End_Loss").ToString()
+                                Loss_Time_codex = item("Loss_Time").ToString()
+                                Loss_Code = item("Loss_Code").ToString()
+                                If CDbl(Val(Loss_Time_codex)) > 0 Then
+                                    If MainFrm.chk_spec_line = "2" Then
+                                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                                        Dim Iseq = GenSEQ
+                                        Dim j As Integer = 0
+                                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                                            Iseq += 1
+                                            Dim indRow As String = itemPlanData.IND_ROW
+                                            Dim wi As String = itemPlanData.wi
+                                            Dim item_cd As String = itemPlanData.item_cd
+                                            ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j), statusLossManualE1)
+                                            j = j + 1
+                                        Next
+                                    Else
+                                        ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id, statusLossManualE1)
+                                    End If
+                                End If
+                            Next
+                        Catch ex As Exception
+                            '   'msgBox("err catch ===>" & ex.Message)
+                        End Try
+                    End If
+                End If
+            End If
+        Catch ex As Exception
+            ''msgBox("catch ====>" & ex.Message)
+        End Try
+    End Sub
+    Public Async Function insLossClickStart_Loss_E1(dateNow As String, timeNow As String, statusLossManualE1 As Integer) As Task
+        Dim RsCheckProduction_Plan = ""
+        Dim exMessage As String = ""
+        Dim hasError As Boolean = False
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                '  Dim bf = New Backoffice_model
+                '  RsCheckProduction_Plan = bf.Get_Plan_All_By_Line_Loss_E1(Backoffice_model.GET_LINE_PRODUCTION(), Label14.Text, dateNow, timeNow, Backoffice_model.S_chk_spec_line, Label3.Text)
+                Dim mdsqlite = New model_api_sqlite
+                Dim Timestart = Prd_detail.Label12.Text.Substring(3, 5) & ":00"
+                RsCheckProduction_Plan = Await model_api_sqlite.mas_Get_Plan_All_By_Line_Loss_E1(Backoffice_model.GET_LINE_PRODUCTION(), Label14.Text, dateNow, timeNow, Backoffice_model.S_chk_spec_line, Label3.Text, Timestart)
+            Else
+                Dim mdsqlite = New model_api_sqlite
+                Dim Timestart = Prd_detail.Label12.Text.Substring(3, 5) & ":00"
+                RsCheckProduction_Plan = Await model_api_sqlite.mas_Get_Plan_All_By_Line_Loss_E1(Backoffice_model.GET_LINE_PRODUCTION(), Label14.Text, dateNow, timeNow, Backoffice_model.S_chk_spec_line, Label3.Text, Timestart)
+            End If
+        Catch ex As Exception
+            exMessage = ex.Message
+            hasError = True
+        End Try
+        If hasError Then
+            Dim mdsqlite = New model_api_sqlite
+            Dim Timestart = Prd_detail.Label12.Text.Substring(3, 5) & ":00"
+            RsCheckProduction_Plan = Await model_api_sqlite.mas_Get_Plan_All_By_Line_Loss_E1(Backoffice_model.GET_LINE_PRODUCTION(), Label14.Text, dateNow, timeNow, Backoffice_model.S_chk_spec_line, Label3.Text, Timestart)
+        End If
+        If RsCheckProduction_Plan <> "0" Then
+            Dim loss_type As String = "0"
+            Dim op_id As String = "0"
+            Dim dict3 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(RsCheckProduction_Plan)
+            Dim start_loss As String = ""
+            Dim end_loss_codex As String = ""
+            Dim start_loss_codex As String = ""
+            Dim Loss_Time_codex As String = ""
+            Dim Loss_Code As String = ""
+            Try
+                For Each item As Object In dict3
+                    start_loss_codex = item("Start_Loss").ToString()
+                    end_loss_codex = item("End_Loss").ToString()
+                    Loss_Time_codex = item("Loss_Time").ToString()
+                    Loss_Code = item("Loss_Code").ToString()
+                    If CDbl(Val(Loss_Time_codex)) > 0 Then
+                        If MainFrm.chk_spec_line = "2" Then
+                            Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                            Dim Iseq = GenSEQ
+                            Dim j As Integer = 0
+                            For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                                Iseq += 1
+                                Dim indRow As String = itemPlanData.IND_ROW
+                                Dim wi As String = itemPlanData.wi
+                                Dim item_cd As String = itemPlanData.item_cd
+                                ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi, item_cd, Iseq, Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", Spwi_id(j), statusLossManualE1)
+                                j = j + 1
+                            Next
+                        Else
+                            ins_loss_code(MainFrm.Label6.Text, MainFrm.Label4.Text, wi_no.Text, Label3.Text, CDbl(Val(Label22.Text)), Label14.Text, start_loss_codex, end_loss_codex, Loss_Time_codex, loss_type, Loss_Code, "0", pwi_id, statusLossManualE1)
+                        End If
+                    End If
+                Next
+                cal_eff()
+            Catch ex As Exception
+                'msgBox("error ===>" & ex.Message)
+            End Try
+        End If
+    End Function
+    Public Function CheckPermissionScanQrProduct(line_cd As String)
+        Try
+            Dim bm = New Backoffice_model
+            Dim rs = bm.M_Get_mst_line(line_cd)
+            Dim slm_flg_qr_prod As Integer = 0
+            If rs <> "0" Then
+                Dim dict2 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(rs)
+                For Each item As Object In dict2
+                    slm_flg_qr_prod = item("slm_check_product").ToString()
+                Next
+            End If
+            Return slm_flg_qr_prod
+        Catch ex As Exception
+            'msgBox("Please Check Function CheckPermissionScanQrProduct = " & ex.Message)
+        End Try
+    End Function
+    Public Async Function Start_Production() As Task '
+        ' Preserve the existing Task-returning Start_Production contract for all
+        ' callers.  This completed await does not yield or change start ordering.
+        Await Task.CompletedTask
+        LogTransferTrace("ENTRY Start_Production | Exe=" & Application.ExecutablePath &
+                         " | Is64BitProcess=" & Environment.Is64BitProcess.ToString())
+#If DEBUG Then
+        Dim startCallerStack As New System.Diagnostics.StackTrace(True)
+        System.Diagnostics.Debug.WriteLine("[TRANSFER] ENTRY Start_Production stack=" & startCallerStack.ToString())
+#End If
+        Dim performanceTimer As Stopwatch = Stopwatch.StartNew()
+        Dim performanceStageTimer As Stopwatch = Stopwatch.StartNew()
+        Dim logStartStage As Action(Of String, String) =
+            Sub(stageName As String, resultCategory As String)
+                Backoffice_model.LogPerformance("Start_Production." & stageName & " | " & resultCategory,
+                                                 performanceStageTimer.ElapsedMilliseconds)
+                performanceStageTimer.Restart()
+            End Sub
+        logStartStage("Enter", "Started")
+        ' ACTIVE ownership is scoped to its authoritative Current PWI/Seq, not
+        ' to the complete line.  Do not block a new sequence from starting
+        ' merely because this process still holds an in-memory context for an
+        ' older sequence.  The exact /active recovery below remains the sole
+        ' automatic recovery path.
+        Dim isInitialProductionStart As Boolean = (check_in_up_seq = 0)
+        If HasPendingContinuePersistenceForCurrentSource() Then
+            ' A real replacement request belongs to the current source.  Reconcile
+            ' it before allowing a temporary Loss/Stop resume to continue.
+            If Not ResolvePendingContinueTagPersistence() Then
+                MessageBox.Show("Continue Box tag save failed. Resolve the tag persistence failure before resuming production.",
+                                "Continue Tag Persistence Failed",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning)
+                logStartStage("ContinuePersistenceGuard", "Blocked")
+                Backoffice_model.LogPerformance("Start_Production.Total", performanceTimer.ElapsedMilliseconds)
+                Return
+            End If
+        ElseIf _continueTagPersistenceFailed OrElse _pendingContinueTagPersistence IsNot Nothing Then
+            ' No request belongs to this active source.  This is stale in-memory
+            ' state, not a pending source replacement, and must not block Loss,
+            ' Setup or Stop from resuming the current source box.
+            ClearPendingContinueTagPersistence()
+        End If
+        logStartStage("ContinuePersistenceGuard", "Passed")
+
+        StatusClickStart = 1
+        If check_network_frist = 0 Then
+            Try
+                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    Prd_detail.Timer3.Enabled = False
+                End If
+            Catch ex As Exception
+            End Try
+        End If
+        logStartStage("InitialConnectivity", "Completed")
+        If RemainScanDmc = 1 Then
+            ScanQRprod.ManageQrScanFA("1", RemainScanDmc)
+            ScanQRprod.ShowDialog()
+        End If
+        logStartStage("RequiredQr", "Completed")
+        If check_in_up_seq = 0 Then
+            Dim planSetupStage As String = "NotStarted"
+            Dim sanitizePlanSetupDiagnostic As Func(Of String, String) =
+                Function(value As String) As String
+                    Dim safeValue As String = If(value, String.Empty).Replace(vbCr, " ").Replace(vbLf, " ")
+                    Return System.Text.RegularExpressions.Regex.Replace(safeValue,
+                                                                         "(?i)(password|pwd)\s*=\s*[^;\s]+",
+                                                                         "$1=***")
+                End Function
+            Dim logPlanSetup As Action(Of String, String) =
+                Sub(stageName As String, outcome As String)
+                    Backoffice_model.LogPerformance("Start_Production.PlanSetup." & stageName &
+                                                     " | " & outcome &
+                                                     " | CurrentWi=" & sanitizePlanSetupDiagnostic(wi_no.Text) &
+                                                     " | Part=" & sanitizePlanSetupDiagnostic(Label3.Text) &
+                                                     " | IndRow=" & sanitizePlanSetupDiagnostic(LB_IND_ROW.Text) &
+                                                     " | Pwi=" & sanitizePlanSetupDiagnostic(pwi_id) &
+                                                     " | Seq=" & sanitizePlanSetupDiagnostic(Label22.Text) &
+                                                     " | Lot=" & sanitizePlanSetupDiagnostic(Label18.Text) &
+                                                     " | Shift=" & sanitizePlanSetupDiagnostic(Label14.Text), 0)
+                End Sub
+            Dim resumeSourceTagId As String = String.Empty
+            Dim resumeSourceWi As String = String.Empty
+            Dim resumeSourceBoxNo As String = String.Empty
+            If _resumeContext.IsResumeActive AndAlso _resumeContext.SelectedBox IsNot Nothing Then
+                resumeSourceTagId = _resumeContext.SelectedBox.TagId.ToString()
+                resumeSourceWi = _resumeContext.SelectedBox.Wi
+                resumeSourceBoxNo = _resumeContext.SourceBoxNo.ToString()
+            End If
+            Backoffice_model.LogPerformance("Start_Production.PlanSetup.Context" &
+                                             " | SourceTagId=" & sanitizePlanSetupDiagnostic(resumeSourceTagId) &
+                                             " | SourceWi=" & sanitizePlanSetupDiagnostic(resumeSourceWi) &
+                                             " | SourceBoxNo=" & sanitizePlanSetupDiagnostic(resumeSourceBoxNo) &
+                                             " | CurrentWi=" & sanitizePlanSetupDiagnostic(wi_no.Text) &
+                                             " | CurrentPart=" & sanitizePlanSetupDiagnostic(Label3.Text) &
+                                             " | CurrentPwi=" & sanitizePlanSetupDiagnostic(pwi_id) &
+                                             " | CurrentSeq=" & sanitizePlanSetupDiagnostic(Label22.Text) &
+                                             " | IndRow=" & sanitizePlanSetupDiagnostic(LB_IND_ROW.Text) &
+                                             " | Lot=" & sanitizePlanSetupDiagnostic(Label18.Text) &
+                                             " | Shift=" & sanitizePlanSetupDiagnostic(Label14.Text), 0)
+            Try
+                planSetupStage = "Ping"
+                logPlanSetup(planSetupStage, "Started")
+                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    logPlanSetup(planSetupStage, "Completed")
+                    slm_flg_qr_prod = CheckPermissionScanQrProduct(MainFrm.Label4.Text)
+                    Dim date_st1 As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
+                    Dim date_end1 As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
+                    ' 'msgBox("Backoffice_model.gobal_DateTimeComputerDown===:>" & Backoffice_model.gobal_DateTimeComputerDown)
+                    If Backoffice_model.gobal_DateTimeComputerDown = "" Then
+                        Backoffice_model.date_time_click_start = DateTime.Now.ToString("yyyy-MM-dd HH:mm") & ":00"
+                    Else
+                        Dim dateTimeconvert As DateTime = Backoffice_model.gobal_DateTimeComputerDown.ToString
+                        Backoffice_model.date_time_click_start = dateTimeconvert.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ' มาจาก คอมดับ 
+                    End If
+                    ''msgBox("asdasd=================>" & Backoffice_model.date_time_click_start)
+                    planSetupStage = "BreakTimeCalculation"
+                    logPlanSetup(planSetupStage, "Started")
+                    Dim rsTime As Integer = calTimeBreakTime(Backoffice_model.date_time_click_start, lbNextTime.Text)
+                    logPlanSetup(planSetupStage, "Completed")
+                    '  TimerCountBT.Interval = rsTime * 1000
+                    '  If rsTime <> 0 Then
+                    '  TimerCountBT.Enabled = True
+                    '  TimerCountBT.Start()
+                    'End If
+                    Dim rsInsertData As String = ""
+                    Dim GET_SEQ
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim indRow As String = itemPlanData.IND_ROW
+                            Dim pwi_shift As String = itemPlanData.IND_ROW
+                            planSetupStage = "INSERT_production_working_info"
+                            logPlanSetup(planSetupStage, "Started")
+                            rsInsertData = Backoffice_model.INSERT_production_working_info(indRow, Label18.Text, Iseq, Label14.Text)
+                            logPlanSetup(planSetupStage, "Completed")
+                            '  rsInsertDataSqlite = model_api_sqlite.mas_INSERT_production_working_info(indRow, Label18.Text, Iseq, Label14.Text, pwi_id)
+                            planSetupStage = "GET_SEQ_PLAN_current"
+                            logPlanSetup(planSetupStage, "Started")
+                            GET_SEQ = Backoffice_model.GET_SEQ_PLAN_current(Prd_detail.lb_wi.Text, Backoffice_model.GET_LINE_PRODUCTION(), date_st1, date_end1)
+                            logPlanSetup(planSetupStage, "Completed")
+                        Next
+                    Else
+                        planSetupStage = "INSERT_production_working_info"
+                        logPlanSetup(planSetupStage, "Started")
+                        rsInsertData = Backoffice_model.INSERT_production_working_info(LB_IND_ROW.Text, Label18.Text, Label22.Text, Label14.Text)
+                        logPlanSetup(planSetupStage, "Completed")
+                        ' rsInsertDataSqlite = model_api_sqlite.mas_INSERT_production_working_info(LB_IND_ROW.Text, Label18.Text, Label22.Text, Label14.Text, pwi_id)
+                        planSetupStage = "GET_SEQ_PLAN_current"
+                        logPlanSetup(planSetupStage, "Started")
+                        GET_SEQ = Backoffice_model.GET_SEQ_PLAN_current(Prd_detail.lb_wi.Text, Backoffice_model.GET_LINE_PRODUCTION(), date_st1, date_end1)
+                        logPlanSetup(planSetupStage, "Completed")
+                    End If
+                    Try
+                        If GET_SEQ.Read() Then
+                            Dim C_seq_no As Integer = CDbl(Val(GET_SEQ("seq_no")))
+                            If C_seq_no > 0 Then
+                                Dim seq_no_naja = GET_SEQ("seq_no")
+                                If MainFrm.chk_spec_line = "2" Then
+                                    planSetupStage = "Update_seqplan"
+                                    logPlanSetup(planSetupStage, "Started")
+                                    Dim update_data = Backoffice_model.Update_seqplan(Prd_detail.lb_wi.Text, Backoffice_model.GET_LINE_PRODUCTION(), date_st1, date_end1, CDbl(Val(Prd_detail.lb_seq.Text)) + CDbl(Val(MainFrm.ArrayDataPlan.ToArray().Length)))
+                                    logPlanSetup(planSetupStage, "Completed")
+                                Else
+                                    planSetupStage = "Update_seqplan"
+                                    logPlanSetup(planSetupStage, "Started")
+                                    Dim update_data = Backoffice_model.Update_seqplan(Prd_detail.lb_wi.Text, Backoffice_model.GET_LINE_PRODUCTION(), date_st1, date_end1, CDbl(Val(Prd_detail.lb_seq.Text)) + CDbl(Val(MainFrm.ArrayDataPlan.ToArray().Length)))
+                                    logPlanSetup(planSetupStage, "Completed")
+                                End If
+                            Else
+                                planSetupStage = "INSERT_tmp_planseq"
+                                logPlanSetup(planSetupStage, "Started")
+                                Dim insert_data = Backoffice_model.INSERT_tmp_planseq(Prd_detail.lb_wi.Text, Backoffice_model.GET_LINE_PRODUCTION(), date_st1, date_end1, Label22.Text)
+                                logPlanSetup(planSetupStage, "Completed")
+                                Dim seq_no_naja = 0
+                            End If
+                        End If
+                    Catch ex As Exception
+                        planSetupStage = "INSERT_tmp_planseq_AfterGetSeqFailure"
+                        logPlanSetup(planSetupStage, "Started")
+                        Dim insert_data = Backoffice_model.INSERT_tmp_planseq(Prd_detail.lb_wi.Text, Backoffice_model.GET_LINE_PRODUCTION(), date_st1, date_end1, Label22.Text)
+                        logPlanSetup(planSetupStage, "Completed")
+                        Dim seq_no_naja = 0
+                    End Try
+                    GET_SEQ.close()
+                    Dim temp_co_emp As Integer = List_Emp.ListView1.Items.Count
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Spwi_id = New List(Of String)
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim indRow As String = itemPlanData.IND_ROW
+                            Dim pwi_shift As String = itemPlanData.IND_ROW
+                            Dim wi As String = itemPlanData.wi
+                            planSetupStage = "GET_DATA_PRODUCTION_WORKING_INFO"
+                            logPlanSetup(planSetupStage, "Started")
+                            pwi_id = Backoffice_model.GET_DATA_PRODUCTION_WORKING_INFO(indRow, Label18.Text, Iseq)
+                            logPlanSetup(planSetupStage, "Completed")
+                            planSetupStage = "mas_INSERT_production_working_info"
+                            logPlanSetup(planSetupStage, "Started")
+                            rsInsertDataSqlite = model_api_sqlite.mas_INSERT_production_working_info(indRow, Label18.Text, Iseq, Label14.Text, pwi_id)
+                            logPlanSetup(planSetupStage, "Completed")
+                            Spwi_id.Add(pwi_id)
+                            ' ArrayDataSpecial.Add(New GSpwi_id With {.Spwi_id = pwi_id})
+                            For i = 0 To temp_co_emp - 1
+                                emp_cd = List_Emp.ListView1.Items(i).Text
+                                planSetupStage = "Insert_production_emp_detail_realtime"
+                                logPlanSetup(planSetupStage, "Started")
+                                Backoffice_model.Insert_production_emp_detail_realtime(wi, emp_cd, Iseq, pwi_id)
+                                logPlanSetup(planSetupStage, "Completed")
+                            Next
+                        Next
+                    Else
+                        planSetupStage = "GET_DATA_PRODUCTION_WORKING_INFO"
+                        logPlanSetup(planSetupStage, "Started")
+                        pwi_id = Backoffice_model.GET_DATA_PRODUCTION_WORKING_INFO(LB_IND_ROW.Text, Label18.Text, Label22.Text)
+                        logPlanSetup(planSetupStage, "Completed")
+                        planSetupStage = "mas_INSERT_production_working_info"
+                        logPlanSetup(planSetupStage, "Started")
+                        rsInsertDataSqlite = model_api_sqlite.mas_INSERT_production_working_info(LB_IND_ROW.Text, Label18.Text, Label22.Text, Label14.Text, pwi_id)
+                        logPlanSetup(planSetupStage, "Completed")
+                        For i = 0 To temp_co_emp - 1
+                            emp_cd = List_Emp.ListView1.Items(i).Text
+                            planSetupStage = "Insert_production_emp_detail_realtime"
+                            logPlanSetup(planSetupStage, "Started")
+                            Backoffice_model.Insert_production_emp_detail_realtime(wi_no.Text, emp_cd, Label22.Text, pwi_id)
+                            logPlanSetup(planSetupStage, "Completed")
+                            ''msgBox(List_Emp.ListView1.Items(i).Text)
+                        Next
+                    End If
+                    Dim OEE = New OEE_NODE
+                    Gobal_NEXT_PROCESS = Backoffice_model.F_NEXT_PROCESS(Label3.Text)
+                    'Dim ObjGetmodel = OEE.OEE_getDataGetWorkingTimeModel(Prd_detail.Label12.Text.Substring(3, 5), Label24.Text, Label3.Text)
+                    'gobal_stTimeModel = ObjGetmodel("rs").ToString
+                    check_in_up_seq += 1
+                    ' Await the completion of setting DateTimeStartofShift.Text
+                Else
+                    load_show.Show()
+                    logStartStage("PlanAndWorkingSetup", "Offline")
+                    GoTo outNet
+                End If
+            Catch ex As Exception
+                Dim diagnosticException As Exception = ex
+                Dim diagnosticDepth As Integer = 0
+                Do While diagnosticException IsNot Nothing
+                    Backoffice_model.LogPerformance("Start_Production.PlanSetup.Failed" &
+                                                     " | Stage=" & sanitizePlanSetupDiagnostic(planSetupStage) &
+                                                     " | Depth=" & diagnosticDepth.ToString() &
+                                                     " | ExceptionType=" & sanitizePlanSetupDiagnostic(diagnosticException.GetType().FullName) &
+                                                     " | ExceptionMessage=" & sanitizePlanSetupDiagnostic(diagnosticException.Message) &
+                                                     " | StackTrace=" & sanitizePlanSetupDiagnostic(diagnosticException.StackTrace), 0)
+                    diagnosticException = diagnosticException.InnerException
+                    diagnosticDepth += 1
+                Loop
+                load_show.Show()
+                logStartStage("PlanAndWorkingSetup", "Failed")
+                GoTo outNet
+            End Try
+            Try
+                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    insLossClickStart_Loss_A(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture))
+                End If
+            Catch ex As Exception
+
+            End Try
+        End If
+        logStartStage("PlanAndWorkingSetup", "Completed")
+        ' The PWI/sequence above are now the final production identity.  A
+        ' durable in-memory context can be reused only when that identity still
+        ' matches.  Every other path checks backend ACTIVE before it is allowed
+        ' to create a new Continue transfer.
+        Dim runtimeWi As String = Trim(wi_no.Text)
+        Dim runtimePwi As String = Trim(pwi_id)
+        Dim runtimeSeq As String = Trim(Label22.Text)
+        Dim runtimeSnp As Integer = CInt(Val(Label27.Text))
+        Dim hasValidDurableResume As Boolean = HasValidDurableResumeForRuntime(runtimeWi, runtimePwi, runtimeSeq)
+        Dim hadMismatchedDurableResume As Boolean = _resumeContext.IsResumeActive AndAlso _resumeContext.DurableActiveConfirmed AndAlso Not hasValidDurableResume
+        LogTransferTrace("RUNTIME IDENTITY | Wi=" & runtimeWi & " | Pwi=" & runtimePwi & " | Seq=" & runtimeSeq & " | Snp=" & runtimeSnp.ToString())
+        LogTransferTrace("GET DECISION INPUT | ContextIsNothing=" & (_resumeContext Is Nothing).ToString() &
+                         " | IsActive=" & _resumeContext.IsResumeActive.ToString() &
+                         " | Durable=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                         " | TransferId=" & _resumeContext.BackendTransferId.ToString() &
+                         " | ContextPwi=" & _resumeContext.CurrentPwiAtResume & " | ContextSeq=" & _resumeContext.CurrentSeqAtResume &
+                         " | RuntimePwi=" & runtimePwi & " | RuntimeSeq=" & runtimeSeq &
+                         " | ValidDurable=" & hasValidDurableResume.ToString())
+        LogIncompleteTransferDecision("Runtime Wi=" & runtimeWi & " Pwi=" & runtimePwi & " Seq=" & runtimeSeq & " Snp=" & runtimeSnp.ToString() &
+                                      " Resume=" & _resumeContext.IsResumeActive.ToString() & " Durable=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                                      " TransferId=" & _resumeContext.BackendTransferId.ToString())
+
+        ' A normal Stop/Loss resume with no Continue context keeps the legacy
+        ' path.  Initial starts and every not-yet-durable Continue context must
+        ' resolve ACTIVE first.
+        Dim recoveryResult As IncompleteTransferRecoveryResult = IncompleteTransferRecoveryResult.NoActive
+        Dim willCallActive As Boolean = Not hasValidDurableResume AndAlso (isInitialProductionStart OrElse _resumeContext.IsResumeActive)
+        LogTransferTrace("GET DECISION | InitialStart=" & isInitialProductionStart.ToString() &
+                         " | ResumeActive=" & _resumeContext.IsResumeActive.ToString() &
+                         " | willCallActive=" & willCallActive.ToString())
+        If willCallActive Then
+            Dim recoveryReason As String = String.Empty
+            LogTransferTrace("CALL ACTIVE | currentPwi=" & runtimePwi & " | currentSeq=" & runtimeSeq)
+            recoveryResult = TryRecoverActiveIncompleteTransfer(recoveryReason, isUncertainStartReconciliation:=False)
+            LogTransferTrace("ACTIVE RESULT | Result=" & recoveryResult.ToString() & " | Reason=" & recoveryReason)
+            If recoveryResult = IncompleteTransferRecoveryResult.BlockedUnresolvedOldActive Then
+                MessageBox.Show(recoveryReason, "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                logStartStage("IncompleteTransferRecovery", "Blocked")
+                Return
+            ElseIf recoveryResult = IncompleteTransferRecoveryResult.Failed Then
+                MessageBox.Show("Unable to verify incomplete-box recovery with the server. Production was not started. Please check the connection and retry." & vbCrLf & recoveryReason,
+                                "Incomplete Box Recovery", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                logStartStage("IncompleteTransferRecovery", "Blocked")
+                Return
+            End If
+            LogIncompleteTransferDecision("GET active Result=" & recoveryResult.ToString() &
+                                          " TransferId=" & If(recoveryResult = IncompleteTransferRecoveryResult.Recovered, _resumeContext.BackendTransferId.ToString(), "0"))
+            If hadMismatchedDurableResume AndAlso recoveryResult = IncompleteTransferRecoveryResult.NoActive Then
+                ' This is a new sequence.  The older server ACTIVE remains
+                ' untouched, but it must not be inherited by this session.
+                LogTransferTrace("CONTEXT RESET reason=older PWI/Seq has no exact ACTIVE recovery for current session")
+                RestoreNormalBoxSequenceAfterResume()
+                _resumeContext.Reset()
+                ProductionStartFlowState.Reset(False)
+            End If
+        Else
+            LogIncompleteTransferDecision("GET active skipped: valid durable in-memory context reused.")
+            If hasValidDurableResume Then
+                LogCrashRecovery("CURRENT SESSION REUSED | TransferId=" & _resumeContext.BackendTransferId.ToString() &
+                                 " | Pwi=" & _resumeContext.CurrentPwiAtResume &
+                                 " | Seq=" & _resumeContext.CurrentSeqAtResume)
+            End If
+        End If
+        logStartStage("IncompleteTransferRecovery", "Completed")
+        ' The Continue source remains pending until later phases, but its durable
+        ' ACTIVE ownership must exist before this Start path enables production.
+        If IsResumeContextForCurrentWi() AndAlso Not _resumeContext.DurableActiveConfirmed Then
+            If _resumeContext.BackendTransferId > 0 OrElse ProductionStartFlowState.SelectedMode <> ProductionStartMode.ContinueExistingBox OrElse
+               String.IsNullOrWhiteSpace(runtimeWi) OrElse String.IsNullOrWhiteSpace(runtimePwi) OrElse String.IsNullOrWhiteSpace(runtimeSeq) OrElse
+               runtimeSnp <= 1 OrElse runtimeSnp = 999999 Then
+                RestoreNormalBoxSequenceAfterResume()
+                LogTransferTrace("CONTEXT RESET reason=Invalid NEW durable-transfer identity")
+                _resumeContext.Reset()
+                ProductionStartFlowState.Reset(False)
+                lb_qty_for_box.Text = "0"
+                MessageBox.Show("Continue Existing Box does not have a valid durable transfer identity. Production was not started.",
+                                "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                logStartStage("IncompleteTransferStart", "Blocked")
+                Return
+            End If
+
+            ' Final NEW-claim validation: only a pending source may reach POST.
+            ' ACTIVE recovery uses TryRecoverActiveIncompleteTransfer instead and
+            ' intentionally does not apply this new-claim status rule to itself.
+            Dim revalidatedNewSource As IncompleteBoxRecord = Nothing
+            Dim newSourceReason As String = String.Empty
+            Dim sourceReadyForNewClaim As Boolean = Backoffice_model.RevalidateIncompleteBox(
+                _resumeContext.SelectedBox.TagId, runtimeWi, MainFrm.Label4.Text, Label3.Text, runtimeSnp,
+                value_next_process, revalidatedNewSource, newSourceReason,
+                includeLegacyPendingStatus:=False, allowCrossWi:=True, excludeActiveSourceOwnership:=True)
+            LogTransferTrace("SOURCE REVALIDATION | TagId=" & _resumeContext.SelectedBox.TagId.ToString() &
+                             " | Flag=" & If(revalidatedNewSource Is Nothing, "", revalidatedNewSource.FlgControl) &
+                             " | Result=" & sourceReadyForNewClaim.ToString() & " | Reason=" & newSourceReason)
+            If Not sourceReadyForNewClaim Then
+                LogTransferTrace("willCallStart=False reason=Source is no longer eligible for a NEW claim")
+                RestoreNormalBoxSequenceAfterResume()
+                LogTransferTrace("CONTEXT RESET reason=NEW source revalidation failed before POST /start")
+                _resumeContext.Reset()
+                ProductionStartFlowState.Reset(False)
+                lb_qty_for_box.Text = "0"
+                Dim staleSourceMessage As String = If(newSourceReason.IndexOf("active transfer", StringComparison.OrdinalIgnoreCase) >= 0,
+                                                       newSourceReason,
+                                                       "The selected incomplete box is no longer pending. Please select another box.")
+                MessageBox.Show(staleSourceMessage, "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                logStartStage("IncompleteTransferStart", "Blocked")
+                Return
+            End If
+            _resumeContext.SelectedBox = revalidatedNewSource
+            Dim transfer As IncompleteTransferApiRecord = Nothing
+            Dim transferReason As String = String.Empty
+            Dim willCallStart As Boolean = recoveryResult <> IncompleteTransferRecoveryResult.Recovered AndAlso
+                                            Not _resumeContext.DurableActiveConfirmed AndAlso _resumeContext.BackendTransferId <= 0
+            Dim startCreateReason As String = If(willCallStart,
+                                                  "Fresh Continue source; exact /active returned NoActive.",
+                                                  "Recovered durable transfer or durable identity is already present.")
+            LogTransferTrace("START CREATE DECISION | Resume=" & _resumeContext.IsResumeActive.ToString() &
+                             " | Durable=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                             " | TransferId=" & _resumeContext.BackendTransferId.ToString() &
+                             " | InitialStart=" & isInitialProductionStart.ToString() &
+                             " | SourceTagId=" & If(_resumeContext.SelectedBox Is Nothing, "0", _resumeContext.SelectedBox.TagId.ToString()) &
+                             " | CurrentPwi=" & runtimePwi & " | CurrentSeq=" & runtimeSeq &
+                             " | WillPostStart=" & willCallStart.ToString() & " | Reason=" & startCreateReason)
+            LogTransferTrace("START DECISION | continueSelectedThisSession=" &
+                             (ProductionStartFlowState.SelectedMode = ProductionStartMode.ContinueExistingBox).ToString() &
+                             " | recoveryResult=" & recoveryResult.ToString() &
+                             " | recoveredActive=" & (recoveryResult = IncompleteTransferRecoveryResult.Recovered).ToString() &
+                             " | ContextIsNothing=" & (_resumeContext Is Nothing).ToString() &
+                             " | IsActive=" & _resumeContext.IsResumeActive.ToString() &
+                             " | Durable=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                             " | TransferId=" & _resumeContext.BackendTransferId.ToString() &
+                             " | SourceTagId=" & If(_resumeContext.SelectedBox Is Nothing, "0", _resumeContext.SelectedBox.TagId.ToString()) &
+                             " | RuntimeWi=" & runtimeWi & " | RuntimePwi=" & runtimePwi & " | RuntimeSeq=" & runtimeSeq &
+                             " | RuntimeSnp=" & runtimeSnp.ToString() & " | willCallStart=" & willCallStart.ToString())
+            LogIncompleteTransferDecision("POST start guard Recovered=" & (recoveryResult = IncompleteTransferRecoveryResult.Recovered).ToString() &
+                                          " Durable=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                                          " TransferId=" & _resumeContext.BackendTransferId.ToString() &
+                                          " WillCallStart=" & willCallStart.ToString())
+            If Not willCallStart Then
+                logStartStage("IncompleteTransferStart", "Skipped")
+                Return
+            End If
+            LogTransferTrace("POST START REQUEST | sourceTagId=" & _resumeContext.SelectedBox.TagId.ToString() &
+                             " | currentWi=" & runtimeWi & " | currentPwi=" & runtimePwi &
+                             " | currentSeq=" & runtimeSeq & " | currentSnp=" & runtimeSnp.ToString())
+            LogTransferTrace("CALL START | sourceTagId=" & If(_resumeContext.SelectedBox Is Nothing, "0", _resumeContext.SelectedBox.TagId.ToString()) &
+                             " | currentWi=" & runtimeWi & " | currentPwi=" & runtimePwi & " | currentSeq=" & runtimeSeq & " | currentSnp=" & runtimeSnp.ToString())
+            Dim definitelyNotReserved As Boolean = False
+            Dim startApiSucceeded As Boolean = Not String.IsNullOrWhiteSpace(Trim(pwi_id)) AndAlso
+                                               Backoffice_model.StartIncompleteTransfer(_resumeContext.SelectedBox.TagId, wi_no.Text, pwi_id, Label22.Text,
+                                                                                       CInt(Val(Label27.Text)), _resumeContext.ProductionGoodAtResume,
+                                                                                       transfer, transferReason, definitelyNotReserved)
+            LogTransferTrace("POST START RESULT | Success=" & startApiSucceeded.ToString() &
+                             " | TransferId=" & If(transfer Is Nothing, "0", transfer.TransferId.ToString()) &
+                             " | Durable=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                             " | DefinitelyNotReserved=" & definitelyNotReserved.ToString() & " | Reason=" & transferReason)
+            If Not startApiSucceeded Then
+                LogTransferTrace("START HTTP/RAW RESULT | Success=False | DefinitelyNotReserved=" & definitelyNotReserved.ToString() & " | Reason=" & transferReason)
+                If definitelyNotReserved Then
+                    RestoreNormalBoxSequenceAfterResume()
+                    LogTransferTrace("CONTEXT RESET reason=POST /start definitive 409 rejection")
+                    _resumeContext.Reset()
+                    ProductionStartFlowState.Reset(False)
+                    lb_qty_for_box.Text = "0"
+                    MessageBox.Show("This incomplete source is not available for Continue Existing Box." & vbCrLf & transferReason,
+                                    "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    logStartStage("IncompleteTransferStart", "Rejected")
+                    Return
+                End If
+
+                Dim reconcileReason As String = String.Empty
+                Dim reconcileResult As IncompleteTransferRecoveryResult = TryResolveUncertainIncompleteTransferStart(reconcileReason)
+                If reconcileResult = IncompleteTransferRecoveryResult.Recovered Then
+                    _incompleteTransferStartReservationUncertain = False
+                    LogTransferTrace("START UNCERTAIN RECONCILED | TransferId=" & _resumeContext.BackendTransferId.ToString())
+                ElseIf reconcileResult = IncompleteTransferRecoveryResult.NoActive Then
+                    _incompleteTransferStartReservationUncertain = False
+                    RestoreNormalBoxSequenceAfterResume()
+                    LogTransferTrace("CONTEXT RESET reason=POST /start ambiguous, GET /active authoritatively no active")
+                    _resumeContext.Reset()
+                    ProductionStartFlowState.Reset(False)
+                    lb_qty_for_box.Text = "0"
+                    MessageBox.Show("Continue Existing Box reservation was not created. Please select the box again." & vbCrLf & transferReason,
+                                    "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    logStartStage("IncompleteTransferStart", "NoActive")
+                    Return
+                Else
+                    _incompleteTransferStartReservationUncertain = True
+                    LogTransferTrace("START RESERVATION UNCERTAIN | GET /active failed | Reason=" & reconcileReason)
+                    MessageBox.Show("Unable to confirm Continue Box reservation. Retry connection/recovery." & vbCrLf & reconcileReason,
+                                    "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    logStartStage("IncompleteTransferStart", "Uncertain")
+                    Return
+                End If
+            Else
+                LogTransferTrace("START HTTP SUCCESS | TransferId=" & If(transfer Is Nothing, "0", transfer.TransferId.ToString()))
+                LogTransferTrace("START PARSED | TransferId=" & If(transfer Is Nothing, "0", transfer.TransferId.ToString()) &
+                                 " | SourceTagId=" & If(transfer Is Nothing, "0", transfer.SourceTagId.ToString()) &
+                                 " | CurrentPwi=" & If(transfer Is Nothing, "", transfer.CurrentPwi) &
+                                 " | CurrentSeq=" & If(transfer Is Nothing, "", transfer.CurrentSeq))
+                LogTransferTrace("START alreadyActive | Value=" & If(transfer Is Nothing, "False", transfer.AlreadyActive.ToString()))
+                If transfer Is Nothing OrElse transfer.SourceTagId <> _resumeContext.SelectedBox.TagId OrElse
+                   Not String.Equals(Trim(transfer.CurrentWi), Trim(wi_no.Text), StringComparison.OrdinalIgnoreCase) OrElse
+                   Not AreEquivalentNumericIdentity(transfer.CurrentPwi, pwi_id) OrElse
+                   Not AreEquivalentNumericIdentity(transfer.CurrentSeq, Label22.Text) Then
+                    Dim reconcileReason As String = String.Empty
+                    Dim reconcileResult As IncompleteTransferRecoveryResult = TryResolveUncertainIncompleteTransferStart(reconcileReason)
+                    If reconcileResult = IncompleteTransferRecoveryResult.Recovered Then
+                        _incompleteTransferStartReservationUncertain = False
+                        LogTransferTrace("START INVALID RESPONSE RECONCILED | TransferId=" & _resumeContext.BackendTransferId.ToString())
+                    ElseIf reconcileResult = IncompleteTransferRecoveryResult.NoActive Then
+                        _incompleteTransferStartReservationUncertain = False
+                        RestoreNormalBoxSequenceAfterResume()
+                        LogTransferTrace("CONTEXT RESET reason=POST /start invalid response, GET /active authoritatively no active")
+                        _resumeContext.Reset()
+                        ProductionStartFlowState.Reset(False)
+                        lb_qty_for_box.Text = "0"
+                        MessageBox.Show("Continue Existing Box reservation was not created. Please select the box again.", "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                        logStartStage("IncompleteTransferStart", "NoActive")
+                        Return
+                    Else
+                        _incompleteTransferStartReservationUncertain = True
+                        LogTransferTrace("START RESERVATION UNCERTAIN | invalid POST response; GET /active failed | Reason=" & reconcileReason)
+                        MessageBox.Show("Unable to confirm Continue Box reservation. Retry connection/recovery." & vbCrLf & reconcileReason,
+                                        "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                        logStartStage("IncompleteTransferStart", "Uncertain")
+                        Return
+                    End If
+                Else
+                    _incompleteTransferStartReservationUncertain = False
+                    _resumeContext.BackendTransferId = transfer.TransferId
+                    _resumeContext.CurrentPwiAtResume = transfer.CurrentPwi
+                    _resumeContext.CurrentSeqAtResume = transfer.CurrentSeq
+                    _resumeContext.DurableActiveConfirmed = True
+                    LogTransferTrace("POST START RESULT | Success=True | TransferId=" & transfer.TransferId.ToString() &
+                                     " | Durable=" & _resumeContext.DurableActiveConfirmed.ToString())
+                End If
+            End If
+        End If
+        ' A user-selected Continue source may enter production only after the
+        ' exact ACTIVE was recovered or POST /start established durable ownership.
+        ' Never fall through into legacy normal production/tag handling here.
+        If _resumeContext.IsResumeActive AndAlso Not _resumeContext.DurableActiveConfirmed Then
+            LogTransferTrace("CONTINUE DURABILITY BLOCK | Resume=True | Durable=False | TransferId=" & _resumeContext.BackendTransferId.ToString())
+            MessageBox.Show("Continue Existing Box was selected, but its server reservation was not established. Production was not started.",
+                            "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            logStartStage("IncompleteTransferStart", "BlockedNoDurableTransfer")
+            Return
+        End If
+        logStartStage("IncompleteTransferStart", "Completed")
+        ' Capture a packaging-only baseline after the existing PWI lookup.
+        ' Continue keeps its own source-box snapshot and never enters here.
+        If Not IsResumeContextForCurrentWi() AndAlso Not String.IsNullOrWhiteSpace(Trim(pwi_id)) Then
+            EnsureNormalNewBoxPackagingBaseline()
+        End If
+        If Not SeedOldActiveRecoveryPackagingForCurrentNewSequence() Then Return
+        logStartStage("NormalPackagingBaseline", "Completed")
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                insLossClickStart_Loss_X(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture))
+                Dim BreakTime = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Label14.Text) ' for set data 
+                Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, wi_no.Text, Label22.Text)
+                lbNextTime.Text = BreakTime
+                map_OP = Backoffice_model.GetDeviceCounterByop(MainFrm.Label4.Text)
+                WriteDebugDiagnostic("Device-counter mapping loaded")
+
+            End If
+        Catch ex As Exception
+
+        End Try
+        logStartStage("LossStartAndDeviceRead", "Completed")
+        Main()
+        Dim line_id As String = MainFrm.line_id.Text
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Backoffice_model.line_status_upd(line_id)
+                Backoffice_model.line_status_upd_sqlite(line_id)
+            Else
+                Backoffice_model.line_status_upd_sqlite(line_id)
+            End If
+        Catch ex As Exception
+            Backoffice_model.line_status_upd_sqlite(line_id)
+        End Try
+        logStartStage("UiMainAndLineStatusUpdate", "Completed")
+        Dim date_st As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
+        Dim date_end As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
+        If MainFrm.chk_spec_line = "2" Then
+            Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+            Dim Iseq = GenSEQ
+            Dim j As Integer = 0
+            For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                Iseq += 1
+                Dim wi As String = itemPlanData.wi
+                Try
+                    If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                        Backoffice_model.line_status_ins(line_id, date_st, date_end, "2", "0", 0, "0", wi)
+                        Backoffice_model.line_status_ins_sqlite(line_id, date_st, date_end, "2", "0", 0, "0", wi)
+                    Else
+                        Backoffice_model.line_status_ins_sqlite(line_id, date_st, date_end, "2", "0", 0, "0", wi)
+                    End If
+                Catch ex As Exception
+                    Backoffice_model.line_status_ins_sqlite(line_id, date_st, date_end, "2", "0", 0, "0", wi)
+                End Try
+            Next
+        Else
+            Try
+                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    Backoffice_model.line_status_ins(line_id, date_st, date_end, "2", "0", 0, "0", Prd_detail.lb_wi.Text)
+                    Backoffice_model.line_status_ins_sqlite(line_id, date_st, date_end, "2", "0", 0, "0", Prd_detail.lb_wi.Text)
+                Else
+                    Backoffice_model.line_status_ins_sqlite(line_id, date_st, date_end, "2", "0", 0, "0", Prd_detail.lb_wi.Text)
+                End If
+            Catch ex As Exception
+                Backoffice_model.line_status_ins_sqlite(line_id, date_st, date_end, "2", "0", 0, "0", Prd_detail.lb_wi.Text)
+            End Try
+        End If
+        logStartStage("LineStatusInsert", "Completed")
+        Dim c_type As String = MainFrm.count_type.Text
+        ' If c_type = "TOUCH" Then
+        'Button1.Visible = True
+        ' Else
+        '  Button1.Visible = False
+        ' End If
+        start_flg = 1
+        'Button1.Visible = True
+        Dim st_counter As String = Label32.Text
+        If st_counter = "0" Then
+            If Backoffice_model.gobal_DateTimeComputerDown = "" Then
+                Label16.Text = TimeOfDay.ToString("H:mm:ss")
+            Else
+                Dim dateTimeconvert As DateTime = Backoffice_model.gobal_DateTimeComputerDown.ToString
+                Label16.Text = dateTimeconvert.ToString("H:mm:ss", CultureInfo.InvariantCulture) ' มาจาก คอมดับ 
+            End If
+            Label32.Text = "1"
+            btn_back.Enabled = False
+            If lb_ch_man_flg.Text = "1" Then
+                Dim value_temps1 As Double
+                value_temps1 = Double.TryParse(Label34.Text, value_temps1)
+                Dim testt1 As Integer = Label34.Text
+                Dim newDate1 As Date = DateAdd("n", testt1, Now)
+                Label20.Text = newDate1.ToString("H : mm")
+            End If
+            pd = MainFrm.Label6.Text
+            Dim line_cd As String = MainFrm.Label4.Text
+            Dim wi_plan As String = wi_no.Text
+            Dim item_cd As String = Label3.Text
+            Dim item_name As String = Label12.Text
+            Dim staff_no As String = Label29.Text
+            seq_no = Label22.Text
+            Dim prd_qty As Integer = 0
+            Dim start_time As Date
+            ''msgBox("Backoffice_model.gobal_DateTimeComputerDown ===>" & Backoffice_model.gobal_DateTimeComputerDown)
+            If Backoffice_model.gobal_DateTimeComputerDown = "" Then
+                start_time = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+                ''msgBox("start_time===>" & start_time)
+            Else
+                Dim dateTimeconvert As DateTime = Backoffice_model.gobal_DateTimeComputerDown.ToString
+                start_time = dateTimeconvert.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ' มาจาก คอมดับ 
+            End If
+            Dim end_time As Date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Dim use_time As Double = 0.00
+            Dim tr_status As String = "0"
+            Dim number_qty As Integer = Label6.Text
+            Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Try
+                ''msgBox("Backoffice_model.gobal_QTYComputerDown===>" & Backoffice_model.gobal_QTYComputerDown)
+                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    tr_status = "1"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                            Backoffice_model.Insert_prd_detail(pd, line_cd, wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, start_time, end_time, use_time, number_qty, Spwi_id(j), tr_status)
+                            If Backoffice_model.gobal_DateTimeComputerDown = "0" Then
+
+                            Else
+                                If Backoffice_model.gobal_QTYComputerDown > "0" Then
+                                    insComputerDown(Backoffice_model.gobal_DateTimeComputerDown)
+                                End If
+                            End If
+                            j = j + 1
+                        Next
+                    Else
+                        Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                        Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, use_time, number_qty, pwi_id, tr_status)
+                        If Backoffice_model.gobal_DateTimeComputerDown = "" Then
+                        Else
+                            If Backoffice_model.gobal_QTYComputerDown > "0" Then
+                                insComputerDown(Backoffice_model.gobal_DateTimeComputerDown)
+                            End If
+                        End If
+                    End If
+                    ''msgBox("Ping completed")
+                Else
+                    tr_status = "0"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi, special_item_cd, special_item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                            j = j + 1
+                        Next
+                    Else
+                        Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                    End If
+                    ''msgBox("Ping incompleted")
+                End If
+            Catch ex As Exception
+                tr_status = "0"
+                If MainFrm.chk_spec_line = "2" Then
+                    Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                    Dim Iseq = GenSEQ
+                    Dim j As Integer = 0
+                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                        Iseq += 1
+                        Dim wi As String = itemPlanData.wi
+                        Dim special_item_cd As String = itemPlanData.item_cd
+                        Dim special_item_name As String = itemPlanData.item_name
+                        Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                        j = j + 1
+                    Next
+                Else
+                    Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                End If
+            End Try
+            st_time.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            st_count_ct.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            'Starting
+            btnSetUp.Enabled = True
+            btn_ins_act.Enabled = True
+            btn_desc_act.Enabled = True
+            btnDefects.Enabled = True
+            PictureBox11.Enabled = True
+            btnInfo.Enabled = True
+            btnCloseLot.Enabled = True
+            redBox.Enabled = True
+            'Starting
+            'End
+            'End
+            'Dim temppo As Double = Label34.Text
+            CircularProgressBar2.Text = 0
+            CircularProgressBar2.Value = 0
+            Dim value_temps As Double
+            value_temps = Double.TryParse(Label34.Text, value_temps)
+            Dim testt As Integer = Label34.Text
+            Dim newDate As Date = DateAdd("n", testt, Now)
+            Label20.Text = newDate.ToString("H : mm")
+            ''msgBox(Label20.Text)
+        Else
+            'Label32.Text = "0"
+        End If
+        logStartStage("InitialActualSnapshot", "Completed")
+
+        statusPrint = "Normal"
+        ' Complete one refresh before the production screen relies on the
+        ' background 60-second monitor.  The calculation and its data sources
+        ' remain the existing cal_eff implementation.
+        Await RefreshOeeWithDiagnosticsAsync("OEE.InitialRefresh")
+        'asdasdas
+        'TIME_CAL_EFF.Start()
+        LB_COUNTER_SHIP.Visible = True
+        Panel1.BackColor = Color.Green
+        Label30.Text = "NORMAL"
+        btnStart.Visible = False
+        ' Return the initial-production control to its legacy ready/running
+        ' state after the temporary resume button has started production.
+        btn_start.Visible = False
+        btn_start.Enabled = False
+        btn_back.Visible = False
+        btnSetUp.Visible = False
+        btn_ins_act.Visible = False
+        btn_desc_act.Visible = False
+        btnDefects.Visible = False
+        PictureBox11.Visible = False
+        btnInfo.Visible = False
+        btnCloseLot.Visible = False
+        redBox.Visible = False
+        If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+            PanelProgressbar.Visible = True
+            pb_netdown.Visible = False
+        Else
+            PanelProgressbar.Visible = False
+            pb_netdown.Visible = True
+            '  pb_netdown.BringToFront()
+        End If
+        'Dim rswebview = loadDataProgressBar(Label24.Text, Label14.Text)
+        ' WebViewProgressbar.Reload()
+        btn_stop.Visible = True
+        Prd_detail.Timer3.Enabled = False
+        btnStart.Visible = False
+        'PictureBox11.Visible = False
+        'PictureBox12.Visible = True
+        'PictureBox10.Visible = True
+        'Label24.BackColor = Color.FromArgb(44, 93, 129)
+        'Label24.BringToFront()
+        'btn_stop.BringToFront()
+        'Label17.BackColor = Color.FromArgb(44, 93, 129)
+        'Label17.BringToFront()
+        'Label1.BackColor = Color.FromArgb(44, 93, 129)
+        'Label1.BringToFront()
+        'Label29.BackColor = Color.FromArgb(44, 93, 129)
+        '        Label3.BackColor = Color.FromArgb(44, 88, 130)
+        '        Label3.BringToFront()
+        '        Label18.BackColor = Color.FromArgb(44, 88, 130)
+        '        Label18.BringToFront()
+
+        '  Label16.BackColor = Color.FromArgb(44, 82, 131)
+        '  Label16.BringToFront()
+        '  Label20.BackColor = Color.FromArgb(44, 82, 131)
+        '  Label20.BringToFront()
+        'CircularProgressBar2.BackColor = Color.FromArgb(44, 67, 133)
+        'CircularProgressBar2.InnerColor = Color.FromArgb(44, 67, 133)
+        'CircularProgressBar2.BringToFront()
+        ' lbNextTime.BringToFront()
+        'Panel7.BringToFront()
+        ' lb_ng_qty.BringToFront()
+        'LB_COUNTER_SHIP.BringToFront()
+        'LB_COUNTER_SEQ.BringToFront()
+        'Label29.BringToFront()
+        panelpcWorker1.BackColor = Color.FromArgb(44, 93, 129)
+        btnInfo.BackColor = Color.FromArgb(44, 88, 130)
+        '        Label7.Location = New Point(420, 120)
+        '        Label7.BackColor = Color.FromArgb(62, 97, 146)
+        '       Label7.BringToFront()
+        'Label8.Location = New Point(56, 297)
+        'Label8.BackColor = Color.FromArgb(12, 27, 45)
+        'Label8.BringToFront()
+        '
+        'Label6.Location = New Point(43, 403)
+        'Label6.BackColor = Color.FromArgb(12, 27, 45)
+        '  Label6.BringToFront()
+        'Label10.Location = New Point(41, 510)
+        ' Label10.BackColor = Color.FromArgb(12, 27, 45)
+        ' Label10.BringToFront()
+        Label20.Visible = True
+        'LB_COUNTER_SEQ.Visible = True
+        'LB_COUNTER_SEQ.BringToFront()
+        ' CircularProgressBar2.Visible = True
+        ''msgBox("ready load")
+        connect_counter_qty()
+        ' 'msgBox("ready load2")
+        ''msgBox("CDbl(Val(check_in_up_seq)) - 1)====>" & CDbl(Val(check_in_up_seq)) - 1)
+        CheckMN()
+        logStartStage("UiAndHardwarePreparation", "Completed")
+        If (CDbl(Val(check_in_up_seq)) - 1) = 0 Then
+            Dim OEE = New OEE_NODE
+            Try
+                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    DateTimeStartofShift.Text = OEE.OEE_getDateTimeStart(Prd_detail.Label12.Text.Substring(3, 5), MainFrm.Label4.Text)
+                    '  'msgBox("DateTimeStartofShift.Text load seq ====>" & DateTimeStartofShift.Text)
+                    ' LOAD_OEE is the long-running OEE refresh monitor.  Own one
+                    ' monitor task for this Working_Pro session; starting it must
+                    ' not keep Start_Production (or its UI re-entry guard) open.
+                    EnsureOeeMonitorRunning()
+                End If
+            Catch ex As Exception
+            End Try
+        End If
+        ' Await CheckModel_Pokayoke()
+outNet:
+        logStartStage("OeeInitialLoadAndExit", "Completed")
+        Backoffice_model.LogPerformance("Start_Production.Total", performanceTimer.ElapsedMilliseconds)
+    End Function
+    Public Async Function CheckMN() As Task
+        Dim modelmn = New modelMaintenance
+        Try
+            Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+            If rsNetwork Then
+                ' If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                If modelmn.getDataMN(MainFrm.Label4.Text) <> "0" Then
+                    Me.Enabled = False
+                    Sel_prd_setup.loadDataLossCrr()
+                    Chang_Loss.btnNextLossCrr()
+                    Loss_reg.btnMaintenance.Visible = True
+                    Loss_reg.GetDefectMenuMaintenance()
+                    Await Loss_reg.LoadMN()
+                    'Chang_Loss.Show()
+                End If
+            End If
+        Catch ex As Exception
+
+        End Try
+    End Function
+    Public Sub insComputerDown(tb As String)
+        ''msgBox("tb===>" & tb)
+        LB_COUNTER_SHIP.Text = CDbl(Val(LB_COUNTER_SHIP.Text)) + CDbl(Val(tb))
+        LB_COUNTER_SEQ.Text = CDbl(Val(LB_COUNTER_SEQ.Text)) + CDbl(Val(tb))
+        lb_good.Text = CDbl(Val(lb_good.Text)) + CDbl(Val(tb))
+        Dim max_val As String = Label10.Text
+        max_val = max_val.Substring(1, max_val.Length - 1)
+        Dim max_val_int As Integer = Convert.ToInt32(max_val)
+        Backoffice_model.qty_int = tb
+        lb_ins_qty.Text = tb
+        ''msgBox("tb2222===>" & tb)
+        ins_qty_fn_manual()
+    End Sub
+    Public Async Function loadDataProgressBar(line_cd As String, shift As String) As Task
+        ' ตรวจสอบและ Dispose instance ของ WebViewProgressbar หากมีการสร้างไว้ก่อนแล้ว
+        ' If WebViewProgressbar IsNot Nothing Then
+        ' WebViewProgressbar.Dispose()
+        ' End If
+        ' Create a new instance of WebView2 control
+        WebViewProgressbar = New WebView2() With {
+            .Dock = DockStyle.Fill
+        }
+        PanelProgressbar.Controls.Add(WebViewProgressbar)
+        Try
+            ' กำหนดไดเรกทอรีสำหรับ environment
+            Dim webViewEnvironment = Await CoreWebView2Environment.CreateAsync(Nothing, "C:\Temp")
+            ' สร้าง instance ของ WebView2 control
+            Await WebViewProgressbar.EnsureCoreWebView2Async(webViewEnvironment)
+            ' เรียกใช้ URL โดยแสดงค่า line_cd และ shift
+            WebViewProgressbar.CoreWebView2.Navigate("http://" & Backoffice_model.svApi & "/productionHrprogress/?line_cd=" & line_cd & "&shift=" & shift)
+            'WebViewProgressbar.CoreWebView2.Navigate("http://" & Backoffice_model.svApi & "/productionHrprogress/?line_cd=" & line_cd & "&shift=" & shift)
+            ''''Console.WriteLine("http://" & Backoffice_model.svApi & "/productionHrprogress/?line_cd=" & line_cd & "&shift=" & shift)
+        Catch ex As Exception
+            ' แสดงข้อผิดพลาดในกรณีที่การเริ่มต้นใช้งาน WebView2 ล้มเหลว
+            ''''Console.WriteLine($"Failed to initialize WebView2: {ex.Message}")
+        End Try
+    End Function
+    Public Async Function loadWebviewEmergency() As Task
+        ' ตรวจสอบว่ามี WebView2 instance ที่ใช้งานอยู่หรือไม่ ถ้ามีให้ Dispose ก่อน
+        ' If WebViewProgressbar IsNot Nothing Then
+        ' WebViewProgressbar.Dispose()
+        ' End If
+        ' Create a new instance of WebView2 control
+        WebViewEmergency = New WebView2() With {
+        .Dock = DockStyle.Fill
+    }
+        ' ตั้งค่าตำแหน่งของ PanelWebviewEmergency
+        PanelWebviewEmergency.Location = New Point(0, 99)
+        ' ตั้งค่าขนาดของ PanelWebviewEmergency
+        PanelWebviewEmergency.Size = New Size(800, 501)
+        PanelWebviewEmergency.Controls.Add(WebViewEmergency)
+        Try
+            ' กำหนดไดเรกทอรีสำหรับ environment
+            Dim webViewEnvironment = Await CoreWebView2Environment.CreateAsync(Nothing, "C:\Temp")
+            ' สร้าง instance ของ WebView2 control
+            Await WebViewEmergency.EnsureCoreWebView2Async(webViewEnvironment)
+            ' เรียกใช้ URL โดยแสดงค่า line_cd และ shift
+            PanelWebviewEmergency.BringToFront()
+            WebViewEmergency.CoreWebView2.Navigate("http://" & Backoffice_model.svApi & "/API_NEW_FA/SpecialCode/EMERGENCY")
+            ''''Console.WriteLine("http://" & Backoffice_model.svApi & "/API_NEW_FA/SpecialCode/EMERGENCY")
+        Catch ex As Exception
+            ' แสดงข้อผิดพลาดในกรณีที่การเริ่มต้นใช้งาน WebView2 ล้มเหลว
+            ''''Console.WriteLine($"Failed to initialize WebView2: {ex.Message}")
+        End Try
+    End Function
+    Private Sub Button1_Click(sender As Object, e As EventArgs)
+        If Not CanAcceptContinueCounterInput() Then Return
+        BreakTime = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Label14.Text)
+        lbNextTime.Text = BreakTime
+        Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
+        Dim monthNow As Integer = DateTime.Now.ToString("MM")
+        Dim dayNow As Integer = DateTime.Now.ToString("dd")
+        Dim hourNow As Integer = DateTime.Now.ToString("HH")
+        Dim minNow As Integer = DateTime.Now.ToString("mm")
+        Dim secNow As Integer = DateTime.Now.ToString("ss")
+        ''msgBox(yearNow & monthNow & dayNow & hourNow & minNow & secNow)
+        Dim yearSt As Integer = st_time.Text.Substring(0, 4)
+        Dim monthSt As Integer = st_time.Text.Substring(5, 2)
+        Dim daySt As Integer = st_time.Text.Substring(8, 2)
+        Dim hourSt As Integer = st_time.Text.Substring(11, 2)
+        Dim minSt As Integer = st_time.Text.Substring(14, 2)
+        Dim secSt As Integer = st_time.Text.Substring(17, 2)
+        ''msgBox(yearSt & minthSt & daySt & hourSt & minSt & secSt)
+        Dim firstDate As New System.DateTime(yearSt, monthSt, daySt, hourSt, minSt, secSt)
+        Dim secondDate As New System.DateTime(yearNow, monthNow, dayNow, hourNow, minNow, secNow)
+        Dim diff As System.TimeSpan = secondDate.Subtract(firstDate)
+        Dim diff1 As System.TimeSpan = secondDate - firstDate
+        Dim diff2 As String = (secondDate - firstDate).TotalSeconds.ToString()
+        ''msgBox(diff2)
+        ''msgBox(diff2 / 60)
+        Dim actCT As Double = Format(diff2 / 60, "0.00")
+        'Format(ListBox2.Items(numOfindex), "0.00")
+        'st_time.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+        Dim cnt_btn As Integer = Integer.Parse(MainFrm.cavity.Text)
+        'Counter
+        count = count + cnt_btn
+        _Edit_Up_0.Text = count
+        Dim Act As Integer = 0
+        If Label6.Text <= 0 Then
+            Act = 1
+        Else
+            Act = Label6.Text
+        End If
+        If comp_flg = 0 Then
+            lb_qty_for_box.Text = lb_qty_for_box.Text + cnt_btn
+            Dim textp_result As Integer = Label10.Text
+            textp_result = Math.Abs(textp_result) - 1
+            ''msgBox(textp_result)
+            Dim sum_act_total As Integer = Label6.Text + cnt_btn
+            Dim snp As Integer = CInt(Val(Label27.Text))
+            Dim isPlanFinish As Boolean = (sum_act_total = CInt(Val(Label8.Text)))
+            If textp_result <> 0 Then
+                If V_check_line_reprint = "0" Then
+                    PrintCompletedNormalTags("Button", GetCounterPackagingBeforeQuantity(CInt(Val(Label6.Text))), cnt_btn, snp, isPlanFinish, True, GetCounterPackagingBasis(PackagingQuantityBasis.TotalActual))
+                ElseIf snp <> 1 AndAlso snp <> 999999 Then
+                    PrintCompletedNormalTags("Button", GetCounterPackagingBeforeQuantity(CInt(Val(Label6.Text))), cnt_btn, snp, isPlanFinish, True, GetCounterPackagingBasis(PackagingQuantityBasis.TotalActual))
+                End If
+            End If
+            Label6.Text = sum_act_total
+            Dim sum_prg As Integer = (Label6.Text * 100) / Label8.Text
+            ''msgBox(sum_prg)
+            If sum_prg > 100 Then
+                sum_prg = 100
+            End If
+            CircularProgressBar1.Text = sum_prg
+            CircularProgressBar1.Value = sum_prg
+            Dim use_time As Integer = Label34.Text
+            ''msgBox(use_time)
+            'Dim Starttime As New DateTime(Label16.Text)     ' 10:25:06 AM
+            'Dim EndTime As New DateTime(TimeOfDay())     ' 1:25:06 PM
+            'DateDiff(DateInterval.Day, st_time.Text, Now)
+            'Dim Result As Long = DateDiff(DateInterval.Day, st_time.Text, Now)
+            ''msgBox(st_time.Text)
+            Dim dt1 As DateTime = DateTime.Now
+            Dim dt2 As DateTime = st_count_ct.Text
+            Dim dtspan As TimeSpan = dt1 - dt2
+            ''msgBox(("Second: " & dtspan.Seconds))
+            'use_time = 1
+            ''msgBox(dtspan)
+            ''msgBox(dtspan.Minutes)
+            Dim actCT_jing As Double = Format((dtspan.Seconds / _Edit_Up_0.Text) + (dtspan.Minutes * 60), "0.00")
+            'Label37.Text = actCT_jing
+            ListBox1.Items.Add((dtspan.Seconds) + (dtspan.Minutes * 60) + (dtspan.Hours * 3600))
+            Dim Total As Double = 0
+            Dim Count As Double = 0
+            Dim Average As Double = 0
+            Dim I As Integer
+            For I = 0 To ListBox1.Items.Count - 1
+                Total += Val(ListBox1.Items(I))
+                Count += 1
+            Next
+            Average = Total / Count
+            ''msgBox(Count)
+            If Count = 1 Then
+                Try
+                    Backoffice_model.Tag_seq_rec_sqlite(lb_ref_scan.Text.Substring(0, 10), lb_ref_scan.Text.Substring(10, 3), lb_ref_scan.Text.Substring(13, (lb_ref_scan.Text.Length - 13)), RTrim(lb_ref_scan.Text))
+                Catch ex As Exception
+
+                End Try
+            End If
+            Label37.Text = Format(Average, "0.0")
+
+            Dim start_time As Date = st_count_ct.Text
+
+            st_count_ct.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+
+
+            Dim dt11 As DateTime = DateTime.Now
+            Dim dt22 As DateTime = st_time.Text
+            Dim dtspan1 As TimeSpan = dt11 - dt22
+
+            ''msgBox(dtspan1.Minutes)
+
+            If (dtspan1.Minutes + (dtspan1.Hours * 60)) >= use_time Then
+                Label20.ForeColor = Color.Red
+            End If
+            Dim temppola As Double = ((dtspan1.Seconds / 60) + (dtspan1.Minutes + (dtspan1.Hours * 60)))
+            ''msgBox("Minute diff : " & dtspan1.Minutes)
+            ''msgBox("Hour diff : " & (dtspan1.Hours * 60))
+            If temppola < 1 Then
+                temppola = 1
+            End If
+
+            Dim loss_sum As Integer
+            Try
+                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    Dim LoadSQL = Backoffice_model.get_sum_loss(Trim(wi_no.Text))
+                    While LoadSQL.Read()
+                        loss_sum = LoadSQL("sum_loss")
+                    End While
+                Else
+                    loss_sum = 0
+                End If
+            Catch ex As Exception
+                load_show.Show()
+                'loss_sum = 0
+            End Try
+            Dim sum_prg2 As Integer = (((Label38.Text * _Edit_Up_0.Text) / ((temppola * 60) - loss_sum)) * 100)
+            'Dim sum_prg2 As Integer = (((CycleTime.Text * _Edit_Up_0.Text) / temppola) * 100)
+            ''msgBox("((" & CycleTime.Text & "*" & _Edit_Up_0.Text & ") /" & temppola & ") * 100")
+            ''msgBox(sum_prg2 / cnt_btn)
+            sum_prg2 = sum_prg2 / cnt_btn
+            ''msgBox(sum_prg2)
+            If sum_prg2 > 100 Then
+                sum_prg2 = 100
+            End If
+            ''msgBox(sum_prg2)
+            If sum_prg2 <= 49 Then
+                CircularProgressBar2.ProgressColor = Color.Red
+                CircularProgressBar2.ForeColor = Color.Black
+            ElseIf sum_prg2 >= 50 And sum_prg2 <= 79 Then
+                CircularProgressBar2.ProgressColor = Color.Chocolate
+                CircularProgressBar2.ForeColor = Color.Black
+            ElseIf sum_prg2 >= 80 And sum_prg2 <= 100 Then
+                CircularProgressBar2.ProgressColor = Color.Green
+                CircularProgressBar2.ForeColor = Color.Black
+            End If
+            Dim avarage_eff As Double = Format(sum_prg2, "0.00")
+            lb_sum_prg.Text = avarage_eff
+            CircularProgressBar2.Text = sum_prg2
+            CircularProgressBar2.Value = sum_prg2
+            Dim actCT_jingna As Double = Format(dtspan.Seconds + (dtspan.Minutes * 60), "0.00")
+            Dim pd As String = MainFrm.Label6.Text
+            Dim line_cd As String = MainFrm.Label4.Text
+            Dim wi_plan As String = wi_no.Text
+            Dim item_cd As String = Label3.Text
+            Dim item_name As String = Label12.Text
+            Dim staff_no As String = Label29.Text
+            Dim seq_no As String = Label22.Text
+            Dim prd_qty As Integer = cnt_btn
+            Dim end_time As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            Dim use_timee As Double = actCT_jingna
+            Dim tr_status As String = "0"
+            Dim number_qty As Integer = Label6.Text
+            'Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, use_timee, tr_status)
+            Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Try
+                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    tr_status = "1"
+                    Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, use_time, number_qty, Label18.Text, tr_status)
+                    Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, number_qty, start_time2, end_time, use_timee, number_qty, tr_status, pwi_id)
+                Else
+                    tr_status = "0"
+                    Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, number_qty, start_time2, end_time, use_timee, number_qty, tr_status, pwi_id)
+                End If
+            Catch ex As Exception
+                tr_status = "0"
+                Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, number_qty, start_time2, end_time, use_timee, number_qty, tr_status, pwi_id)
+            End Try
+            CommitDeferredSourceTagAfterActualPersistence()
+            Dim sum_diff As Integer = Label8.Text - Label6.Text
+            If sum_diff < 0 Then
+                Label10.Text = "0"
+            Else
+                Label10.Text = "-" & sum_diff
+            End If
+            If sum_diff < 1 Then
+                If sum_diff = 0 Then
+                    lb_box_count.Text = lb_box_count.Text + 1
+                    'If Backoffice_model.check_line_reprint() = "0" Then
+                    Label_bach.Text = Label_bach.Text + 1
+                    GoodQty = GetResumePackagingActualQuantity(CInt(Val(Label6.Text)))
+                    tag_print()
+                    'End If
+                Else
+
+                End If
+                Me.Enabled = False
+                comp_flg = 1
+                Finish_work.Show()
+                Dim plan_qty As Integer = Label8.Text
+                Dim act_qty As Integer = _Edit_Up_0.Text
+                Dim shift_prd As String = Label14.Text
+                Dim prd_st_datetime As Date = st_time.Text
+                Dim prd_end_datetime As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+                Dim lot_no As String = Label18.Text
+                Dim comp_flg2 As String = "1"
+                Dim transfer_flg As String = "1"
+                Dim del_flg As String = "0"
+                Dim prd_flg As String = "1"
+                Dim close_lot_flg As String = "1"
+                Dim avarage_act_prd_time As Double = Average
+                Try
+                    act_qty = LB_COUNTER_SEQ.Text 'Working_Pro._Edit_Up_0.Text
+                    LB_COUNTER_SHIP.Text = 0
+                    LB_COUNTER_SEQ.Text = 0
+                Catch ex As Exception
+                    act_qty = 0
+                End Try
+                Try
+                    If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                        transfer_flg = "0"
+
+                        Backoffice_model.Insert_prd_close_lot(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
+                        Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
+                        ' Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, use_timee, number_qty)
+                        Backoffice_model.work_complete(wi_plan)
+                        Dim temp_co_emp As Integer = List_Emp.ListView1.Items.Count
+                        Dim emp_cd As String
+                        For I = 0 To temp_co_emp - 1
+                            emp_cd = List_Emp.ListView1.Items(I).Text
+                            Backoffice_model.Insert_emp_cd(wi_plan, emp_cd, seq_no)
+                            ''msgBox(List_Emp.ListView1.Items(i).Text)
+                        Next
+                        ''msgBox("Ins completed")
+                    Else
+                        transfer_flg = "0"
+                        Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
+                        'Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time, end_time, use_timee, tr_status)
+                        ''msgBox("Ins incompleted1")
+                    End If
+                Catch ex As Exception
+                    ''msgBox("Ins incompleted2")
+                    transfer_flg = "0"
+                    Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
+                    'Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time, end_time, use_timee, tr_status)
+                End Try
+            End If
+        End If
+    End Sub
+
+    Private Sub Label18_Click(sender As Object, e As EventArgs) Handles Label18.Click
+
+    End Sub
+
+    Private Sub Label6_Paint(sender As Object, e As PaintEventArgs) Handles Label6.Paint
+
+    End Sub
+    Private Sub Button3_Click_1(sender As Object, e As EventArgs) Handles Button3.Click
+        Dim i As Short
+        Dim BitNo As Short
+        Dim Kind As Short
+        Dim Tim As Integer
+
+
+        For i = 0 To 1
+            UpCount(i) = 0
+            DownCount(i) = 0
+        Next i
+
+        Tim = 100
+        Kind = DIO_TRG_RISE
+        For BitNo = 0 To 1
+
+            If Check(BitNo).CheckState = 1 Then
+                Ret = DioNotifyTrg(Id, BitNo, Kind, Tim, Me.Handle.ToInt32)
+                If (Ret <> DIO_ERR_SUCCESS) Then
+                    ''msgBox("Connect success")
+                    Exit For
+                End If
+
+            Else
+                Ret = DioStopNotifyTrg(Id, BitNo)
+                If (Ret <> DIO_ERR_SUCCESS) Then
+                    ''msgBox("Connect Failed")
+                    Exit For
+                End If
+            End If
+        Next BitNo
+
+        Call DioGetErrorString(Ret, szError)
+    End Sub
+
+    'Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
+    '    Dim szDeviceName As String
+    '    szDeviceName = Edit_DeviceName.Text
+    '    Ret = DioInit(szDeviceName, Id)
+    '    Call DioGetErrorString(Ret, szError)
+    'End Sub
+
+    Function HiLoWord(ByRef Number As Integer, ByRef HiLo As Short) As Integer
+
+        Dim Hi As Integer
+        Dim Lo As Integer
+        Dim StrData As String
+        Dim i As Short
+
+        StrData = Hex(Number)
+        If Len(StrData) < 2 Then
+            For i = 1 To 2 - Len(StrData)
+                StrData = "0" & StrData
+            Next i
+        End If
+
+        Lo = Val("&h" & VB.Right(StrData, 4))
+        'Hi = Val("&h" & VB.Left(StrData, 4))
+        If HiLo = 0 Then
+            HiLoWord = Lo
+        ElseIf HiLo = 1 Then
+            HiLoWord = Hi
+        End If
+
+    End Function
+
+    Public count As String = 0
+    Public Async Function counter_contect_DIO() As Task
+        If Not CanAcceptContinueCounterInput() Then Return
+        Dim hasError As Boolean = False
+        Dim statusLossManualE1 As Integer = 0
+        Try
+            Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+            If rsNetwork Then
+                'If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
+            Else
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
+            End If
+        Catch ex As Exception
+            hasError = True
+        End Try
+        If hasError Then
+            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
+            hasError = False
+        End If
+        Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
+        Dim monthNow As Integer = DateTime.Now.ToString("MM")
+        Dim dayNow As Integer = DateTime.Now.ToString("dd")
+        Dim hourNow As Integer = DateTime.Now.ToString("HH")
+        Dim minNow As Integer = DateTime.Now.ToString("mm")
+        Dim secNow As Integer = DateTime.Now.ToString("ss")
+        ''msgBox(yearNow & monthNow & dayNow & hourNow & minNow & secNow)
+        Dim yearSt As Integer = st_time.Text.Substring(0, 4)
+        Dim monthSt As Integer = st_time.Text.Substring(5, 2)
+        Dim daySt As Integer = st_time.Text.Substring(8, 2)
+        Dim hourSt As Integer = st_time.Text.Substring(11, 2)
+        Dim minSt As Integer = st_time.Text.Substring(14, 2)
+        Dim secSt As Integer = st_time.Text.Substring(17, 2)
+        ''msgBox(yearSt & minthSt & daySt & hourSt & minSt & secSt)
+        Dim firstDate As New System.DateTime(yearSt, monthSt, daySt, hourSt, minSt, secSt)
+        Dim secondDate As New System.DateTime(yearNow, monthNow, dayNow, hourNow, minNow, secNow)
+        Dim diff As System.TimeSpan = secondDate.Subtract(firstDate)
+        Dim diff1 As System.TimeSpan = secondDate - firstDate
+        Dim diff2 As String = (secondDate - firstDate).TotalSeconds.ToString()
+        ''msgBox(diff2)
+        ''msgBox(diff2 / 60)
+        Dim actCT As Double = Format(diff2 / 60, "0.00")
+        'Format(ListBox2.Items(numOfindex), "0.00")
+        'st_time.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+        'Counter
+        Dim cnt_btn As Integer = Integer.Parse(MainFrm.cavity.Text)
+        'Counter
+        count = count + cnt_btn
+        _Edit_Up_0.Text = count
+        Dim Act As Integer = 0
+        Dim action_plus As Integer = 0
+        If Label6.Text <= 0 Then ' condition  
+            Act = 1
+            action_plus = 0
+        Else
+            Act = lb_good.Text 'Label6.Text
+            action_plus = 1
+        End If
+        ''''Console.WriteLine("TESTTTTTTT INNNNN")
+        If comp_flg = 0 Then
+            statusPrint = "Normal_contect_DIO"
+            ''msgBox("G")
+            ''''Console.WriteLine("delays")
+            'Dim result_mod As Double = Integer.Parse(_Edit_Up_0.Text) Mod Integer.Parse(Label27.Text)
+            Dim result_mod As Double = If(IsNormalNewBoxPackagingBaselineForCurrentContext(),
+                                          GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)) + cnt_btn) Mod Integer.Parse(Label27.Text),
+                                          Integer.Parse(Act + action_plus) Mod Integer.Parse(Label27.Text)) 'Integer.Parse(_Edit_Up_0.Text) Mod Integer.Parse(Label27.Text)
+            lb_qty_for_box.Text = lb_qty_for_box.Text + cnt_btn
+            Dim textp_result As Integer = Label10.Text
+            textp_result = Math.Abs(textp_result) - 1
+            ''msgBox(textp_result)
+            Dim sum_act_total As Integer = Label6.Text + cnt_btn
+            Dim start_time As Date = st_count_ct.Text
+            Dim end_time As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Dim checkTransection As String
+            'Try
+            'If My.Computer.Network.Ping("192.168.161.101") Then
+            'checkTransection = Backoffice_model.checkTransection(pwi_id, CDbl(Val(Label6.Text)) + Integer.Parse(MainFrm.cavity.Text), start_time2)
+            ' 'msgBox("pwi_id==>" & pwi_id)
+            ' 'msgBox("Label6==>" & CDbl(Val(Label6.Text)) + Integer.Parse(MainFrm.cavity.Text))
+            ' 'msgBox("start_time2==>" & start_time2)
+            'Else
+            '    checkTransection = "1"
+            'End If
+            '    Catch ex As Exception
+            '    checkTransection = "1"
+            '    End Try
+            ' If checkTransection = "1" Then
+            'Label6.Text = sum_act_total
+            'LB_COUNTER_SHIP.Text += cnt_btn
+            'LB_COUNTER_SEQ.Text += cnt_btn
+            'lb_good.Text += cnt_btn
+            Dim V_label6 = sum_act_total
+            Dim V_LB_COUNTER_SHIP = LB_COUNTER_SHIP.Text + cnt_btn
+            Dim V_LB_COUNTER_SEQ = LB_COUNTER_SEQ.Text + cnt_btn
+            Dim V_lb_good = lb_good.Text + cnt_btn
+            Dim specialTagQuantities As List(Of Integer) = GetCompletedTagQuantities(GetCounterPackagingBeforeQuantity(CInt(Val(Label6.Text))), cnt_btn, CInt(Val(Label27.Text)), GetCounterPackagingBasis(PackagingQuantityBasis.TotalActual))
+            If check_tag_type = "3" Then
+                ' for line break
+                Dim break = lbPosition1.Text & " " & lbPosition2.Text
+                Dim plb = New PrintLabelBreak
+                plb.loadData(Label3.Text, break, Label18.Text, Label22.Text, CDbl(Val(V_LB_COUNTER_SEQ)))
+            End If
+            If check_format_tag = "1" Then ' for tag_type = '2' and tag_issue_flg = '2'  OR K1M183
+                lb_box_count.Text = lb_box_count.Text + 1
+                print_back.PrintDocument2.Print()
+                For Each completedQty As Integer In specialTagQuantities
+                    Label_bach.Text += 1
+                    GoodQty = completedQty
+                    ''msgBox("IF ===>" & GoodQty)
+                    LogTagBoundaryTrigger("DIO_Special", CInt(Val(Label6.Text)), cnt_btn, CInt(Val(Label27.Text)), completedQty)
+                    If DeferResumeSourceTagUntilActualPersistence(completedQty,
+                                                                   CInt(Val(Label6.Text)) + cnt_btn,
+                                                                   CInt(Val(lb_good.Text)) + cnt_btn,
+                                                                   Math.Max(0, GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)) + cnt_btn) - CInt(Val(Label27.Text))),
+                                                                   False) Then Exit For
+                    tag_print()
+                Next
+            Else
+                If textp_result <> 0 Then
+                    Dim snp As Integer = CInt(Val(Label27.Text))
+                    Dim isPlanFinish As Boolean = (V_label6 = CInt(Val(Label8.Text)))
+                    If V_check_line_reprint = "0" Then
+                        PrintCompletedNormalTags("DIO", CInt(Val(lb_good.Text)), cnt_btn, snp, isPlanFinish, True, PackagingQuantityBasis.GoodActual)
+                    ElseIf snp <> 1 AndAlso snp <> 999999 Then
+                        PrintCompletedNormalTags("DIO", GetCounterPackagingBeforeQuantity(CInt(Val(Label6.Text))), cnt_btn, snp, isPlanFinish, True, GetCounterPackagingBasis(PackagingQuantityBasis.TotalActual))
+                    End If
+                End If
+            End If
+            Dim sum_prg As Integer = (V_label6 * 100) / Label8.Text
+            ''msgBox(sum_prg)
+            If sum_prg > 100 Then
+                sum_prg = 100
+            ElseIf sum_prg < 0 Then
+                sum_prg = 0
+            End If
+            CircularProgressBar1.Text = sum_prg
+            CircularProgressBar1.Value = sum_prg
+            Dim use_time As Integer = Label34.Text
+            Dim dt1 As DateTime = DateTime.Now
+            Dim dt2 As DateTime = st_count_ct.Text
+            Dim dtspan As TimeSpan = dt1 - dt2
+            ''msgBox(("Second: " & dtspan.Seconds))
+            'use_time = 1
+            ''msgBox(dtspan)
+            ''msgBox(dtspan.Minutes)
+
+            Dim actCT_jing As Double = Format((dtspan.Seconds / _Edit_Up_0.Text) + (dtspan.Minutes * 60), "0.00")
+            'Label37.Text = actCT_jing
+
+            ListBox1.Items.Add((dtspan.Seconds) + (dtspan.Minutes * 60) + (dtspan.Hours * 3600))
+
+            Dim Total As Double = 0
+            Dim Count As Double = 0
+            Dim Average As Double = 0
+            Dim I As Integer
+
+            For I = 0 To ListBox1.Items.Count - 1
+                Total += Val(ListBox1.Items(I))
+                Count += 1
+            Next
+            Average = Total / Count
+            ''msgBox(Count)
+            If Count = 1 Then
+                ''msgBox(lb_ref_scan.Text)
+                Try
+                    Backoffice_model.Tag_seq_rec_sqlite(lb_ref_scan.Text.Substring(0, 10), lb_ref_scan.Text.Substring(10, 3), lb_ref_scan.Text.Substring(13, (lb_ref_scan.Text.Length - 13)), RTrim(lb_ref_scan.Text))
+                Catch ex As Exception
+
+                End Try
+            End If
+            Label37.Text = Format(Average, "0.0")
+            st_count_ct.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            Dim dt11 As DateTime = DateTime.Now
+            Dim dt22 As DateTime = st_time.Text
+            Dim dtspan1 As TimeSpan = dt11 - dt22
+            ''msgBox(dtspan1.Minutes)
+            If (dtspan1.Minutes + (dtspan1.Hours * 60)) >= use_time Then
+                Label20.ForeColor = Color.Red
+            End If
+
+            '    Dim temppola As Double = ((dtspan1.Seconds / 60) + (dtspan1.Minutes + (dtspan1.Hours * 60)))
+            ''msgBox("Minute diff : " & dtspan1.Minutes)
+            ''msgBox("Hour diff : " & (dtspan1.Hours * 60))
+            'If temppola < 1 Then
+            '    temppola = 1
+            'End If
+            '   Dim loss_sum As Integer
+            '   Try
+            '    If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+            '     Dim LoadSQL = Backoffice_model.get_sum_loss(Trim(wi_no.Text))
+            '      While LoadSQL.Read()
+            '       loss_sum = LoadSQL("sum_loss")
+            '        End While
+            '     Else
+            '          loss_sum = 0
+            '       End If
+            '           Catch ex As Exception
+            '            'load_show.Show()
+            'loss_sum = 0
+            '            End Try
+            '           Dim sum_prg2 As Integer = (((Label38.Text * _Edit_Up_0.Text) / ((temppola * 60) - loss_sum)) * 100)
+
+            '  sum_prg2 = sum_prg2 / cnt_btn
+
+            ' If sum_prg2 > 100 Then
+            '  sum_prg2 = 100
+            'ElseIf sum_prg2 < 0 Then
+            '     sum_prg2 = 0
+            ''  End If
+            'If sum_prg2 <= 49 Then
+            ' CircularProgressBar2.ProgressColor = Color.Red
+            '  CircularProgressBar2.ForeColor = Color.Black
+            'ElseIf sum_prg2 >= 50 And sum_prg2 <= 79 Then
+            '     CircularProgressBar2.ProgressColor = Color.Chocolate
+            '      CircularProgressBar2.ForeColor = Color.Black
+            '   ElseIf sum_prg2 >= 80 And sum_prg2 <= 100 Then
+            '        CircularProgressBar2.ProgressColor = Color.Green
+            '         CircularProgressBar2.ForeColor = Color.Black
+            '      End If
+            '  Dim avarage_eff As Double = Format(sum_prg2, "0.00")
+            '  lb_sum_prg.Text = avarage_eff
+            '  CircularProgressBar2.Text = sum_prg2 & "%"
+            '  CircularProgressBar2.Value = sum_prg2
+            Dim actCT_jingna As Double = Format(dtspan.Seconds + (dtspan.Minutes * 60), "0.00")
+            Dim pd As String = MainFrm.Label6.Text
+            Dim line_cd As String = MainFrm.Label4.Text
+            Dim wi_plan As String = wi_no.Text
+            Dim item_cd As String = Label3.Text
+            Dim item_name As String = Label12.Text
+            Dim staff_no As String = Label29.Text
+            Dim seq_no As String = Label22.Text
+            Dim prd_qty As Integer = cnt_btn
+            Dim use_timee As Double = actCT_jingna
+            Dim tr_status As String = "0"
+            Dim number_qty As Integer = V_label6 'Label6.Text
+            Dim result_use_time As Double = Cal_Use_Time_ins_qty_fn_manual(start_time2, end_time2)
+            Dim PK_pad_id_sqlite As Integer = 0
+            Try
+                Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+                If rsNetwork Then
+                    ' If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    tr_status = "1"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, start_time, end_time, result_use_time, number_qty, Spwi_id(j), tr_status)
+                            If PK_pad_id = 0 Then
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, "0", Spwi_id(j))
+                            Else
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j))
+                            End If
+                            j = j + 1
+                        Next
+                        If PK_pad_id > 0 Or PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        End If
+                    Else
+                        PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, result_use_time, number_qty, pwi_id, tr_status)
+                        If PK_pad_id = 0 Then
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, "0", pwi_id)
+                        Else
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id)
+                        End If
+                        If PK_pad_id > 0 Or PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        End If
+                    End If
+                Else
+                    tr_status = "0"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j))
+                            j = j + 1
+                        Next
+                        If PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        End If
+                    Else
+                        PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id)
+                        If PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        End If
+                    End If
+                End If
+            Catch ex As Exception
+                tr_status = "0"
+                If MainFrm.chk_spec_line = "2" Then
+                    Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                    Dim Iseq = GenSEQ
+                    Dim j As Integer = 0
+                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                        Iseq += 1
+                        Dim special_wi As String = itemPlanData.wi
+                        Dim special_item_cd As String = itemPlanData.item_cd
+                        Dim special_item_name As String = itemPlanData.item_name
+                        PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j))
+                        j = j + 1
+                    Next
+                    If PK_pad_id_sqlite > 0 Then
+                        Label6.Text = sum_act_total
+                        LB_COUNTER_SHIP.Text += cnt_btn
+                        LB_COUNTER_SEQ.Text += cnt_btn
+                        lb_good.Text += cnt_btn
+                    End If
+                Else
+                    PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id)
+                    If PK_pad_id_sqlite > 0 Then
+                        Label6.Text = sum_act_total
+                        LB_COUNTER_SHIP.Text += cnt_btn
+                        LB_COUNTER_SEQ.Text += cnt_btn
+                        lb_good.Text += cnt_btn
+                    End If
+                End If
+            End Try
+            Dim sum_diff As Integer = Label8.Text - Label6.Text
+            Label10.Text = "-" & sum_diff
+            CommitDeferredSourceTagAfterActualPersistence()
+            flg_tag_print = 0
+            If sum_diff = 0 Then
+                Me.Enabled = False
+                comp_flg = 1
+                Finish_work.Show() ' เกี่ยว
+            End If
+            If sum_diff < 1 Then
+                If sum_diff = 0 Then
+                    If check_format_tag = "1" Then ' for tag_type = '2' and tag_issue_flg = '2'  OR K1M183
+                        lb_box_count.Text = lb_box_count.Text + 1
+                        print_back.PrintDocument2.Print()
+                        If specialTagQuantities.Count = 0 AndAlso result_mod = "0" Then
+                            Label_bach.Text += 1
+                            GoodQty = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)))
+                            ''msgBox("IF ===>" & GoodQty)
+                            tag_print()
+                        End If
+                    Else
+                        lb_box_count.Text = lb_box_count.Text + 1
+                        Label_bach.Text = Label_bach.Text + 1
+                        GoodQty = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)))
+                        ''msgBox("ELSE ===>" & GoodQty)
+                        tag_print()
+                    End If
+                Else
+                End If
+                Me.Enabled = False
+                comp_flg = 1
+                'Finish_work.Show() ' เกี่ยว
+                Dim plan_qty As Integer = Label8.Text
+                Dim shift_prd As String = Label14.Text
+                Dim prd_st_datetime As Date = st_time.Text
+                Dim prd_end_datetime As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+                Dim lot_no As String = Label18.Text
+                Dim comp_flg2 As String = "1"
+                Dim transfer_flg As String = "1"
+                Dim del_flg As String = "0"
+                Dim prd_flg As String = "1"
+                Dim close_lot_flg As String = "1"
+                Dim avarage_act_prd_time As Double = Average
+            End If
+            ' End If
+        End If
+        '--------------------------------------
+        ' Expression
+        '--------------------------------------
+        'Edit_Up(BitNo).Text = CStr(UpCount(BitNo))
+        'Edit_Down(BitNo).Text = CStr(DownCount(BitNo))
+    End Function
+    Public Async Function counter_contect_DIO_RS232() As Task
+        If Not CanAcceptContinueCounterInput() Then Return
+        Dim hasError As Boolean = False
+        Dim statusLossManualE1 As Integer = 0
+        Try
+            Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+            If rsNetwork Then
+                'If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
+            Else
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
+            End If
+        Catch ex As Exception
+            hasError = True
+        End Try
+        If hasError Then
+            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
+        End If
+        Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
+        Dim monthNow As Integer = DateTime.Now.ToString("MM")
+        Dim dayNow As Integer = DateTime.Now.ToString("dd")
+        Dim hourNow As Integer = DateTime.Now.ToString("HH")
+        Dim minNow As Integer = DateTime.Now.ToString("mm")
+        Dim secNow As Integer = DateTime.Now.ToString("ss")
+        ''msgBox(yearNow & monthNow & dayNow & hourNow & minNow & secNow)
+        Dim yearSt As Integer = st_time.Text.Substring(0, 4)
+        Dim monthSt As Integer = st_time.Text.Substring(5, 2)
+        Dim daySt As Integer = st_time.Text.Substring(8, 2)
+        Dim hourSt As Integer = st_time.Text.Substring(11, 2)
+        Dim minSt As Integer = st_time.Text.Substring(14, 2)
+        Dim secSt As Integer = st_time.Text.Substring(17, 2)
+        ''msgBox(yearSt & minthSt & daySt & hourSt & minSt & secSt)
+        Dim firstDate As New System.DateTime(yearSt, monthSt, daySt, hourSt, minSt, secSt)
+        Dim secondDate As New System.DateTime(yearNow, monthNow, dayNow, hourNow, minNow, secNow)
+        Dim diff As System.TimeSpan = secondDate.Subtract(firstDate)
+        Dim diff1 As System.TimeSpan = secondDate - firstDate
+        Dim diff2 As String = (secondDate - firstDate).TotalSeconds.ToString()
+        ''msgBox(diff2)
+        ''msgBox(diff2 / 60)
+        Dim actCT As Double = Format(diff2 / 60, "0.00")
+        'Format(ListBox2.Items(numOfindex), "0.00")
+        'st_time.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+        'Counter
+        Dim cnt_btn As Integer = Integer.Parse(MainFrm.cavity.Text)
+        'Counter
+        count = count + cnt_btn
+        _Edit_Up_0.Text = count
+        Dim Act As Integer = 0
+        Dim action_plus As Integer = 0
+        If Label6.Text <= 0 Then ' condition  
+            Act = 1
+            action_plus = 0
+        Else
+            Act = lb_good.Text 'Label6.Text
+            action_plus = 1
+        End If
+        Dim start_time As Date = st_count_ct.Text
+        Dim end_time As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+        Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+        Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+        Dim checkTransection As String
+        'Try
+        'If My.Computer.Network.Ping("192.168.161.101") Then
+        'checkTransection = Backoffice_model.checkTransection(pwi_id, CDbl(Val(Label6.Text)) + Integer.Parse(MainFrm.cavity.Text), start_time2)
+        'Else
+        'checkTransection = "1"
+        'End If
+        'Catch ex As Exception
+        'checkTransection = "1"
+        'End Try
+        ' If checkTransection = "1" Then
+
+        If comp_flg = 0 Then
+            statusPrint = "Normal_DIO_RS232"
+            'Dim result_mod As Double = Integer.Parse(_Edit_Up_0.Text) Mod Integer.Parse(Label27.Text)
+            Dim result_mod As Double = If(IsNormalNewBoxPackagingBaselineForCurrentContext(),
+                                          GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)) + cnt_btn) Mod Integer.Parse(Label27.Text),
+                                          Integer.Parse(Act + action_plus) Mod Integer.Parse(Label27.Text)) 'Integer.Parse(_Edit_Up_0.Text) Mod Integer.Parse(Label27.Text)
+            lb_qty_for_box.Text = lb_qty_for_box.Text + cnt_btn
+            Dim textp_result As Integer = Label10.Text
+            textp_result = Math.Abs(textp_result) - 1
+            ''msgBox(textp_result)
+            Dim sum_act_total As Integer = Label6.Text + cnt_btn
+            Dim V_label6 = sum_act_total
+            Dim V_LB_COUNTER_SHIP = LB_COUNTER_SHIP.Text + cnt_btn
+            Dim V_LB_COUNTER_SEQ = LB_COUNTER_SEQ.Text + cnt_btn
+            Dim V_lb_good = lb_good.Text + cnt_btn
+            Dim specialTagQuantities As List(Of Integer) = GetCompletedTagQuantities(GetCounterPackagingBeforeQuantity(CInt(Val(Label6.Text))), cnt_btn, CInt(Val(Label27.Text)), GetCounterPackagingBasis(PackagingQuantityBasis.TotalActual))
+            'Label6.Text = sum_act_total
+            'LB_COUNTER_SHIP.Text += cnt_btn
+            'LB_COUNTER_SEQ.Text += cnt_btn
+            'lb_good.Text += cnt_btn
+            If check_tag_type = "3" Then
+                Dim break = lbPosition1.Text & " " & lbPosition2.Text
+                Dim plb = New PrintLabelBreak
+                plb.loadData(Label3.Text, break, Label18.Text, Label22.Text, CDbl(Val(V_LB_COUNTER_SEQ)))
+            End If
+            If check_format_tag = "1" Then ' for tag_type = '2' and tag_issue_flg = '2'  OR K1M183
+                lb_box_count.Text = lb_box_count.Text + 1
+                print_back.PrintDocument2.Print()
+                For Each completedQty As Integer In specialTagQuantities
+                    Label_bach.Text += 1
+                    GoodQty = completedQty
+                    LogTagBoundaryTrigger("DIO_RS232_Special", CInt(Val(Label6.Text)), cnt_btn, CInt(Val(Label27.Text)), completedQty)
+                    If DeferResumeSourceTagUntilActualPersistence(completedQty,
+                                                                   CInt(Val(Label6.Text)) + cnt_btn,
+                                                                   CInt(Val(lb_good.Text)) + cnt_btn,
+                                                                   Math.Max(0, GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)) + cnt_btn) - CInt(Val(Label27.Text))),
+                                                                   False) Then Exit For
+                    tag_print()
+                Next
+            Else
+                If textp_result <> 0 Then
+                    Dim snp As Integer = CInt(Val(Label27.Text))
+                    Dim isPlanFinish As Boolean = (V_label6 = CInt(Val(Label8.Text)))
+                    If V_check_line_reprint = "0" Then
+                        PrintCompletedNormalTags("DIO_RS232", CInt(Val(lb_good.Text)), cnt_btn, snp, isPlanFinish, True, PackagingQuantityBasis.GoodActual)
+                    ElseIf snp <> 1 AndAlso snp <> 999999 Then
+                        PrintCompletedNormalTags("DIO_RS232", GetCounterPackagingBeforeQuantity(CInt(Val(Label6.Text))), cnt_btn, snp, isPlanFinish, True, GetCounterPackagingBasis(PackagingQuantityBasis.TotalActual))
+                    End If
+                End If
+            End If
+
+
+            Dim sum_prg As Integer = (V_label6 * 100) / Label8.Text
+            ''msgBox(sum_prg)
+
+            If sum_prg > 100 Then
+                sum_prg = 100
+            ElseIf sum_prg < 0 Then
+                sum_prg = 0
+            End If
+
+            CircularProgressBar1.Text = sum_prg
+            CircularProgressBar1.Value = sum_prg
+            Dim use_time As Integer = Label34.Text
+            Dim dt1 As DateTime = DateTime.Now
+            Dim dt2 As DateTime = st_count_ct.Text
+            Dim dtspan As TimeSpan = dt1 - dt2
+            Dim actCT_jing As Double = Format((dtspan.Seconds / _Edit_Up_0.Text) + (dtspan.Minutes * 60), "0.00")
+            ListBox1.Items.Add((dtspan.Seconds) + (dtspan.Minutes * 60) + (dtspan.Hours * 3600))
+            Dim Total As Double = 0
+            Dim Count As Double = 0
+            Dim Average As Double = 0
+            Dim I As Integer
+            For I = 0 To ListBox1.Items.Count - 1
+                Total += Val(ListBox1.Items(I))
+                Count += 1
+            Next
+            Average = Total / Count
+            If Count = 1 Then
+                Try
+                    Backoffice_model.Tag_seq_rec_sqlite(lb_ref_scan.Text.Substring(0, 10), lb_ref_scan.Text.Substring(10, 3), lb_ref_scan.Text.Substring(13, (lb_ref_scan.Text.Length - 13)), RTrim(lb_ref_scan.Text))
+                Catch ex As Exception
+
+                End Try
+            End If
+            Label37.Text = Format(Average, "0.0")
+            st_count_ct.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            Dim dt11 As DateTime = DateTime.Now
+            Dim dt22 As DateTime = st_time.Text
+            Dim dtspan1 As TimeSpan = dt11 - dt22
+            ''msgBox(dtspan1.Minutes)
+            If (dtspan1.Minutes + (dtspan1.Hours * 60)) >= use_time Then
+                Label20.ForeColor = Color.Red
+            End If
+            Dim temppola As Double = ((dtspan1.Seconds / 60) + (dtspan1.Minutes + (dtspan1.Hours * 60)))
+            'If temppola < 1 Then
+            ' temppola = 1
+            'End If
+            'Dim loss_sum As Integer
+            'Try
+            'If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+            '  Dim LoadSQL = Backoffice_model.get_sum_loss(Trim(wi_no.Text))
+            '   While LoadSQL.Read()
+            '        loss_sum = LoadSQL("sum_loss")
+            '     End While
+            '  Else
+            '       loss_sum = 0
+            '    End If
+            ' Catch ex As Exception
+            'load_show.Show()
+            'loss_sum = 0
+            '  End Try
+            '    Dim sum_prg2 As Integer = (((Label38.Text * _Edit_Up_0.Text) / ((temppola * 60) - loss_sum)) * 100)
+            'Dim sum_prg2 As Integer = (((CycleTime.Text * _Edit_Up_0.Text) / temppola) * 100)
+            ''msgBox("((" & CycleTime.Text & "*" & _Edit_Up_0.Text & ") /" & temppola & ") * 100")
+            ''msgBox(sum_prg2 / cnt_btn)
+
+            ' sum_prg2 = sum_prg2 / cnt_btn
+            ''msgBox(sum_prg2)
+
+            '            If sum_prg2 > 100 Then'
+            ' sum_prg2 = 100
+            ' ElseIf sum_prg2 < 0 Then
+            'sum_prg2 = 0
+            'End If
+            ''msgBox(sum_prg2)
+            '     If sum_prg2 <= 49 Then
+            '     CircularProgressBar2.ProgressColor = Color.Red
+            '         CircularProgressBar2.ForeColor = Color.Black
+            'ElseIf sum_prg2 >= 50 And sum_prg2 <= 79 Then
+            '    CircularProgressBar2.ProgressColor = Color.Chocolate
+            '    CircularProgressBar2.ForeColor = Color.Black
+            'ElseIf sum_prg2 >= 80 And sum_prg2 <= 100 Then
+            '    CircularProgressBar2.ProgressColor = Color.Green
+            '         CircularProgressBar2.ForeColor = Color.Black
+            'End If
+            ' Dim avarage_eff As Double = Format(sum_prg2, "0.00")
+            ' lb_sum_prg.Text = avarage_eff
+            ' CircularProgressBar2.Text = sum_prg2 & "%"
+            ' CircularProgressBar2.Value = sum_prg2
+            ' Dim actCT_jingna As Double = Format(dtspan.Seconds + (dtspan.Minutes * 60), "0.00")
+            Dim pd As String = MainFrm.Label6.Text
+            Dim line_cd As String = MainFrm.Label4.Text
+            Dim wi_plan As String = wi_no.Text
+            Dim item_cd As String = Label3.Text
+            Dim item_name As String = Label12.Text
+            Dim staff_no As String = Label29.Text
+            Dim seq_no As String = Label22.Text
+            Dim prd_qty As Integer = cnt_btn
+            ' Dim use_timee As Double = actCT_jingna
+            Dim tr_status As String = "0"
+            Dim number_qty As Integer = V_label6
+            'Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, use_timee, tr_status)
+            Dim result_use_time As Double = Cal_Use_Time_ins_qty_fn_manual(start_time2, end_time2)
+            Dim PK_pad_id_sqlite As Integer = 0
+            Try
+                Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+                If rsNetwork Then
+                    'If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    tr_status = "1"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim indRow As String = itemPlanData.IND_ROW
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, start_time, end_time, result_use_time, number_qty, Spwi_id(j), tr_status)
+                            If PK_pad_id = 0 Then
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, "0", Spwi_id(j))
+                            Else
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j))
+                            End If
+                            j = j + 1
+                        Next
+                        If PK_pad_id > 0 Or PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        End If
+                    Else
+                        PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, result_use_time, number_qty, pwi_id, tr_status)
+                        If PK_pad_id = 0 Then
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, "0", pwi_id)
+                        Else
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id)
+                        End If
+                        If PK_pad_id > 0 Or PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        End If
+                    End If
+                Else
+                    tr_status = "0"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim indRow As String = itemPlanData.IND_ROW
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j))
+                            j = j + 1
+                        Next
+                        If PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        End If
+                    Else
+                        PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id)
+                        If PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        End If
+                    End If
+                End If
+            Catch ex As Exception
+                tr_status = "0"
+                If MainFrm.chk_spec_line = "2" Then
+                    Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                    Dim Iseq = GenSEQ
+                    Dim j As Integer = 0
+                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                        Iseq += 1
+                        Dim indRow As String = itemPlanData.IND_ROW
+                        Dim special_wi As String = itemPlanData.wi
+                        Dim special_item_cd As String = itemPlanData.item_cd
+                        Dim special_item_name As String = itemPlanData.item_name
+                        PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j))
+                        j = j + 1
+                    Next
+                    If PK_pad_id_sqlite > 0 Then
+                        Label6.Text = sum_act_total
+                        LB_COUNTER_SHIP.Text += cnt_btn
+                        LB_COUNTER_SEQ.Text += cnt_btn
+                        lb_good.Text += cnt_btn
+                    End If
+                Else
+                    PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id)
+                    If PK_pad_id_sqlite > 0 Then
+                        Label6.Text = sum_act_total
+                        LB_COUNTER_SHIP.Text += cnt_btn
+                        LB_COUNTER_SEQ.Text += cnt_btn
+                        lb_good.Text += cnt_btn
+                    End If
+                End If
+            End Try
+            Dim sum_diff As Integer = Label8.Text - Label6.Text
+            Label10.Text = "-" & sum_diff
+            CommitDeferredSourceTagAfterActualPersistence()
+            flg_tag_print = 0
+            If sum_diff = 0 Then
+                Me.Enabled = False
+                comp_flg = 1
+                'If result_mod <> "0" Then ' New
+                'tag_print()
+                'End If
+                Finish_work.Show() ' เกี่ยว
+            End If
+            ''msgBox(sum_diff)
+            If sum_diff < 1 Then
+                If sum_diff = 0 Then
+                    If check_format_tag = "1" Then ' for tag_type = '2' and tag_issue_flg = '2'  OR K1M183
+                        lb_box_count.Text = lb_box_count.Text + 1
+                        print_back.PrintDocument2.Print()
+                        If specialTagQuantities.Count = 0 AndAlso result_mod = "0" Then
+                            Label_bach.Text += 1
+                            GoodQty = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)))
+                            tag_print()
+                        End If
+                    Else
+                        lb_box_count.Text = lb_box_count.Text + 1
+                        'If Backoffice_model.check_line_reprint() = "0" Then
+                        Label_bach.Text = Label_bach.Text + 1
+                        GoodQty = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)))
+                        tag_print()
+                        'End If
+                    End If
+                Else
+                End If
+                Me.Enabled = False
+                comp_flg = 1
+                ' Finish_work.Show() ' เกี่ยว
+                Dim plan_qty As Integer = Label8.Text
+                Dim shift_prd As String = Label14.Text
+                Dim prd_st_datetime As Date = st_time.Text
+                Dim prd_end_datetime As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+                Dim lot_no As String = Label18.Text
+                Dim comp_flg2 As String = "1"
+                Dim transfer_flg As String = "1"
+                Dim del_flg As String = "0"
+                Dim prd_flg As String = "1"
+                Dim close_lot_flg As String = "1"
+                Dim avarage_act_prd_time As Double = Average
+            End If
+        End If
+    End Function
+    Private Async Function Manage_counter_contect_DIO() As Task
+        MainFrm.CheckMemoryLeak()
+        Dim fallbackNeeded As Boolean = False
+        Dim shouldScan As Boolean = (slm_flg_qr_prod = 1)
+        check_bull = 1
+        If RemainScanDmc < 1 Then
+            Try
+                If shouldScan Then
+                    RemainScanDmc += 1
+                    Await ManageScanQrProd()
+                Else
+                    Await counter_contect_DIO()
+                End If
+            Catch ex As Exception
+                ''Console.WriteLine("[Manage_counter_contect_DIO - inner] " & ex.Message)
+                fallbackNeeded = True
+            End Try
+            cal_eff()
+            Dim delay_setting As Integer = If(status_conter = "0", s_delay * 100, s_delay * 1000)
+            Dim cts As New Threading.CancellationTokenSource()
+
+            Try
+                Await Task.Delay(delay_setting, cts.Token).ContinueWith(Sub(task)
+                                                                            If Not task.IsCanceled Then
+                                                                                If Me.IsHandleCreated AndAlso Not Me.IsDisposed Then
+                                                                                    Try
+                                                                                        Me.Invoke(Sub()
+                                                                                                      check_bull = 0
+                                                                                                  End Sub)
+                                                                                    Catch ex As Exception
+                                                                                        ''Console.WriteLine("[Invoke Error] " & ex.Message)
+                                                                                        check_bull = 0
+                                                                                    End Try
+                                                                                Else
+                                                                                    check_bull = 0
+                                                                                End If
+                                                                            End If
+                                                                        End Sub, TaskScheduler.FromCurrentSynchronizationContext())
+            Catch ex As Exception
+                ''Console.WriteLine("[Delay Error] " & ex.Message)
+                check_bull = 0
+            End Try
+        End If
+        If fallbackNeeded Then
+            If shouldScan Then
+                RemainScanDmc += 1
+                Await ManageScanQrProd()
+            Else
+                Await counter_contect_DIO()
+            End If
+            check_bull = 0
+        End If
+    End Function
+    Private Async Function Manage_counter_contect_DIO_RS232() As Task
+        Dim fallbackNeeded As Boolean = False
+        Dim shouldScan As Boolean = (slm_flg_qr_prod = 1)
+        check_bull = 1
+        If RemainScanDmc < 1 Then
+            Try
+                If shouldScan Then
+                    RemainScanDmc += 1
+                    Await ManageScanQrProd()
+                Else
+                    Await counter_contect_DIO_RS232()
+                End If
+            Catch ex As Exception
+                ''Console.WriteLine("[Manage_counter_contect_DIO_RS232 - inner] " & ex.Message)
+                fallbackNeeded = True
+            End Try
+            cal_eff()
+            Dim delay_setting As Integer = If(status_conter = "0", s_delay * 100, s_delay * 1000)
+            Dim cts As New Threading.CancellationTokenSource()
+            Try
+                Await Task.Delay(delay_setting, cts.Token).ContinueWith(Sub(task)
+                                                                            If Not task.IsCanceled Then
+                                                                                If Me.IsHandleCreated AndAlso Not Me.IsDisposed Then
+                                                                                    Try
+                                                                                        Me.Invoke(Sub()
+                                                                                                      check_bull = 0
+                                                                                                  End Sub)
+                                                                                    Catch ex As Exception
+                                                                                        ''Console.WriteLine("[Invoke Error] " & ex.Message)
+                                                                                        check_bull = 0
+                                                                                    End Try
+                                                                                Else
+                                                                                    check_bull = 0
+                                                                                End If
+                                                                            End If
+                                                                        End Sub, TaskScheduler.FromCurrentSynchronizationContext())
+            Catch ex As Exception
+                ''Console.WriteLine("[Delay Error] " & ex.Message)
+                check_bull = 0
+            End Try
+        End If
+        If fallbackNeeded Then
+            If shouldScan Then
+                RemainScanDmc += 1
+                Await ManageScanQrProd()
+            Else
+                Await counter_contect_DIO_RS232()
+            End If
+            check_bull = 0
+        End If
+    End Function
+    Private Async Function Manage_counter_NI_MAX() As Task
+        MainFrm.CheckMemoryLeak()
+        Dim fallbackNeeded As Boolean = False
+        Dim shouldScan As Boolean = (slm_flg_qr_prod = 1)
+        Try
+            check_bull = 1
+            If RemainScanDmc < 1 Then
+                Try
+                    If shouldScan Then
+                        RemainScanDmc += 1
+                        Await ManageScanQrProd()
+                    Else
+                        Await counter_data_new_dio()
+                    End If
+                Catch innerEx As Exception
+                    ''Console.WriteLine("[Inner Error] " & innerEx.Message)
+                    fallbackNeeded = True
+                End Try
+                cal_eff()
+                Dim delay_setting As Integer = If(status_conter = "0", s_delay * 100, s_delay * 1000)
+                Dim cts As New Threading.CancellationTokenSource()
+                Await Task.Delay(delay_setting, cts.Token).ContinueWith(Sub(task)
+                                                                            If Not task.IsCanceled Then
+                                                                                If Me.IsHandleCreated AndAlso Not Me.IsDisposed Then
+                                                                                    Try
+                                                                                        Me.Invoke(Sub()
+                                                                                                      check_bull = 0
+                                                                                                  End Sub)
+                                                                                    Catch ex As Exception
+                                                                                        ''Console.WriteLine("[Invoke Error] " & ex.Message)
+                                                                                        check_bull = 0
+                                                                                    End Try
+                                                                                Else
+                                                                                    check_bull = 0
+                                                                                End If
+                                                                            End If
+                                                                        End Sub, TaskScheduler.FromCurrentSynchronizationContext())
+            End If
+        Catch ex As Exception
+            ''Console.WriteLine("[Manage_counter_NI_MAX] " & ex.Message)
+            fallbackNeeded = True
+        End Try
+        ' === ส่วน fallback ===
+        If fallbackNeeded Then
+            If shouldScan Then
+                RemainScanDmc += 1
+                Await ManageScanQrProd()
+            Else
+                Await counter_data_new_dio()
+            End If
+            check_bull = 0
+        End If
+    End Function
+
+
+    Protected Overrides Sub WndProc(ByRef m As Message)
+        If check_bull = 0 Then
+            Dim BitNo As Short
+            Dim Id As Short
+            Dim Kind As Short
+            ''msgBox(m.Msg)
+            ''msgBox(DIOM_TRIGGER)
+            ''msgBox("test")
+            '--------------------------------------
+            ' trigger Message 
+            check_bull = 0
+            delay_btn = 0
+            '--------------------------------------
+            '''''Console.WriteLine("N1")
+            If start_flg = 1 Then
+                '''''Console.WriteLine("HF1")
+                If m.Msg = DIOM_TRIGGER Then
+                    ''''Console.WriteLine("READY")
+                    Dim result = Manage_counter_contect_DIO()
+                    ' Timer3.Enabled = True
+                    ''''Console.WriteLine("STOP JAAAA")
+                End If
+            End If
+        Else
+
+        End If
+        ' ''''Console.WriteLine("BOOT")
+        MyBase.WndProc(m)
+    End Sub
+    Private Sub Label37_Click(sender As Object, e As EventArgs) Handles Label37.Click
+    End Sub
+    Public Sub CheckMenu()
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                statusDefect = Backoffice_model.GetDefectMenu(MainFrm.Label4.Text)
+                If statusDefect = "0" Then
+                    btnDefects.Enabled = False
+                Else
+                    btnDefects.Enabled = True
+                End If
+            Else
+                btnDefects.Enabled = True
+            End If
+        Catch ex As Exception
+            'Case Network down 
+            btnDefects.Enabled = True
+        End Try
+    End Sub
+    Private Sub btn_closelot_Click(sender As Object, e As EventArgs) Handles btn_closelot.Click, btnCloseLot.Click
+        ''msgBox("Please confirm")
+        Me.Enabled = False
+        ' Dim clSummary As New closeLotsummary()
+        closeLotsummary.statusPage.Text = "working"
+        Dim totalDefectCP As Integer = (CDbl(Val(lb_nc_child_part.Text)) + CDbl(Val(lb_ng_child_part.Text)))
+        If LB_COUNTER_SEQ.Text <= 0 And totalDefectCP >= 1 Then
+            MsgBox("ไม่สามารถ Close Lot ได้ เนื่องจาก ไม่มี ยอดการผลิต แต่มีงานเสียในระบบ")
+            Me.Enabled = True
+        Else
+            closeLotsummary.Show()
+        End If
+        'Close_lot_cfm.Show()
+    End Sub
+    Public Function check_tagprint()
+        'Dim result_snp As Integer = CDbl(Val(Label6.Text)) Mod CDbl(Val(Label27.Text))
+        ' Dim defectAll = CDbl(Val(lb_ng_qty.Text)) + CDbl(Val(lb_nc_qty.Text))
+        Dim SQLite = New ModelSqliteDefect
+        Dim defectAll = SQLite.mSqlieGetDataNGbyWILot(MainFrm.Label4.Text, Label18.Text, DateTimeStartofShift.Text, Prd_detail.lb_wi.Text)
+        ' Dim result_snp As Double = (Integer.Parse(Label6.Text) - defectAll) Mod Integer.Parse(Label27.Text) 'Integer.Parse(_Edit_Up_0.Text) Mod Integer.Parse(Label27.Text)
+        Dim modsucc As Integer
+        If _resumeContext.IsResumeActive Then
+            modsucc = CInt(Val(GoodQty))
+        ElseIf statusPrint = "CloseLot" Then
+            modsucc = (CDbl(Val(GoodQty)))
+        ElseIf statusPrint = "Normal" Then 'manual
+            modsucc = (CDbl(Val(GoodQty)))
+        ElseIf statusPrint = "Normal_contect_DIO" Or statusPrint = "Normal_NI_MAX" Or statusPrint = "Normal_DIO_RS232" Then ' auto counter qty
+            If CDbl(Val(Label10.Text)) = "0" Then ' remain of wi = 0 ให้ ลบ Defect ด้วย ถ้าำม่ลบ จะมีปัญหาตอนออก แท็ก จะไม่เอา Defect ไปลบ
+                modsucc = (CDbl(Val(GoodQty))) - defectAll
+            Else
+                modsucc = (CDbl(Val(GoodQty)))
+            End If
+        End If
+        Dim result_snp As Integer = modsucc Mod CDbl(Val(Label27.Text)) '(CDbl(Val(GoodQty))) Mod CDbl(Val(Label27.Text)) ' Check From Good
+        Dim flg_control As Integer = 0
+        If check_format_tag = "1" Then ' for tag_type = '2' and tag_issue_flg = '2'  OR K1M183
+            flg_control = 1
+        Else
+            If result_snp = "0" Then
+                flg_control = 1
+            End If
+        End If
+        Return flg_control
+    End Function
+    Private Sub PrintDocument1_PrintPage(sender As Object, e As PrintPageEventArgs) Handles PrintDocument1.PrintPage
+        Dim aPen = New Pen(Color.Black)
+        aPen.Width = 2.0F
+        'vertical
+        e.Graphics.DrawLine(aPen, 150, 10, 150, 290)
+        e.Graphics.DrawLine(aPen, 300, 175, 300, 290)
+        e.Graphics.DrawLine(aPen, 590, 10, 590, 175)
+        e.Graphics.DrawLine(aPen, 410, 120, 410, 235)
+        e.Graphics.DrawLine(aPen, 410, 175, 410, 235)
+        e.Graphics.DrawLine(aPen, 225, 175, 225, 235)
+        e.Graphics.DrawLine(aPen, 490, 10, 490, 65)
+        e.Graphics.DrawLine(aPen, 520, 175, 520, 290)
+        e.Graphics.DrawLine(aPen, 610, 175, 610, 290)
+        e.Graphics.DrawLine(aPen, 700, 10, 700, 290)
+        'Horizontal
+        e.Graphics.DrawLine(aPen, 150, 11, 700, 11)
+        e.Graphics.DrawLine(aPen, 150, 65, 590, 65)
+        e.Graphics.DrawLine(aPen, 150, 120, 700, 120)
+        e.Graphics.DrawLine(aPen, 150, 175, 700, 175)
+        e.Graphics.DrawLine(aPen, 150, 235, 610, 235)
+        e.Graphics.DrawLine(aPen, 150, 289, 700, 289)
+        'TAG LAYOUT
+        e.Graphics.DrawString("PART NO.", lb_font1.Font, Brushes.Black, 152, 13)
+        e.Graphics.DrawString(Label3.Text, lb_font2.Font, Brushes.Black, 152, 25)
+        e.Graphics.DrawString("QTY.", lb_font1.Font, Brushes.Black, 492, 13)
+        'Dim result_snp As Integer = CDbl(Val(Label6.Text)) Mod CDbl(Val(Label27.Text)) ' Check From Actual
+        'Dim defectAll = CDbl(Val(lb_ng_qty.Text)) + CDbl(Val(lb_nc_qty.Text))
+        Dim SQLite = New ModelSqliteDefect
+        Dim defectAll = SQLite.mSqlieGetDataNGbyWILot(MainFrm.Label4.Text, Label18.Text, DateTimeStartofShift.Text, wi_no.Text)
+        ''msgBox("statusPrint===>" & statusPrint)
+        ''msgBox("defectAll ===>" & defectAll)
+        ''msgBox("GoodQty====>" & GoodQty)
+        '  Dim result_snp As Integer = (CDbl(Val(Label6.Text)) - defectAll) Mod CDbl(Val(Label27.Text)) ' Check From Good
+        Dim modsucc As Integer
+        If statusPrint = "CloseLot" Then
+            modsucc = (CDbl(Val(GoodQty)))
+        ElseIf statusPrint = "Normal" Then ' manual
+            modsucc = (CDbl(Val(GoodQty)))
+        ElseIf statusPrint = "Normal_contect_DIO" Or statusPrint = "Normal_NI_MAX" Or statusPrint = "Normal_DIO_RS232" Then ' auto counter qty
+            ''msgBox("Label10.Text====>" & CDbl(Val(Label10.Text)))
+            If CDbl(Val(Label10.Text)) = "0" Then ' remain of wi = 0 ให้ ลบ Defect ด้วย ถ้าำม่ลบ จะมีปัญหาตอนออก แท็ก จะไม่เอา Defect ไปลบ
+                modsucc = (CDbl(Val(GoodQty))) - defectAll
+            Else
+                modsucc = (CDbl(Val(GoodQty)))
+            End If
+        End If
+        Dim result_snp As Integer = modsucc Mod CDbl(Val(Label27.Text)) '(CDbl(Val(GoodQty))) Mod CDbl(Val(Label27.Text)) ' Check From Good
+        ' 'msgBox("before result_snp===>" & result_snp)
+        Dim status_tag As String = "[ Incomplete Tag ]"
+        If V_check_line_reprint = "0" Then
+            If result_snp = "0" Then
+                result_snp = Label27.Text
+                status_tag = " "
+            End If
+        Else
+            If CDbl(Val(Label27.Text)) = 1 Or CDbl(Val(Label27.Text)) = 999999 Then
+                result_snp = LB_COUNTER_SEQ.Text
+                status_tag = " "
+            Else
+                If result_snp = "0" Then
+                    result_snp = Label27.Text
+                    status_tag = " "
+                Else
+                    ''msgBox("lb_good.Text=====>" & lb_good.Text)
+                    'result_snp = CDbl(Val(Label6.Text)) Mod CDbl(Val(Label27.Text)) 'LB_COUNTER_SEQ.Text
+                    result_snp = If(_resumeContext.IsResumeActive,
+                                    CInt(Val(GoodQty)),
+                                    CInt(Val(lb_good.Text))) Mod CInt(Val(Label27.Text))
+                    status_tag = "[ Incomplete Tag ]"
+                End If
+            End If
+        End If
+        ' 'msgBox("after result_snp===>" & result_snp)
+        e.Graphics.DrawString(result_snp, lb_font2.Font, Brushes.Black, 505, 25)
+        e.Graphics.DrawString("PART NAME", lb_font1.Font, Brushes.Black, 152, 67)
+        Dim PART_NAME As String = ""
+        If Len(Label12.Text) > 36 Then
+            PART_NAME = Label12.Text.Replace(vbCrLf, "") '
+            Dim pastNameLine1 = Label12.Text.Substring(0, 30)
+            Dim pastNameLine2 = Label12.Text.Substring(30)
+            e.Graphics.DrawString(pastNameLine1, Label9_fontModel.Font, Brushes.Black, 152, 79)
+            e.Graphics.DrawString(pastNameLine2, Label9_fontModel.Font, Brushes.Black, 152, 98)
+        Else
+            PART_NAME = Label12.Text.Replace(vbCrLf, "")
+            e.Graphics.DrawString(PART_NAME, lb_font2.Font, Brushes.Black, 152, 79)
+        End If
+        'e.Graphics.DrawString(Label12.Text, lb_font2.Font, Brushes.Black, 152, 79)
+        e.Graphics.DrawString("MODEL", lb_font1.Font, Brushes.Black, 152, 123)
+        e.Graphics.DrawString(lb_model.Text, lb_font4.Font, Brushes.Black, 152, 141)
+        e.Graphics.DrawString("NEXT PROCESS", lb_font1.Font, Brushes.Black, 412, 123)
+        e.Graphics.DrawString(Backoffice_model.NEXT_PROCESS, lb_font4.Font, Brushes.Black, 414, 141)
+        Dim plan_seq As String
+        Dim num_char_seq As Integer
+        num_char_seq = Label22.Text.Length
+        If num_char_seq = 1 Then
+            plan_seq = "00" & Label22.Text
+        ElseIf num_char_seq = 2 Then
+            plan_seq = "0" & Label22.Text
+        Else
+            plan_seq = Label22.Text
+        End If
+        Dim the_box_seq As String
+        Dim num_box_seq As Integer
+        num_box_seq = lb_box_count.Text.Length
+        If num_box_seq = 1 Then
+            the_box_seq = "00" & lb_box_count.Text
+        ElseIf num_box_seq = 2 Then
+            the_box_seq = "0" & lb_box_count.Text
+        Else
+            the_box_seq = lb_box_count.Text
+        End If
+        e.Graphics.DrawString("LOCATION", lb_font1.Font, Brushes.Black, 592, 123)
+        e.Graphics.DrawString(lb_location.Text, lb_font4.Font, Brushes.Black, 596, 141)
+        e.Graphics.DrawString("SHIFT", lb_font1.Font, Brushes.Black, 152, 178)
+        e.Graphics.DrawString(Label14.Text, lb_font2.Font, Brushes.Black, 170, 190)
+        e.Graphics.DrawString("PRO. SEQ.", lb_font1.Font, Brushes.Black, 227, 178)
+        e.Graphics.DrawString(plan_seq, lb_font2.Font, Brushes.Black, 231, 190)
+        e.Graphics.DrawString("BOX NO.", lb_font1.Font, Brushes.Black, 302, 178)
+        e.Graphics.DrawString(the_box_seq, lb_font2.Font, Brushes.Black, 320, 190)
+        e.Graphics.DrawString("ACTUAL DATE", lb_font1.Font, Brushes.Black, 412, 178)
+        e.Graphics.DrawString(DateTime.Now.ToString("dd/MM/yyyy"), lb_font5.Font, Brushes.Black, 412, 196)
+        Dim plan_cd As String
+        Dim factory_cd As String
+        If MainFrm.Label6.Text = "K2PD06" Then
+            factory_cd = "Phase8"
+            plan_cd = "52"
+        Else
+            factory_cd = "Phase10"
+            plan_cd = "51"
+        End If
+        e.Graphics.DrawString("FACTORY", lb_font1.Font, Brushes.Black, 522, 178)
+        e.Graphics.DrawString(factory_cd, lb_font5.Font, Brushes.Black, 522, 196)
+        'e.Graphics.DrawString("Fac1", lb_font5.Font, Brushes.Black, 522, 196)
+        e.Graphics.DrawString("INFO.", lb_font1.Font, Brushes.Black, 612, 178)
+        e.Graphics.DrawString("LINE", lb_font1.Font, Brushes.Black, 152, 238)
+        e.Graphics.DrawString(Label24.Text, lb_font2.Font, Brushes.Black, 152, 250)
+        Dim result_plan_date As String = G_plan_date
+        'Try
+        ' Dim da As Date = Date.ParseExact(lb_dlv_date.Text.Substring(0, 10), "yyyy-MM-dd", CultureInfo.InvariantCulture)
+        '  result_plan_date = da.ToString("dd/MM/yyyy")
+        '  Catch ex As Exception
+        '   result_plan_date = lb_dlv_date.Text
+        '   End Try
+        Dim rawDate As String = result_plan_date
+        Try
+            If Not String.IsNullOrEmpty(rawDate) AndAlso rawDate.Length >= 10 AndAlso rawDate Like "####-##-##" Then
+                Dim da As Date = Date.ParseExact(rawDate.Substring(0, 10), "yyyy-MM-dd", CultureInfo.InvariantCulture)
+                result_plan_date = da.ToString("dd/MM/yyyy")
+            Else
+                result_plan_date = DateTime.Now.ToString("dd/MM/yyyy")
+                ''Console.WriteLine("result_plan_date ==> dlv_date is missing or invalid", "TBK FA System")
+            End If
+        Catch ex As Exception
+            result_plan_date = DateTime.Now.ToString("dd/MM/yyyy")
+            ''Console.WriteLine("result_plan_date ==> dlv_date Error: " & ex.Message, "TBK FA System")
+        End Try
+        e.Graphics.DrawString("PLAN DATE", lb_font1.Font, Brushes.Black, 302, 238)
+        e.Graphics.DrawString(result_plan_date, lb_font6.Font, Brushes.Black, 334, 250)
+        e.Graphics.DrawString("LOT NO.", lb_font1.Font, Brushes.Black, 522, 238)
+        e.Graphics.DrawString(Label18.Text, lb_font2.Font, Brushes.Black, 522, 250)
+        e.Graphics.DrawString("TBKK", lb_font2.Font, Brushes.Black, 15, 13)
+        e.Graphics.DrawString("(Thailand) Co., Ltd.", lb_font1.Font, Brushes.Black, 15, 45)
+        e.Graphics.DrawString("Shop floor system", lb_font3.Font, Brushes.Black, 15, 73)
+        e.Graphics.DrawString("(New FA system)", lb_font3.Font, Brushes.Black, 15, 85)
+        e.Graphics.DrawString("WI : " & wi_no.Text, lb_font3.Font, Brushes.Black, 15, 123)
+        Dim prdtype As String
+        If lb_prd_type.Text = "10" Then
+            prdtype = "PART TYPE : FG"
+        ElseIf lb_prd_type.Text = "40" Then
+            prdtype = "PART TYPE : Parts"
+        Else
+            prdtype = "PART TYPE : FW"
+        End If
+        e.Graphics.DrawString(prdtype, lb_font3.Font, Brushes.Black, 15, 136)
+        'e.Graphics.DrawString(status_tag, lb_font3.Font, Brushes.Black, 15, 166)
+        If status_tag = "[ Incomplete Tag ]" Then
+            e.Graphics.FillRectangle(Brushes.Black, 15, 160, 119, 25) ' Incomplete Tag BACKGROUD Black ' ห่างจากข้างหน้า, ความสูง, ความกว้าง,ขึ้นลง
+        End If
+        e.Graphics.DrawString(status_tag, lb_font3.Font, Brushes.White, 15, 166) ' left top
+        Dim iden_cd As String
+        If MainFrm.Label6.Text = "K1PD01" Then
+            iden_cd = "GA"
+        Else
+            iden_cd = "GB"
+        End If
+        Dim plan_date As String = result_plan_date.Substring(6, 4) & result_plan_date.Substring(3, 2) & result_plan_date.Substring(0, 2)
+        Dim part_no_res1 As String
+        Dim part_no_res As String
+        Dim part_numm As Integer = 0
+        For part_numm = Label3.Text.Length To 24
+            part_no_res = part_no_res & " "
+        Next part_numm
+        part_no_res1 = Label3.Text & part_no_res
+        Dim act_date As String
+        Dim actdateConv As Date = DateTime.Now.ToString("dd/MM/yyyy")
+        act_date = Format(actdateConv, "yyyyMMdd")
+        Dim qty_num As String
+        Dim num_char_qty As Integer
+        num_char_qty = Len(Trim(result_snp)) 'Label27.Text.Length 'lb_qty_for_box.Text.Length
+        If num_char_qty = 1 Then
+            qty_num = "     " & result_snp 'lb_qty_for_box.Text
+        ElseIf num_char_qty = 2 Then
+            qty_num = "    " & result_snp 'lb_qty_for_box.Text
+        ElseIf num_char_qty = 3 Then
+            qty_num = "   " & result_snp 'lb_qty_for_box.Text
+        ElseIf num_char_qty = 4 Then
+            qty_num = "  " & result_snp 'lb_qty_for_box.Text
+        ElseIf num_char_qty = 5 Then
+            qty_num = " " & result_snp 'lb_qty_for_box.Text
+        Else
+            qty_num = result_snp 'lb_qty_for_box.Text
+        End If
+        Dim cus_part_no As String = "                         "
+        Dim box_no As String
+        Dim num_char_box As Integer
+        num_char_box = lb_box_count.Text.Length
+        If num_char_box = 1 Then
+            box_no = "00" & lb_box_count.Text
+        ElseIf num_char_box = 2 Then
+            box_no = "0" & lb_box_count.Text
+        Else
+            box_no = lb_box_count.Text
+        End If
+        If IsDurableContinueFullCompletionPending() Then
+            box_no = _resumeContext.CurrentBoxNo.ToString("000", CultureInfo.InvariantCulture)
+        End If
+        Dim qr_detailss As String
+        Try
+            qr_detailss = iden_cd & Label24.Text & plan_date & plan_seq & part_no_res1 & act_date & qty_num & Label18.Text & cus_part_no & act_date & plan_seq & plan_cd & box_no
+            Using bmp As Bitmap = QR_Generator.Encode(qr_detailss)
+                e.Graphics.DrawImage(bmp, 597, 17, 95, 95)
+                e.Graphics.DrawImage(bmp, 31, 190, 95, 95)
+                e.Graphics.DrawImage(bmp, 620, 199, 70, 70)
+            End Using
+        Catch ex As Exception
+            qr_detailss = ""
+        End Try
+        ' Try
+        'If My.Computer.Network.Ping("192.168.161.101") Then
+        ' Backoffice_model.Insert_tag_print(wi_no.Text, qr_detailss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text)
+        'Else
+        'End If
+        'Catch ex As Exception
+        'End Try
+        lb_qty_for_box.Text = "0"
+    End Sub
+    Public Sub keep_data_and_gen_qr_tag_fa_completed()
+        _continueTagPersistenceFailed = False
+        Dim L_wi As String = ""
+        Dim L_boxNo As String = ""
+        Dim L_printCount As String = ""
+        Dim L_SeqNo As String = ""
+        Dim L_Shift As String = ""
+        Dim L_flg_control As String = ""
+        Dim L_item_cd As String = ""
+        Dim result_snp As Integer
+        ' Dim defectAll = CDbl(Val(lb_ng_qty.Text)) + CDbl(Val(lb_nc_qty.Text))
+        Dim sqlite = New ModelSqliteDefect
+        Dim defectAll = sqlite.mSqlieGetDataNGbyWILot(MainFrm.Label4.Text, Label18.Text, DateTimeStartofShift.Text, wi_no.Text)
+        If _resumeContext.IsResumeActive Then
+            result_snp = CInt(Val(GoodQty)) Mod CInt(Val(Label27.Text))
+        ElseIf statusPrint = "CloseLot" Then
+            result_snp = CDbl(Val(GoodQty)) Mod CDbl(Val(Label27.Text))
+        ElseIf statusPrint = "Normal" Then ' manual
+            result_snp = CDbl(Val(GoodQty)) Mod CDbl(Val(Label27.Text))
+        ElseIf statusPrint = "Normal_contect_DIO" Or statusPrint = "Normal_NI_MAX" Or statusPrint = "Normal_DIO_RS232" Then ' auto counter qty
+            Dim rs
+            If CDbl(Val(Label10.Text)) = "0" Then ' remain of wi = 0 ให้ ลบ Defect ด้วย ถ้าำม่ลบ จะมีปัญหาตอนออก แท็ก จะไม่เอา Defect ไปลบ
+                rs = ((CDbl(Val(GoodQty))) - defectAll)
+            Else
+                rs = ((CDbl(Val(GoodQty))))
+            End If
+            result_snp = CDbl(Val(rs)) Mod CDbl(Val(Label27.Text))
+        End If
+        Dim status_tag As String = "[ Incomplete Tag ]"
+        If V_check_line_reprint = "0" Then
+            If result_snp = "0" Then
+                result_snp = Label27.Text
+                status_tag = " "
+            End If
+        Else
+            If CDbl(Val(Label27.Text)) = 1 Or CDbl(Val(Label27.Text)) = 999999 Then
+                result_snp = LB_COUNTER_SEQ.Text
+                status_tag = " "
+            Else
+                If result_snp = "0" Then
+                    result_snp = Label27.Text
+                    status_tag = " "
+                Else
+                    'result_snp = CDbl(Val(GoodQty)) Mod CDbl(Val(Label27.Text)) 'LB_COUNTER_SEQ.Text 
+                    status_tag = "[ Incomplete Tag ]"
+                End If
+            End If
+        End If
+        If IsSelectedOldActiveRecoveryBox() Then
+            result_snp = GetLiveCurrentBoxQuantity()
+            status_tag = If(result_snp >= CInt(Val(Label27.Text)), " ", "[ Incomplete Tag ]")
+            Console.WriteLine("[OLD-RECOVERY] TAG Packaging=" & result_snp.ToString() & " Actual=" & Label6.Text & " TagQty=" & result_snp.ToString())
+        End If
+        Dim plan_seq As String
+        Dim num_char_seq As Integer
+        num_char_seq = Label22.Text.Length
+        If num_char_seq = 1 Then
+            plan_seq = "00" & Label22.Text
+        ElseIf num_char_seq = 2 Then
+            plan_seq = "0" & Label22.Text
+        Else
+            plan_seq = Label22.Text
+        End If
+        Dim the_box_seq As String
+        Dim num_box_seq As Integer
+        num_box_seq = lb_box_count.Text.Length
+        If num_box_seq = 1 Then
+            the_box_seq = "00" & lb_box_count.Text
+        ElseIf num_box_seq = 2 Then
+            the_box_seq = "0" & lb_box_count.Text
+        Else
+            the_box_seq = lb_box_count.Text
+        End If
+        Dim plan_cd As String
+        Dim factory_cd As String
+        If MainFrm.Label6.Text = "K2PD06" Then
+            factory_cd = "Phase8"
+            plan_cd = "52"
+        Else
+            factory_cd = "Phase10"
+            plan_cd = "51"
+        End If
+        Dim result_plan_date As String = ""
+        Try
+            Dim da As Date = Date.ParseExact(Me.lb_dlv_date.Text.Substring(0, 10), "yyyy-MM-dd", CultureInfo.InvariantCulture)
+            result_plan_date = da.ToString("dd/MM/yyyy")
+        Catch ex As Exception
+            result_plan_date = Me.lb_dlv_date.Text
+        End Try
+        Dim prdtype As String
+        If lb_prd_type.Text = "10" Then
+            prdtype = "PART TYPE : FG"
+        ElseIf lb_prd_type.Text = "40" Then
+            prdtype = "PART TYPE : Parts"
+        Else
+            prdtype = "PART TYPE : FW"
+        End If
+        Dim iden_cd As String
+        If MainFrm.Label6.Text = "K1PD01" Then
+            iden_cd = "GA"
+        Else
+            iden_cd = "GB"
+        End If
+        Dim plan_date As String = result_plan_date.Substring(6, 4) & result_plan_date.Substring(3, 2) & result_plan_date.Substring(0, 2)
+        Dim part_no_res1 As String
+        Dim part_no_res As String
+        Dim part_numm As Integer = 0
+        For part_numm = Label3.Text.Length To 24
+            part_no_res = part_no_res & " "
+        Next part_numm
+        part_no_res1 = Label3.Text & part_no_res
+        Dim act_date As String
+        Dim actdateConv As Date = DateTime.Now.ToString("dd/MM/yyyy")
+        act_date = Format(actdateConv, "yyyyMMdd")
+        act_date = Format(actdateConv, "yyyyMMdd")
+        Dim qty_num As String
+        Dim num_char_qty As Integer
+        num_char_qty = Len(Trim(result_snp)) 'Label27.Text.Length 'lb_qty_for_box.Text.Length
+        If num_char_qty = 1 Then
+            qty_num = "     " & result_snp 'lb_qty_for_box.Text
+        ElseIf num_char_qty = 2 Then
+            qty_num = "    " & result_snp 'lb_qty_for_box.Text
+        ElseIf num_char_qty = 3 Then
+            qty_num = "   " & result_snp 'lb_qty_for_box.Text
+        ElseIf num_char_qty = 4 Then
+            qty_num = "  " & result_snp 'lb_qty_for_box.Text
+        ElseIf num_char_qty = 5 Then
+            qty_num = " " & result_snp 'lb_qty_for_box.Text
+        Else
+            qty_num = result_snp 'lb_qty_for_box.Text
+        End If
+        Dim cus_part_no As String = "                         "
+        Dim box_no As String
+        Dim num_char_box As Integer
+        num_char_box = lb_box_count.Text.Length
+        If num_char_box = 1 Then
+            box_no = "00" & lb_box_count.Text
+        ElseIf num_char_box = 2 Then
+            box_no = "0" & lb_box_count.Text
+        Else
+            box_no = lb_box_count.Text
+        End If
+        If _oldRecoveryFullPending Then box_no = "001"
+        Dim qr_detailss As String = ""
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                If check_tag_type = "2" Then
+                    Dim the_Label_bach As String
+                    If Trim(Len(Label_bach.Text)) = 1 Then
+                        the_Label_bach = "00" & Label_bach.Text
+                    ElseIf Trim(Len(Label_bach.Text)) = 2 Then
+                        the_Label_bach = "0" & Label_bach.Text
+                    Else
+                        the_Label_bach = Label_bach.Text
+                    End If
+                    box_no = the_Label_bach
+                End If
+                Dim tr_status As Integer = 1
+                ' 'msgBox("IF ")
+                Dim qr_detailsss = iden_cd & Label24.Text & plan_date & plan_seq & part_no_res1 & act_date & qty_num & Label18.Text & cus_part_no & act_date & plan_seq & plan_cd & box_no
+                Dim preserveResumeSource As Boolean = IsResumeContextForCurrentWi()
+                Dim isPartialSourceReplacement As Boolean = IsResumedPartialCloseLotTag()
+                Dim isFullSourceReplacement As Boolean = preserveResumeSource AndAlso
+                    Not _resumeContext.SourceBoxCompleted AndAlso
+                    CInt(Val(GoodQty)) >= CInt(Val(Label27.Text))
+                Dim replaceResumeSource As Boolean = isPartialSourceReplacement OrElse isFullSourceReplacement
+                Dim isDurableContinue As Boolean = preserveResumeSource AndAlso
+                    _resumeContext.DurableActiveConfirmed AndAlso
+                    _resumeContext.BackendTransferId > 0
+                Dim insertedTagId As Integer
+
+                If _oldRecoveryFullPending Then
+                    If Not IsOldActiveRecoveryFull() OrElse
+                        ProductionStartFlowState.SelectedOldActiveRecovery.Transfer.TransferId <> _oldRecoveryFullTransferId Then
+                        FailOldRecoveryFull("The rolled-forward recovery identity no longer matches this BOX001.")
+                        Return
+                    End If
+                    Dim transfer = ProductionStartFlowState.SelectedOldActiveRecovery.Transfer
+                    If _oldRecoveryFullRequest Is Nothing Then
+                        ' Retain the existing current-tag payload for exact /complete retries.
+                        _oldRecoveryFullRequest = New ContinueTagPersistenceRequest With {
+                            .SourceTagId = transfer.SourceTagId, .CurrentWi = transfer.CurrentWi,
+                            .PwiId = transfer.CurrentPwi, .SeqNo = plan_seq, .CurrentBoxNo = 1,
+                            .QrDetail = qr_detailsss, .Shift = Label14.Text, .FlgControl = 1,
+                            .ItemCd = Label3.Text, .TagGroupNo = tag_group_no,
+                            .GoodQty = transfer.CurrentSnp, .NextProcess = Gobal_NEXT_PROCESS}
+                    End If
+                    Dim request = _oldRecoveryFullRequest
+                    If _oldRecoveryFullTagId <= 0 Then
+                        Dim reason As String = String.Empty
+                        Dim alreadyCompleted As Boolean = False
+                        Dim tagId As Integer = 0
+                        If Not Backoffice_model.CompleteIncompleteTransfer(_oldRecoveryFullTransferId,
+                            request.SourceTagId, request.CurrentWi, request.PwiId, request.SeqNo,
+                            request.CurrentBoxNo, transfer.CurrentSnp, request.QrDetail, request.Shift,
+                            request.FlgControl, request.ItemCd, request.TagGroupNo, request.GoodQty,
+                            request.NextProcess, tagId, reason, alreadyCompleted) OrElse tagId <= 0 Then
+                            FailOldRecoveryFull(reason)
+                            Return
+                        End If
+                        _oldRecoveryFullTagId = tagId
+                        Console.WriteLine("[OLD-RECOVERY] FULL COMPLETE HBL=" & _oldRecoveryFullTransferId.ToString() &
+                                          " CurrentTagId=" & tagId.ToString() & " Packaging=" & request.GoodQty.ToString())
+                    End If
+                    _continueTagPersistenceFailed = False
+                    ' /complete alone owns tag persistence. Handoff follows the single physical print.
+                    Return
+                ElseIf isFullSourceReplacement AndAlso isDurableContinue Then
+                    ' DURABLE CONTINUE FULL BOX001 COMPLETION:
+                    ' Atomically commit current tag, complete source, and complete history_box_log on backend.
+                    Dim completeReason As String = String.Empty
+                    Dim alreadyCompleted As Boolean = False
+                    Dim backendTagId As Integer = 0
+                    Dim completeOk As Boolean = Backoffice_model.CompleteIncompleteTransfer(
+                        _resumeContext.BackendTransferId,
+                        _resumeContext.SelectedBox.TagId,
+                        wi_no.Text,
+                        pwi_id,
+                        plan_seq,
+                        CInt(Val(box_no)),
+                        CInt(Val(Label27.Text)),
+                        qr_detailsss,
+                        Label14.Text,
+                        check_tagprint(),
+                        Label3.Text,
+                        tag_group_no,
+                        CInt(Val(GoodQty)),
+                        Gobal_NEXT_PROCESS,
+                        backendTagId,
+                        completeReason,
+                        alreadyCompleted)
+
+                    If completeOk AndAlso backendTagId > 0 Then
+                        insertedTagId = backendTagId
+                        _continueTagPersistenceFailed = False
+                        LogTransferTrace("DURABLE COMPLETE SUCCESS | TagId=" & insertedTagId.ToString() & " | AlreadyCompleted=" & alreadyCompleted.ToString())
+                    Else
+                        ' Fail closed: keep durable context, do not reset, do not insert blind tags
+                        insertedTagId = 0
+                        _continueTagPersistenceFailed = True
+                        lb_qty_for_box.Text = CInt(Val(Label27.Text)).ToString(CultureInfo.InvariantCulture)
+                        LogTransferTrace("DURABLE COMPLETE FAILED | Reason=" & completeReason)
+                        MessageBox.Show("Unable to complete the durable incomplete box transfer on the server." & vbCrLf & completeReason,
+                                        "Durable Continue Box", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                        Return
+                    End If
+                ElseIf isPartialSourceReplacement AndAlso isDurableContinue Then
+                    ' DURABLE CONTINUE PARTIAL CLOSE: the server atomically
+                    ' inserts Current BOX001 as incomplete, consumes the source,
+                    ' and ends this sequence's ACTIVE ownership.
+                    Dim partialReason As String = String.Empty
+                    Dim alreadyPartial As Boolean = False
+                    Dim backendPartialTagId As Integer = 0
+                    Dim liveBoxQty As Integer = GetLiveCurrentBoxQuantity()
+                    Dim partialOk As Boolean = Backoffice_model.PartialIncompleteTransfer(
+                        _resumeContext.BackendTransferId,
+                        _resumeContext.SelectedBox.TagId,
+                        wi_no.Text,
+                        pwi_id,
+                        plan_seq,
+                        CInt(Val(box_no)),
+                        CInt(Val(Label27.Text)),
+                        qr_detailsss,
+                        Label14.Text,
+                        Label3.Text,
+                        tag_group_no,
+                        liveBoxQty,
+                        Gobal_NEXT_PROCESS,
+                        backendPartialTagId,
+                        partialReason,
+                        alreadyPartial)
+
+                    If partialOk AndAlso backendPartialTagId > 0 Then
+                        insertedTagId = backendPartialTagId
+                        _durablePartialCloseLotFailed = False
+                        _continueTagPersistenceFailed = False
+                        LogTransferTrace("DURABLE PARTIAL SUCCESS | TagId=" & insertedTagId.ToString() & " | AlreadyPartial=" & alreadyPartial.ToString())
+                    Else
+                        insertedTagId = 0
+                        _durablePartialCloseLotFailed = True
+                        _continueTagPersistenceFailed = True
+                        LogTransferTrace("DURABLE PARTIAL FAILED | Reason=" & partialReason)
+                        MessageBox.Show("Unable to partially close the durable incomplete box transfer on the server." & vbCrLf & partialReason,
+                                        "Durable Continue Box", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                        Return
+                    End If
+                ElseIf replaceResumeSource Then
+                    _pendingContinueTagPersistence = New ContinueTagPersistenceRequest With {
+                        .SourceTagId = _resumeContext.SelectedBox.TagId,
+                        .SourceWi = _resumeContext.SelectedBox.Wi,
+                        .SourceBoxNo = _resumeContext.SourceBoxNo,
+                        .CurrentWi = wi_no.Text,
+                        .QrDetail = qr_detailsss,
+                        .CurrentBoxNo = CInt(Val(box_no)),
+                        .PrintCount = 1,
+                        .SeqNo = plan_seq,
+                        .Shift = Label14.Text,
+                        .FlgControl = check_tagprint(),
+                        .ItemCd = Label3.Text,
+                        .PwiId = pwi_id,
+                        .TagGroupNo = tag_group_no,
+                        .GoodQty = CInt(Val(GoodQty)),
+                        .NextProcess = Gobal_NEXT_PROCESS,
+                        .IsPartialSourceReplacement = isPartialSourceReplacement,
+                        .IsFullSourceReplacement = isFullSourceReplacement
+                    }
+                    insertedTagId = PersistPendingContinueTagReplacement()
+                    If insertedTagId <= 0 Then _continueTagPersistenceFailed = True
+                Else
+                    insertedTagId = Backoffice_model.Insert_tag_print(
+                        wi_no.Text, qr_detailsss, box_no, 1, plan_seq, Label14.Text,
+                        check_tagprint(), Label3.Text, pwi_id, tag_group_no, GoodQty,
+                        Gobal_NEXT_PROCESS, tr_status, preserveResumeSource)
+                End If
+
+                If insertedTagId > 0 Then
+                    If isPartialSourceReplacement Then
+                        CompleteResumedBoxAfterPartialCloseLotTagCommit(insertedTagId)
+                    ElseIf isFullSourceReplacement Then
+                        CompleteResumedBoxAfterFullTagCommit(insertedTagId)
+                    ElseIf _resumeContext.SourceBoxCompleted AndAlso
+                           String.Equals(statusPrint, "CloseLot", StringComparison.OrdinalIgnoreCase) Then
+                        _resumeContext.Reset()
+                    End If
+
+                    If replaceResumeSource Then ClearPendingContinueTagPersistence()
+                End If
+                'model_api_sqlite.mas_Insert_tag_print(wi_no.Text, qr_detailsss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text, pwi_id, tag_group_no, GoodQty, Gobal_NEXT_PROCESS, tr_status)
+            Else
+                If _oldRecoveryFullPending Then
+                    FailOldRecoveryFull("The API connection is unavailable.")
+                    Return
+                End If
+                If check_tag_type = "2" Then
+                    Dim the_Label_bach As String
+                    If Trim(Len(Label_bach.Text)) = 1 Then
+                        the_Label_bach = "00" & Label_bach.Text
+                    ElseIf Trim(Len(Label_bach.Text)) = 2 Then
+                        the_Label_bach = "0" & Label_bach.Text
+                    Else
+                        the_Label_bach = Label_bach.Text
+                    End If
+                    box_no = the_Label_bach
+                End If
+                Dim tr_status As Integer = 0
+                Dim qr_detailsss = iden_cd & Label24.Text & plan_date & plan_seq & part_no_res1 & act_date & qty_num & Label18.Text & cus_part_no & act_date & plan_seq & plan_cd & box_no
+                If Not IsResumeContextForCurrentWi() OrElse _resumeContext.SourceBoxCompleted Then
+                    model_api_sqlite.mas_Insert_tag_print(wi_no.Text, qr_detailsss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text, pwi_id, tag_group_no, GoodQty, Gobal_NEXT_PROCESS, tr_status, IsResumeContextForCurrentWi())
+                Else
+                    _continueTagPersistenceFailed = True
+                End If
+            End If
+        Catch ex As Exception
+            If _oldRecoveryFullPending Then
+                FailOldRecoveryFull(ex.Message)
+                Return
+            End If
+            If check_tag_type = "2" Then
+                Dim the_Label_bach As String
+                If Trim(Len(Label_bach.Text)) = 1 Then
+                    the_Label_bach = "00" & Label_bach.Text
+                ElseIf Trim(Len(Label_bach.Text)) = 2 Then
+                    the_Label_bach = "0" & Label_bach.Text
+                Else
+                    the_Label_bach = Label_bach.Text
+                End If
+                box_no = the_Label_bach
+            End If
+            Dim tr_status As Integer = 0
+            Dim qr_detailsss = iden_cd & Label24.Text & plan_date & plan_seq & part_no_res1 & act_date & qty_num & Label18.Text & cus_part_no & act_date & plan_seq & plan_cd & box_no
+            If Not IsResumeContextForCurrentWi() OrElse _resumeContext.SourceBoxCompleted Then
+                model_api_sqlite.mas_Insert_tag_print(wi_no.Text, qr_detailsss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text, pwi_id, tag_group_no, GoodQty, Gobal_NEXT_PROCESS, tr_status, IsResumeContextForCurrentWi())
+            Else
+                _continueTagPersistenceFailed = True
+            End If
+        End Try
+    End Sub
+    'Public Shared Sub tag_print()
+    ' If Working_Pro.InvokeRequired Then
+    '         Working_Pro.Invoke(Sub()
+    '                                tag_print()
+    ' End Sub)
+    ' Return
+    ' End If
+    '     ' เรียกเฉพาะใน UI Thread เท่านั้น
+    '     Working_Pro.keep_data_and_gen_qr_tag_fa_completed()
+    '     flg_tag_print = 1
+    ' Select Case check_tag_type
+    ' Case "1", "3"
+    '             Working_Pro.PrintDocument1.Print()
+    ' Case "2"
+    '             Backoffice_model.flg_cat_layout_line = "2"
+    '             print_back.print()
+    ' End Select
+    ' End Sub
+    Public Shared Sub tag_print2()
+        ' 🔒 ป้องกันไม่ให้เรียกซ้ำซ้อน
+        If flg_tag_print = 1 Then Exit Sub
+        flg_tag_print = 1 ' ตั้งค่าเพื่อป้องกันการพิมพ์ซ้ำ
+
+        Try
+            ' ✅ ตรวจสอบว่า UI ฟอร์ม/คอนโทรลพร้อมใช้งานแล้ว
+            If Not Working_Pro.IsHandleCreated Then
+                MessageBox.Show("UI ยังไม่พร้อม กรุณาลองใหม่ภายหลัง", "ข้อผิดพลาด UI", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Console.WriteLine("UI ยังไม่พร้อม กรุณาลองใหม่ภายหลัง")
+                Exit Sub
+            End If
+            ' ✅ ตรวจสอบว่า Printer พร้อมใช้งานหรือไม่
+            If PrinterSettings.InstalledPrinters.Count = 0 Then
+                MessageBox.Show("ไม่พบ Printer กรุณาติดตั้ง Printer ก่อน", "ข้อผิดพลาด Printer", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Console.WriteLine("ไม่พบ Printer กรุณาติดตั้ง Printer ก่อน")
+                Exit Sub
+            End If
+            ' ✅ ตรวจสอบว่า Printer พร้อมใช้งานหรือไม่
+            Dim printerCheck As New PrinterSettings()
+            If Not printerCheck.IsValid Then
+                MessageBox.Show("Printer ไม่พร้อมใช้งาน", "ข้อผิดพลาด Printer", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Console.WriteLine("Printer ไม่พร้อมใช้งาน")
+                Exit Sub
+            End If
+            ' ✅ เตรียมข้อมูลก่อนพิมพ์
+            Working_Pro.keep_data_and_gen_qr_tag_fa_completed()
+            If Working_Pro._continueTagPersistenceFailed AndAlso Working_Pro.IsDurableContinueFullCompletionPending() Then
+                Working_Pro.LogTransferTrace("TAG PRINT2 ABORTED | DurableCompleteUnresolved=True")
+                Exit Sub
+            End If
+            Application.DoEvents() ' ให้ UI ตอบสนองในระหว่างประมวลผล
+            WriteDebugDiagnostic("Tag print data prepared")
+            ' ✅ พิมพ์ใน UI Thread
+            If Working_Pro.IsHandleCreated And (check_tag_type = "1" Or check_tag_type = "3") Then
+                ' ส่งคำขอพิมพ์ใน UI Thread
+                Working_Pro.BeginInvoke(New MethodInvoker(Sub()
+                                                              WriteDebugDiagnostic("Tag print started; type=" & check_tag_type)
+                                                              Try
+                                                                  Working_Pro.PrintDocument1.Print()
+
+                                                                  ' Working_Pro.PrintDocument1.Print()
+                                                              Catch ex As Exception
+                                                                  ' แสดงข้อผิดพลาดหากเกิดขึ้น
+                                                                  Console.WriteLine("ข้อผิดพลาดในการพิมพ์: " & ex.Message)
+                                                                  MessageBox.Show("เกิดข้อผิดพลาดในการพิมพ์: " & ex.Message, "ข้อผิดพลาดการพิมพ์", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                                                              End Try
+                                                          End Sub))
+            ElseIf Working_Pro.IsHandleCreated And (check_tag_type = "2") Then
+                Try
+                    Backoffice_model.flg_cat_layout_line = "2"
+                    print_back.print()
+                Catch ex As Exception
+                    Console.WriteLine("Print Back ข้อผิดพลาดในการพิมพ์: " & ex.Message)
+                    MessageBox.Show("Print Back  เกิดข้อผิดพลาดในการพิมพ์: " & ex.Message, "ข้อผิดพลาดการพิมพ์", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                End Try
+                'print_back.PrintDocument1.Print()
+            Else
+                ' หากฟอร์มไม่พร้อม
+                MessageBox.Show("ไม่สามารถใช้ UI Thread ได้", "ข้อผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            End If
+        Catch ex As Exception
+            ' ข้อผิดพลาดภายนอก Try
+            Console.WriteLine("เกิดข้อผิดพลาดในการพิมพ์แท็ก: " & ex.Message)
+            ' MessageBox.Show("เกิดข้อผิดพลาดในการพิมพ์แท็ก: " & ex.Message, "ข้อผิดพลาดระบบ", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        Finally
+            ' รีเซ็ตสถานะให้สามารถพิมพ์ใหม่ได้
+            flg_tag_print = 0 ' 🔓 ปลดล็อกให้สามารถพิมพ์ได้อีกครั้ง
+            WriteDebugDiagnostic("Tag print completed; UI state reset")
+        End Try
+    End Sub
+    Public Shared Function tag_print_incomplete()
+        Working_Pro.PrintDocument2.Print()
+    End Function
+    Private Sub Label43_Click(sender As Object, e As EventArgs) Handles Label43.Click
+
+    End Sub
+    Private Sub Label46_Click(sender As Object, e As EventArgs) Handles lb_loss_status.Click
+
+    End Sub
+    'Print incomplete tag
+    Private Sub PrintDocument2_PrintPage(sender As Object, e As PrintPageEventArgs) Handles PrintDocument2.PrintPage
+        Dim aPen = New Pen(Color.Black)
+        aPen.Width = 2.0F
+        'e.Graphics.DrawString("TBKK", lb_font2.Font, Brushes.Black, 152, 50)
+        'e.Graphics.DrawString("TBKK", lb_font2.Font, Brushes.Black, 152, 50)
+        'e.Graphics.DrawString("(Thailand) Co., Ltd.", lb_font1.Font, Brushes.Black, 152, 80)
+
+        'e.Graphics.DrawString("Shopfloor System", lb_font1.Font, Brushes.Black, 152, 110)
+        'e.Graphics.DrawString("(New FA system)", lb_font1.Font, Brushes.Black, 152, 122)
+
+        'e.Graphics.DrawString("TBKK", lb_font2.Font, Brushes.Black, 15, 13)
+        'e.Graphics.DrawString("(Thailand) Co., Ltd.", lb_font1.Font, Brushes.Black, 15, 45)
+
+        e.Graphics.DrawString("TBKK", lb_font2.Font, Brushes.Black, 15, 13)
+        e.Graphics.DrawString("(Thailand) Co., Ltd.", lb_font3.Font, Brushes.Black, 15, 44)
+
+        e.Graphics.DrawString("Shop floor system", lb_font3.Font, Brushes.Black, 15, 68)
+        e.Graphics.DrawString("(New FA system)", lb_font3.Font, Brushes.Black, 15, 80)
+
+        e.Graphics.DrawString("INCOMPLETE TAG", lb_font2.Font, Brushes.Black, 242, 5)
+        e.Graphics.DrawLine(aPen, 15, 150, 315, 150)
+
+        e.Graphics.DrawLine(aPen, 315, 96, 315, 112)
+        e.Graphics.DrawLine(aPen, 315, 183, 315, 199)
+
+        e.Graphics.DrawLine(aPen, 420, 96, 420, 112)
+        e.Graphics.DrawLine(aPen, 420, 183, 420, 199)
+
+        e.Graphics.DrawLine(aPen, 314, 96, 333, 96)
+        e.Graphics.DrawLine(aPen, 402, 96, 420, 96)
+
+        e.Graphics.DrawLine(aPen, 314, 199, 333, 199)
+        e.Graphics.DrawLine(aPen, 402, 199, 420, 199)
+
+        e.Graphics.DrawString(Label24.Text, lb_font2.Font, Brushes.Black, 310, 39)
+
+        e.Graphics.DrawString("Date: " & DateTime.Now.ToString("dd/MM/yyyy"), lb_font3.Font, Brushes.Black, 307, 72)
+
+        e.Graphics.DrawString("PLAN :" & Label8.Text, lb_font4.Font, Brushes.Black, 475, 60)
+        e.Graphics.DrawString("COMPLETED :" & Label6.Text, lb_font4.Font, Brushes.Black, 475, 80)
+        e.Graphics.DrawString("REMAINING :" & Label10.Text.Substring(1), lb_font4.Font, Brushes.Black, 475, 100)
+
+        Dim plan_seq As String
+        Dim num_char_seq As Integer
+        num_char_seq = Label22.Text.Length
+        If num_char_seq = 1 Then
+            plan_seq = "00" & Label22.Text
+        ElseIf num_char_seq = 2 Then
+            plan_seq = "0" & Label22.Text
+        Else
+            plan_seq = Label22.Text
+        End If
+        Try
+            ImageLifetime.ReplaceOwned(PictureBox9, QR_Generator.Encode(wi_no.Text & plan_seq & lb_qty_for_box.Text))
+            e.Graphics.DrawImage(PictureBox9.Image, 320, 100, 95, 95)
+
+            ImageLifetime.ReplaceOwned(PictureBox8, QR_Generator.Encode(wi_no.Text & plan_seq & lb_qty_for_box.Text))
+            e.Graphics.DrawImage(PictureBox8.Image, 655, 2, 50, 50)
+        Catch ex As Exception
+
+        End Try
+        e.Graphics.DrawLine(aPen, 418, 150, 702, 150)
+        e.Graphics.DrawString("PART No.:" & Label3.Text, lb_font4.Font, Brushes.Black, 15, 152)
+        e.Graphics.DrawString("PART NAME:" & Label12.Text, lb_font4.Font, Brushes.Black, 15, 172)
+        e.Graphics.DrawString("MODEL:" & lb_model.Text, lb_font4.Font, Brushes.Black, 15, 192)
+        e.Graphics.DrawString("WI PLAN:" & wi_no.Text, lb_font4.Font, Brushes.Black, 15, 212)
+        e.Graphics.DrawString("QTY.:" & lb_qty_for_box.Text, lb_font4.Font, Brushes.Black, 15, 232)
+        e.Graphics.DrawString("LOT No.:" & Label18.Text, lb_font4.Font, Brushes.Black, 15, 252)
+        Dim plan_cd As String
+        Dim factory_cd As String
+        If MainFrm.Label6.Text = "K2PD06" Then
+            factory_cd = "8"
+            plan_cd = "52"
+        Else
+            factory_cd = "10"
+            plan_cd = "51"
+        End If
+        Dim prdtype As String
+        If lb_prd_type.Text = "10" Then
+            prdtype = "FG"
+        ElseIf lb_prd_type.Text = "40" Then
+            prdtype = "Parts"
+        Else
+            prdtype = "FW"
+        End If
+        e.Graphics.DrawString("LOCATION:" & lb_location.Text, lb_font4.Font, Brushes.Black, 430, 152)
+        e.Graphics.DrawString("PHASE:" & factory_cd, lb_font4.Font, Brushes.Black, 430, 172)
+        e.Graphics.DrawString("PART TYPE:" & prdtype, lb_font4.Font, Brushes.Black, 430, 192)
+        e.Graphics.DrawString("SHIFT:" & Label14.Text, lb_font4.Font, Brushes.Black, 430, 212)
+        e.Graphics.DrawString("SNP:" & Label27.Text, lb_font4.Font, Brushes.Black, 430, 232)
+        e.Graphics.DrawString("SEQ:" & plan_seq, lb_font4.Font, Brushes.Black, 430, 252)
+        e.Graphics.DrawString("Use @ TBKK(Thailand) Co., Ltd.", lb_font1.Font, Brushes.Black, 525, 282)
+        Try
+            tr_status = 0
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                tr_status = 1
+                Backoffice_model.Insert_tag_print(wi_no.Text, qr_detailss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text, pwi_id, Working_Pro.tag_group_no, GoodQty, Gobal_NEXT_PROCESS, tr_status)
+                'model_api_sqlite.mas_Insert_tag_print(wi_no.Text, qr_detailss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text, pwi_id, Working_Pro.tag_group_no, GoodQty, Gobal_NEXT_PROCESS, tr_status)
+                ''msgBox("Ping completed")             
+            Else
+                tr_status = 0
+                model_api_sqlite.mas_Insert_tag_print(wi_no.Text, qr_detailss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text, pwi_id, Working_Pro.tag_group_no, GoodQty, Gobal_NEXT_PROCESS, tr_status)
+                ''msgBox("Ping incompleted")
+            End If
+        Catch ex As Exception
+            tr_status = 0
+            model_api_sqlite.mas_Insert_tag_print(wi_no.Text, qr_detailss, box_no, 1, plan_seq, Label14.Text, check_tagprint(), Label3.Text, pwi_id, Working_Pro.tag_group_no, GoodQty, Gobal_NEXT_PROCESS, tr_status)
+        End Try
+    End Sub
+    Public Sub manage_print()
+        Dim SQLite = New ModelSqliteDefect
+        Dim defectAll = SQLite.mSqlieGetDataNGbyWILot(MainFrm.Label4.Text, Label18.Text, DateTimeStartofShift.Text, wi_no.Text)
+        Dim result_add As Integer = CDbl(Val(lb_ins_qty.Text)) + CDbl(Val(Label6.Text))
+        Dim rsGood As Integer = CDbl(Val(lb_good.Text))
+        Dim loop_check As Integer = result_add / CDbl(Val(Label27.Text))
+        Dim loop_check_good As Integer = rsGood / CDbl(Val(Label27.Text))
+        Dim D As Integer = 0
+        ' Dim value_label6 As Integer = Label6.Text
+        Dim value_label6 As Integer = rsGood - CDbl(Val(lb_ins_qty.Text))
+        Dim tmp_good As Integer = value_label6
+        'For index_check_print As Integer = Label6.Text To result_add '10
+        '	'msgBox("value= " & index_check_print)
+        '		Next
+        If value_label6 <= 0 Then
+            value_label6 = 1
+        Else
+            value_label6 += 1
+        End If
+        Dim flg_reprint As String = V_check_line_reprint
+        Label6.Text = result_add
+        Dim i As Integer = 1
+        For index_check_print As Integer = value_label6 To rsGood  'result_add   '10
+            'For index_check As Integer = 1 To loop_check
+            tmp_good = tmp_good + i
+            Dim packagingQty As Integer = GetPackagingQuantity(index_check_print, PackagingQuantityBasis.GoodActual)
+            If IsSelectedOldActiveRecoveryBox() Then
+                lb_qty_for_box.Text = (GetLiveCurrentBoxQuantity() + 1).ToString(CultureInfo.InvariantCulture)
+                packagingQty = GetLiveCurrentBoxQuantity()
+            End If
+            Dim result_mod As Integer = packagingQty Mod CDbl(Val(Label27.Text))
+            If IsOldActiveRecoveryFull() Then
+                DeferResumeSourceTagUntilActualPersistence(CInt(Val(Label27.Text)),
+                    CInt(Val(Label6.Text)), CInt(Val(lb_good.Text)), Math.Max(0, rsGood - index_check_print), True)
+                Exit For
+            End If
+            'หาเศษ
+            'If result_mod = 0 And textp_result <> 0 Then
+            If check_format_tag = "1" Then ' for tag_type = '2' and tag_issue_flg = '2'  OR K1M183
+                lb_box_count.Text = lb_box_count.Text + 1
+                print_back.PrintDocument2.Print()
+                '''Console.WriteLine("result Print ===>" & index_check_print & "Mod" & CDbl(Val(Label27.Text)) & " = " & result_mod)
+                If result_mod = "0" Or Label10.Text = "0" Then
+                    Label_bach.Text += 1
+                    ' 'msgBox("Label6.Text==>" & Label6.Text)
+                    'GoodQty = Label6.Text
+                    GoodQty = packagingQty
+                    If DeferResumeSourceTagUntilActualPersistence(GoodQty,
+                                                                   CInt(Val(Label6.Text)),
+                                                                   CInt(Val(lb_good.Text)),
+                                                                   Math.Max(0, GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text))) - CInt(Val(Label27.Text))),
+                                                                   True) Then Exit For
+                    tag_print()
+                End If
+            Else
+                If flg_reprint = "0" Then
+                    If result_mod = "0" Then
+                        Label_bach.Text += 1
+                        lb_box_count.Text = lb_box_count.Text + 1
+                        GoodQty = packagingQty
+                        If DeferResumeSourceTagUntilActualPersistence(GoodQty,
+                                                                       CInt(Val(Label6.Text)),
+                                                                       CInt(Val(lb_good.Text)),
+                                                                       Math.Max(0, GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text))) - CInt(Val(Label27.Text))),
+                                                                       True) Then Exit For
+                        tag_print()
+                    Else
+                        Dim ActBywi = tmp_good + defectAll
+                        If ActBywi = Label8.Text Then ' act = plan
+                            lb_box_count.Text = lb_box_count.Text + 1
+                            Label_bach.Text += 1
+                            GoodQty = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)))
+                            'tag_print() เพราะออก ตอน ครบแผน จริง พอครบแผน ค้องกด Close Lot 
+                        End If
+                    End If
+                Else
+                    If CDbl(Val(Label27.Text)) = 1 Or CDbl(Val(Label27.Text)) = 999999 Then
+                    Else
+                        If result_mod = "0" Then
+                            Label_bach.Text = Label_bach.Text + 1
+                            lb_box_count.Text = lb_box_count.Text + 1
+                            GoodQty = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)))
+                            If DeferResumeSourceTagUntilActualPersistence(GoodQty,
+                                                                           CInt(Val(Label6.Text)),
+                                                                           CInt(Val(lb_good.Text)),
+                                                                           Math.Max(0, GoodQty - CInt(Val(Label27.Text))),
+                                                                           True) Then Exit For
+                            tag_print()
+                        End If
+                    End If
+                End If
+            End If
+            'End If
+        Next
+    End Sub
+    Public Async Function ins_qty_fn_manual() As Task
+        If Not CanAcceptContinueCounterInput() Then Return
+        WriteDebugDiagnostic("ins_qty_fn_manual")
+        statusPrint = "Normal"
+        Dim add_value_loop As Integer = 0
+        Dim result_add As Integer = CDbl(Val(lb_ins_qty.Text)) + CDbl(Val(Label6.Text))
+        Dim loop_check As Integer = result_add / CDbl(Val(Label27.Text))
+        If V_check_line_reprint = "1" Then
+            If CDbl(Val(Label27.Text)) = 1 Or CDbl(Val(Label27.Text)) = 999999 Then
+
+                If IsSelectedOldActiveRecoveryBox() Then
+                    lb_qty_for_box.Text = (GetLiveCurrentBoxQuantity() + CInt(Val(lb_ins_qty.Text))).ToString(CultureInfo.InvariantCulture)
+                End If
+                If (CDbl(Val(Label6.Text) + CDbl(Val(lb_ins_qty.Text)))) = CDbl(Val(Label8.Text)) Then
+                    Label6.Text = result_add
+                    lb_box_count.Text = lb_box_count.Text + 1
+                    Label_bach.Text = Label_bach.Text + 1
+                    GoodQty = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)))
+                    If Not DeferResumeSourceTagUntilActualPersistence(GoodQty,
+                                                                        CInt(Val(Label6.Text)),
+                                                                        CInt(Val(lb_good.Text)),
+                                                                        Math.Max(0, GoodQty - CInt(Val(Label27.Text))),
+                                                                        True) Then
+                        tag_print()
+                    End If
+                Else
+                    Label6.Text = result_add
+                End If
+            Else
+                manage_print()
+            End If
+        Else
+            ''msgBox("ready")
+            manage_print()
+        End If
+        Dim pd As String = MainFrm.Label6.Text
+        Dim line_cd As String = MainFrm.Label4.Text
+        Dim wi_plan As String = wi_no.Text
+        Dim item_cd As String = Label3.Text
+        Dim item_name As String = Label12.Text
+        Dim staff_no As String = Label29.Text
+        Dim seq_no As String = Label22.Text
+        Dim prd_qty As Integer = cnt_btn
+        Dim end_time As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+        Dim tr_status As String = "0"
+        Dim number_qty As Integer = Label6.Text
+        Dim start_time As Date = st_count_ct.Text
+        st_count_ct.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+        Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+        Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+        If Backoffice_model.start_check_date_paralell_line <> "" Then
+            start_time2 = Backoffice_model.start_check_date_paralell_line
+            end_time2 = Backoffice_model.end_check_date_paralell_line
+        End If
+        ''msgBox("Backoffice_model.date_time_click_start==>" & Backoffice_model.date_time_click_start)
+        ' Dim dateTimrConvertdateMouth As String = Backoffice_model.date_time_click_start.ToString("yyyy-MM-dd HH:mm")
+        ' 'msgBox("start_time2.Substring(0, 16)===>" & start_time2.Substring(0, 16) & "======Manual Time dateTimrConvertdateMouth ==>" & dateTimrConvertdateMouth)
+        ' If start_time2.Substring(0, 16) = dateTimrConvertdateMouth Then
+        ' start_time2 = start_time2.Substring(0, 16) & ":" & Backoffice_model.secCkickStart
+        'End If
+        ' 'msgBox("convert ===>" & start_time2)
+        Dim use_time As Double = Cal_Use_Time_ins_qty_fn_manual(start_time2, end_time2) '"1"
+        Dim manualActualAccepted As Boolean = False
+        If CDbl(Val(Label8.Text)) > CDbl(Val(Label6.Text)) Then
+            Dim result_friff As Integer = CDbl(Val(Label8.Text)) - CDbl(Val(Label6.Text))
+            Dim driff As Integer = 0
+            If result_friff < 0 Then
+                driff = "0"
+            Else
+                driff = "-" & result_friff
+            End If
+            Label10.Text = driff
+            Try
+                If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    tr_status = "1"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, start_time2, end_time2, use_time, number_qty, Spwi_id(j), tr_status)
+                            'Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                            If PK_pad_id = 0 Then
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, "0", Spwi_id(j))
+                            Else
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                            End If
+                            j = j + 1
+                        Next
+                    Else
+                        PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, start_time2, end_time2, use_time, number_qty, pwi_id, tr_status)
+                        If PK_pad_id = 0 Then
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, "0", pwi_id)
+                        Else
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                        End If
+                    End If
+                Else
+                    tr_status = "0"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                            j = j + 1
+                        Next
+                    Else
+                        Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                    End If
+                End If
+            Catch ex As Exception
+                tr_status = "0"
+                If MainFrm.chk_spec_line = "2" Then
+                    Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                    Dim Iseq = GenSEQ
+                    Dim j As Integer = 0
+                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                        Iseq += 1
+                        Dim special_wi As String = itemPlanData.wi
+                        Dim special_item_cd As String = itemPlanData.item_cd
+                        Dim special_item_name As String = itemPlanData.item_name
+                        Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                        j = j + 1
+                    Next
+                Else
+                    Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                End If
+            End Try
+            ' Return from insPrdDetail_sqlite is the existing local/offline
+            ' acceptance point. Only now may a deferred Source tag commit.
+            manualActualAccepted = True
+        End If
+        If CDbl(Val(Label8.Text)) = CDbl(Val(Label6.Text)) Then
+            Dim result_friff As Integer = CDbl(Val(Label8.Text)) - result_add
+            Dim driff As Integer = 0
+            If result_friff < 0 Then
+                driff = "0"
+            Else
+                driff = "-" & result_friff
+            End If
+            Label10.Text = driff
+            comp_flg = 1
+            If comp_flg = 1 Then
+                Try
+                    If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                        tr_status = "1"
+                        If MainFrm.chk_spec_line = "2" Then
+                            Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                            Dim Iseq = GenSEQ
+                            Dim j As Integer = 0
+                            For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                                Iseq += 1
+                                Dim special_wi As String = itemPlanData.wi
+                                Dim special_item_cd As String = itemPlanData.item_cd
+                                Dim special_item_name As String = itemPlanData.item_name
+                                PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, start_time2, end_time2, use_time, number_qty, Spwi_id(j), tr_status)
+                                If PK_pad_id = 0 Then
+                                    PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, "0", Spwi_id(j))
+                                Else
+                                    PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                                End If
+                                j = j + 1
+                            Next
+                        Else
+                            PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, start_time2, end_time2, use_time, number_qty, pwi_id, tr_status)
+                            If PK_pad_id = 0 Then
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, "0", pwi_id)
+                            Else
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                            End If
+
+                        End If
+                    Else
+                        tr_status = "0"
+                        If MainFrm.chk_spec_line = "2" Then
+                            Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                            Dim Iseq = GenSEQ
+                            Dim j As Integer = 0
+                            For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                                Iseq += 1
+                                Dim special_wi As String = itemPlanData.wi
+                                Dim special_item_cd As String = itemPlanData.item_cd
+                                Dim special_item_name As String = itemPlanData.item_name
+                                Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                                j = j + 1
+                            Next
+                        Else
+                            Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                        End If
+                    End If
+                Catch ex As Exception
+                    tr_status = "0"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, Spwi_id(j))
+                            j = j + 1
+                        Next
+                    Else
+                        Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, lb_ins_qty.Text, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                    End If
+                End Try
+                manualActualAccepted = True
+                Dim shift_prd3 As String = Label14.Text
+                Dim prd_st_datetime3 As Date = st_time.Text
+                Dim prd_end_datetime3 As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+                Dim lot_no3 As String = Label18.Text
+                Dim comp_flg3 As String = "1"
+                Dim transfer_flg3 As String = "1"
+                Dim del_flg3 As String = "0"
+                Dim prd_flg3 As String = "1"
+                Dim close_lot_flg3 As String = "1"
+            End If
+            Me.Enabled = False
+            Dim result_mod As Integer = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text))) Mod CDbl(Val(Label27.Text))
+            If result_mod <> "0" Then
+                lb_box_count.Text = lb_box_count.Text + 1
+                GoodQty = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)))
+                tag_print()
+            End If
+            Finish_work.Show() ' เกี่ยว
+        End If
+        If manualActualAccepted Then
+            AddDurableContinueAcceptedProductionQuantity(CInt(Val(lb_ins_qty.Text)))
+            MarkDeferredSourceActualAccepted()
+            CommitDeferredSourceTagAfterActualPersistence()
+        End If
+        cal_eff()
+    End Function
+    ' Legacy counter-delay paths below still use this field.  It is deliberately
+    ' separate from the owned OEE monitor token.
+    Private cts As CancellationTokenSource = New CancellationTokenSource()
+    Private _oeeMonitorCts As CancellationTokenSource = Nothing
+    Private _oeeMonitorTask As Task = Nothing
+    Private ReadOnly _oeeMonitorGate As New Object()
+    Private _oeeMonitorGeneration As Integer = 0
+
+    Private Function GetOeeMonitorIdentity(generation As Integer) As String
+        Return "Instance=" & System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(Me).ToString() &
+               " Generation=" & generation.ToString()
+    End Function
+
+    Private Sub EnsureOeeMonitorRunning()
+        SyncLock _oeeMonitorGate
+            If _oeeMonitorTask IsNot Nothing AndAlso Not _oeeMonitorTask.IsCompleted Then Return
+            _oeeMonitorGeneration += 1
+            Dim monitorCts As New CancellationTokenSource()
+            _oeeMonitorCts = monitorCts
+            _oeeMonitorTask = LOAD_OEE(monitorCts, _oeeMonitorGeneration)
+            Backoffice_model.LogPerformance("OeeMonitor.Start | " & GetOeeMonitorIdentity(_oeeMonitorGeneration), 0)
+        End SyncLock
+    End Sub
+
+    Private Async Function RefreshOeeWithDiagnosticsAsync(stageName As String) As Task
+        Dim refreshTimer As Stopwatch = Stopwatch.StartNew()
+        Dim refreshError As Exception = Nothing
+        Backoffice_model.LogPerformance(stageName & ".Start", 0)
+
+        Await cal_eff(Sub(ex As Exception)
+                          refreshError = ex
+                      End Sub)
+
+        If refreshError Is Nothing Then
+            Backoffice_model.LogPerformance(stageName & ".Success", refreshTimer.ElapsedMilliseconds)
+        Else
+            Dim message As String = refreshError.Message.Replace(vbCr, " ").Replace(vbLf, " ").Trim()
+            If message.Length > 300 Then message = message.Substring(0, 300)
+            Backoffice_model.LogPerformance(stageName & ".Failed | " & refreshError.GetType().Name & " | " & message,
+                                             refreshTimer.ElapsedMilliseconds)
+        End If
+    End Function
+
+    Private Async Function LOAD_OEE(monitorCts As CancellationTokenSource, generation As Integer) As Task
+        ' 'msgBox("load oee")
+        Dim token As CancellationToken = monitorCts.Token
+        Dim exitCategory As String = "CompletedUnexpectedly"
+        Try
+            While True
+                ''''Console.WriteLine("READY LOAD OEE 2 ")
+                ' รอ 60 วินาที
+                Await Task.Delay(60000, token)
+                token.ThrowIfCancellationRequested()
+                ' ตรวจสอบว่า Handle ของฟอร์มยังถูกสร้างอยู่และไม่ถูก Dispose
+                If Not token.IsCancellationRequested AndAlso Me.IsHandleCreated AndAlso Not Me.IsDisposed Then
+                    Await RefreshOeeWithDiagnosticsAsync("OeeMonitor.Refresh")
+                End If
+                Backoffice_model.LogPerformance("OeeMonitor.Iteration | " & GetOeeMonitorIdentity(generation), 0)
+            End While
+        Catch ex As OperationCanceledException
+            exitCategory = "Cancelled"
+        Catch ex As Exception
+            ' Keep the legacy failure behavior (the monitor ends); log a safe
+            ' exception category without production or credential data.
+            exitCategory = "Faulted:" & ex.GetType().Name
+        Finally
+            Backoffice_model.LogPerformance("OeeMonitor.Exit | " & exitCategory & " | " & GetOeeMonitorIdentity(generation), 0)
+            SyncLock _oeeMonitorGate
+                ' An older monitor may never clear ownership belonging to a newer one.
+                If Object.ReferenceEquals(_oeeMonitorCts, monitorCts) Then
+                    _oeeMonitorCts = Nothing
+                    _oeeMonitorTask = Nothing
+                End If
+            End SyncLock
+            monitorCts.Dispose()
+        End Try
+    End Function
+    ' ฟังก์ชันสำหรับยกเลิกการโหลด OEE
+    Public Sub CancelLOAD_OEE()
+        Dim monitorCts As CancellationTokenSource = Nothing
+        Dim generation As Integer = 0
+        SyncLock _oeeMonitorGate
+            monitorCts = _oeeMonitorCts
+            generation = _oeeMonitorGeneration
+        End SyncLock
+        If monitorCts IsNot Nothing Then
+            Backoffice_model.LogPerformance("OeeMonitor.CancelRequested | " & GetOeeMonitorIdentity(generation), 0)
+            Try
+                monitorCts.Cancel()
+            Catch ex As ObjectDisposedException
+            End Try
+        End If
+    End Sub
+    Public Async Function cal_eff(Optional failureReporter As Action(Of Exception) = Nothing) As Task
+        Try
+            Try
+                ''msgBox("ready run 1 ")
+                Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+                If rsNetwork Then
+                    ' If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                    If checkStatusEmergency(MainFrm.Label4.Text) = "0" Then
+                        Try
+                            If StatusClickStart = 1 Then
+                                pb_netdown.Visible = False
+                                PanelProgressbar.Visible = True
+                                PanelWebviewEmergency.Enabled = False
+                                PanelWebviewEmergency.Visible = False
+                            End If
+                            WebViewEmergency.CoreWebView2.Navigate("http://" & Backoffice_model.svApi & "/API_NEW_FA/SpecialCode/Defaultpage")
+                        Catch ex As Exception
+                            'No Network 
+                        End Try
+                    Else
+                        'pb_netdown.Visible = False
+                        'PanelProgressbar.Visible = True
+                        Try
+                            If PanelWebviewEmergency.Visible Then
+                            Else
+                                WebViewEmergency.CoreWebView2.Navigate("http://" & Backoffice_model.svApi & "/API_NEW_FA/SpecialCode/EMERGENCY")
+                                PanelWebviewEmergency.Enabled = True
+                                PanelWebviewEmergency.Visible = True
+                            End If
+                        Catch ex As Exception
+                            'No Network 
+                        End Try
+                    End If
+                Else
+                    'NoNet
+                    If StatusClickStart = 1 Then
+                        pb_netdown.Visible = True
+                        pb_netdown.BringToFront()
+                        PanelProgressbar.Visible = False
+                    End If
+                End If
+                ' 'msgBox("ready run 2 ")
+            Catch ex As Exception
+                If StatusClickStart = 1 Then
+                    pb_netdown.Visible = True
+                    pb_netdown.BringToFront()
+                    PanelProgressbar.Visible = False
+                End If
+                'No Net
+            End Try
+            ' 'msgBox("ready run 3 ")
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Await MainFrm.RunCmd(MainFrm.Label4.Text)
+            End If
+            ''msgBox("ready run 4 ")
+            '
+            ''''Console.WriteLine("READY LOAD OEE cal_eff ")
+            ' Inside the continuation, invoke on the UI thread
+            ''''Console.WriteLine("CAL OEE cal_eff")
+            ' Perform various UI operations
+            ' 'msgBox("ready run 5 ")
+            set_AccTarget(Prd_detail.Label12.Text.Substring(3, 5), Label38.Text, gobal_stTimeModel)
+            ''msgBox("ready run 6 ")
+            setlvA(MainFrm.Label4.Text, Label18.Text, Label14.Text, DateTime.Now.ToString("yyyy-MM-dd"), Prd_detail.Label12.Text.Substring(3, 5), gobal_stTimeModel, MainFrm.chk_spec_line)
+            ' 'msgBox("ready run 7 ")
+            setlvQ(MainFrm.Label4.Text, Label18.Text, Prd_detail.Label12.Text.Substring(3, 5), gobal_stTimeModel)
+            ' 'msgBox("ready run 8 ")
+            ''msgBox("READY LOAD P ")
+            Dim P = setgetSpeedLoss(lbNG.Text, lb_good.Text, Prd_detail.Label12.Text.Substring(3, 5), Label38.Text, MainFrm.Label4.Text, gobal_stTimeModel)
+
+            ' 'msgBox("ready run 9")
+            Dim GoodByPartNo As Integer = CDbl(Val(actualP.Text)) - CDbl(Val(lbOverTimeQuality.Text))
+            ' 'msgBox("ready run 10 ")
+            Dim Q = cal_progressbarQ(lbOverTimeQuality.Text, GoodByPartNo)
+            ' 'msgBox("ready run 11 ")
+            Dim A = cal_progressbarA(MainFrm.Label4.Text, Prd_detail.Label12.Text.Substring(3, 5), Prd_detail.Label12.Text.Substring(11, 5))
+            setNgByHour(MainFrm.Label4.Text, Label18.Text)
+            ' 'msgBox("ready run 12 ")
+            'Dim rswebview = loadDataProgressBar(MainFrm.Label4.Text, Label14.Text)
+            ' WebViewProgressbar.Reload()
+            calProgressOEE(A, Q, P)
+            ' 'msgBox("ready run 13 ")
+        Catch ex As Exception
+            If failureReporter IsNot Nothing Then failureReporter(ex)
+            ''''Console.WriteLine("err cal_eff ===>" & ex.Message)
+        End Try
+    End Function
+    Public Function Cal_Use_Time_ins_qty_fn_manual(date_start_data As Date, date_end As Date)
+        Dim total_ins_qty As Integer = DateDiff(DateInterval.Second, date_start_data, date_end)
+        lb_use_time.Text = total_ins_qty
+        If total_ins_qty < 0 Then
+            Minutes_total = Math.Abs(CDbl(Val(lb_use_time.Text)))
+            lb_use_time.Text = Minutes_total
+        ElseIf total_ins_qty = 0 Then
+            lb_use_time.Text = 1
+        End If
+        Return lb_use_time.Text
+    End Function
+    Public Async Function ins_qty_fn(Optional acceptedReworkForPackaging As Boolean = False) As Task
+        If Not CanAcceptContinueCounterInput() Then Return
+        Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
+        Dim monthNow As Integer = DateTime.Now.ToString("MM")
+        Dim dayNow As Integer = DateTime.Now.ToString("dd")
+        Dim hourNow As Integer = DateTime.Now.ToString("HH")
+        Dim minNow As Integer = DateTime.Now.ToString("mm")
+        Dim secNow As Integer = DateTime.Now.ToString("ss")
+        ''msgBox(yearNow & monthNow & dayNow & hourNow & minNow & secNow)
+        Dim yearSt As Integer = st_time.Text.Substring(0, 4)
+        Dim monthSt As Integer = st_time.Text.Substring(5, 2)
+        Dim daySt As Integer = st_time.Text.Substring(8, 2)
+        Dim hourSt As Integer = st_time.Text.Substring(11, 2)
+        Dim minSt As Integer = st_time.Text.Substring(14, 2)
+        Dim secSt As Integer = st_time.Text.Substring(17, 2)
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
+            End If
+        Catch ex As Exception
+        End Try
+        ''msgBox(yearSt & minthSt & daySt & hourSt & minSt & secSt)
+        Dim firstDate As New System.DateTime(yearSt, monthSt, daySt, hourSt, minSt, secSt)
+        Dim secondDate As New System.DateTime(yearNow, monthNow, dayNow, hourNow, minNow, secNow)
+        Dim diff As System.TimeSpan = secondDate.Subtract(firstDate)
+        Dim diff1 As System.TimeSpan = secondDate - firstDate
+        Dim diff2 As String = (secondDate - firstDate).TotalSeconds.ToString()
+        ''msgBox(diff2)
+        ''msgBox(diff2 / 60)
+        Dim actCT As Double = Format(diff2 / 60, "0.00")
+        'Format(ListBox2.Items(numOfindex), "0.00")
+        'st_time.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+        Dim round_ins As Integer = lb_ins_qty.Text
+        If round_ins <= 0 Then
+            round_ins = Backoffice_model.qty_int
+            Backoffice_model.qty_int = 0
+        End If
+
+        ' A retry never replays the source-boundary pieces. Only an accepted
+        ' Rework submission may continue its own retained input tail, and that
+        ' tail is consumed before the newly submitted quantity.
+        If _pendingContinueInputRemaining > 0 Then
+            If Not acceptedReworkForPackaging OrElse Not _pendingContinueInputIsAcceptedRework Then
+                MessageBox.Show("Continue Box has unprocessed accepted Rework quantity. Resolve and continue that input first.",
+                                "Continue Box Pending Input",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning)
+                Return
+            End If
+            round_ins += _pendingContinueInputRemaining
+            ClearPendingContinueInput()
+        End If
+
+        For index As Integer = 1 To round_ins
+            Dim sourcePersistenceBlockedThisPiece As Boolean = False
+            Dim deferSourceTagUntilActualPersisted As Boolean = False
+            Dim cnt_btn As Integer = 1
+            count = CInt(count)
+            count = count + cnt_btn
+            _Edit_Up_0.Text = count
+            If count <= 0 Then
+                count = 1 'Backoffice_model.qty_int
+                Backoffice_model.qty_int = "0"
+            End If
+            If _Edit_Up_0.Text <= 0 Then
+                _Edit_Up_0.Text = 1
+            End If
+            Dim Act As Integer = 0
+            If Label6.Text <= 0 Then
+                Act = 1
+            Else
+                Act = Label6.Text
+            End If
+            If comp_flg = 0 Then
+                lb_qty_for_box.Text = lb_qty_for_box.Text + cnt_btn
+                Dim textp_result As Integer = Label10.Text
+                textp_result = Math.Abs(textp_result) - 1
+                ''msgBox(textp_result)
+                Dim sum_act_total As Integer = Label6.Text + cnt_btn
+                Label6.Text = sum_act_total
+                If acceptedReworkForPackaging AndAlso IsResumeContextForCurrentWi() Then
+                    _resumeContext.AddAcceptedReworkPackagingQuantity(cnt_btn)
+                ElseIf acceptedReworkForPackaging Then
+                    AddNormalAcceptedReworkPackagingQuantity(cnt_btn)
+                End If
+
+                Dim result_mod As Double
+                If IsResumeContextForCurrentWi() Then
+                    result_mod = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text))) Mod Integer.Parse(Label27.Text)
+                ElseIf IsNormalNewBoxPackagingBaselineForCurrentContext() Then
+                    result_mod = GetResumePackagingActualQuantity(CInt(Val(Label6.Text))) Mod Integer.Parse(Label27.Text)
+                Else
+                    result_mod = Integer.Parse(Act + 1) Mod Integer.Parse(Label27.Text)
+                End If
+                If result_mod = 0 And textp_result <> 0 Then
+                    ' The selected source tag is irreversible once its atomic
+                    ' replacement commits.  Defer only that source boundary
+                    ' until this physical piece has reached the existing local
+                    ' Actual queue. Normal legacy tag ordering is untouched.
+                    deferSourceTagUntilActualPersisted = IsResumeContextForCurrentWi() OrElse IsOldActiveRecoveryFull()
+                    If IsOldActiveRecoveryFull() Then
+                        DeferResumeSourceTagUntilActualPersistence(CInt(Val(Label27.Text)),
+                            CInt(Val(Label6.Text)), CInt(Val(lb_good.Text)), 0, True)
+                    End If
+                    If V_check_line_reprint = "0" Then
+                        If Not IsDurableContinueFullCompletionPending() AndAlso Not _oldRecoveryFullPending Then
+                            lb_box_count.Text = lb_box_count.Text + 1
+                            Label_bach.Text = Label_bach.Text + 1
+                        End If
+                        GoodQty = GetResumePackagingActualQuantity(CInt(Val(Label6.Text)))
+                        If Not deferSourceTagUntilActualPersisted Then
+                            tag_print()
+                            sourcePersistenceBlockedThisPiece = _continueTagPersistenceFailed
+                        End If
+                    Else
+                        If CDbl(Val(Label27.Text)) = 1 Or CDbl(Val(Label27.Text)) = 999999 Then
+                        Else
+                            If Not IsDurableContinueFullCompletionPending() AndAlso Not _oldRecoveryFullPending Then
+                                lb_box_count.Text = lb_box_count.Text + 1
+                                Label_bach.Text = Label_bach.Text + 1
+                            End If
+                            GoodQty = GetResumePackagingActualQuantity(CInt(Val(Label6.Text)))
+                            If Not deferSourceTagUntilActualPersisted Then
+                                tag_print()
+                                sourcePersistenceBlockedThisPiece = _continueTagPersistenceFailed
+                            End If
+                        End If
+                    End If
+                End If
+                Dim sum_prg As Integer = (Label6.Text * 100) / Label8.Text
+                If sum_prg > 100 Then
+                    sum_prg = 100
+                ElseIf sum_prg < 0 Then
+                    sum_prg = 0
+                End If
+                CircularProgressBar1.Text = sum_prg
+                CircularProgressBar1.Value = sum_prg
+                Dim use_time As Integer = Label34.Text
+                Dim dt1 As DateTime = DateTime.Now
+                Dim dt2 As DateTime = st_count_ct.Text
+                Dim dtspan As TimeSpan = dt1 - dt2
+                Dim actCT_jing As Double = Format((dtspan.Seconds / _Edit_Up_0.Text) + (dtspan.Minutes * 60), "0.00")
+                ListBox1.Items.Add((dtspan.Seconds) + (dtspan.Minutes * 60) + (dtspan.Hours * 3600))
+                Dim Total As Double = 0
+                Dim Count As Double = 0
+                Dim Average As Double = 0
+                Dim I As Integer
+                For I = 0 To ListBox1.Items.Count - 1
+                    Total += Val(ListBox1.Items(I))
+                    Count += 1
+                Next
+                Average = Total / Count
+                Label37.Text = Format(Average, "0.0")
+                Dim start_time As Date = st_count_ct.Text
+                st_count_ct.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+                Dim dt11 As DateTime = DateTime.Now
+                Dim dt22 As DateTime = st_time.Text
+                Dim dtspan1 As TimeSpan = dt11 - dt22
+                If (dtspan1.Minutes + (dtspan1.Hours * 60)) >= use_time Then
+                    Label20.ForeColor = Color.Red
+                End If
+                Dim temppola As Double = ((dtspan1.Seconds / 60) + (dtspan1.Minutes + (dtspan1.Hours * 60)))
+                If temppola < 1 Then
+                    temppola = 1
+                End If
+                Dim loss_sum As Integer
+                Try
+                    If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                        Dim LoadSQL = Backoffice_model.get_sum_loss(Trim(wi_no.Text))
+                        While LoadSQL.Read()
+                            loss_sum = LoadSQL("sum_loss")
+                        End While
+                    Else
+                        loss_sum = 0
+                    End If
+                Catch ex As Exception
+                End Try
+                Dim sum_prg2 As Integer = (((Label38.Text * _Edit_Up_0.Text) / ((temppola * 60) - loss_sum)) * 100)
+                sum_prg2 = sum_prg2 / cnt_btn
+                If sum_prg2 > 100 Then
+                    sum_prg2 = 100
+                ElseIf sum_prg2 < 0 Then
+                    sum_prg2 = 0
+                End If
+                If sum_prg2 <= 49 Then
+                    CircularProgressBar2.ProgressColor = Color.Red
+                    CircularProgressBar2.ForeColor = Color.Black
+                ElseIf sum_prg2 >= 50 And sum_prg2 <= 79 Then
+                    CircularProgressBar2.ProgressColor = Color.Chocolate
+                    CircularProgressBar2.ForeColor = Color.Black
+                ElseIf sum_prg2 >= 80 And sum_prg2 <= 100 Then
+                    CircularProgressBar2.ProgressColor = Color.Green
+                    CircularProgressBar2.ForeColor = Color.Black
+                End If
+                Dim avarage_eff As Double = Format(sum_prg2, "0.00")
+                lb_sum_prg.Text = avarage_eff
+                CircularProgressBar2.Text = sum_prg2
+                CircularProgressBar2.Value = sum_prg2
+                Dim actCT_jingna As Double = Format(dtspan.Seconds + (dtspan.Minutes * 60), "0.00")
+                Dim pd As String = MainFrm.Label6.Text
+                Dim line_cd As String = MainFrm.Label4.Text
+                Dim wi_plan As String = wi_no.Text
+                Dim item_cd As String = Label3.Text
+                Dim item_name As String = Label12.Text
+                Dim staff_no As String = Label29.Text
+                Dim seq_no As String = Label22.Text
+                Dim prd_qty As Integer = cnt_btn
+                Dim end_time As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+                Dim use_timee As Double = actCT_jingna
+                Dim tr_status As String = "0"
+                Dim number_qty As Integer = Label6.Text
+                Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+                Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+                If Backoffice_model.start_check_date_paralell_line <> "" Then
+                    start_time2 = Backoffice_model.start_check_date_paralell_line
+                    end_time2 = Backoffice_model.end_check_date_paralell_line
+                End If
+                Try
+                    If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                        tr_status = "1"
+                        Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                        Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time2, end_time2, use_time, number_qty, pwi_id, tr_status)
+                    Else
+                        tr_status = "0"
+                        Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                    End If
+                Catch ex As Exception
+                    tr_status = "0"
+                    Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, use_time, tr_status, pwi_id)
+                End Try
+
+                If deferSourceTagUntilActualPersisted Then
+                    If _oldRecoveryFullPending Then
+                        MarkDeferredSourceActualAccepted()
+                        CommitDeferredSourceTagAfterActualPersistence()
+                    Else
+                        GoodQty = GetResumePackagingActualQuantity(CInt(Val(Label6.Text)))
+                        tag_print()
+                    End If
+                    sourcePersistenceBlockedThisPiece = _continueTagPersistenceFailed
+                End If
+
+                ' The boundary piece has now passed through the existing Actual
+                ' persistence path. If its source-tag save remains unresolved,
+                ' stop before the next piece and retain only the unprocessed tail
+                ' of this original input for a later tag-only reconciliation.
+                If sourcePersistenceBlockedThisPiece Then
+                    PreservePendingContinueInput(round_ins - index, acceptedReworkForPackaging)
+                    Exit For
+                End If
+
+                Dim sum_diff As Integer = Label8.Text - Label6.Text
+                If sum_diff < 0 Then
+                    Label10.Text = "0"
+                Else
+                    Label10.Text = "-" & sum_diff
+                End If
+                If sum_diff < 1 Then
+                    If sum_diff = 0 Then
+                        lb_box_count.Text = lb_box_count.Text + 1
+                        Label_bach.Text = Label_bach.Text + 1
+                        GoodQty = GetResumePackagingActualQuantity(CInt(Val(Label6.Text)))
+                        tag_print()
+                        If _continueTagPersistenceFailed Then Exit For
+                    Else
+                    End If
+                    Me.Enabled = False
+                    comp_flg = 1
+                    Finish_work.Show()
+                    Dim plan_qty As Integer = Label8.Text
+                    Dim act_qty As Integer = _Edit_Up_0.Text
+                    Try
+                        act_qty = LB_COUNTER_SEQ.Text 'Working_Pro._Edit_Up_0.Text
+                        LB_COUNTER_SHIP.Text = 0
+                        LB_COUNTER_SEQ.Text = 0
+                    Catch ex As Exception
+                        act_qty = 0
+                    End Try
+                    Dim shift_prd As String = Label14.Text
+                    Dim prd_st_datetime As Date = st_time.Text
+                    Dim prd_end_datetime As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+                    Dim lot_no As String = Label18.Text
+                    Dim comp_flg2 As String = "1"
+                    Dim transfer_flg As String = "1"
+                    Dim del_flg As String = "0"
+                    Dim prd_flg As String = "1"
+                    Dim close_lot_flg As String = "1"
+                    Dim avarage_act_prd_time As Double = Average
+                    Try
+                        If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                            transfer_flg = "1"
+                            Dim serverInserted As Boolean = Backoffice_model.Insert_prd_close_lot(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
+                            transfer_flg = If(serverInserted, "1", "0")
+                            Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
+                            'Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, use_timee, number_qty)
+                            Backoffice_model.work_complete(wi_plan)
+                            Dim temp_co_emp As Integer = List_Emp.ListView1.Items.Count
+                            Dim emp_cd As String
+                            For I = 0 To temp_co_emp - 1
+                                emp_cd = List_Emp.ListView1.Items(I).Text
+                                Backoffice_model.Insert_emp_cd(wi_plan, emp_cd, seq_no)
+                            Next
+                        Else
+                            transfer_flg = "0"
+                            Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
+                        End If
+                    Catch ex As Exception
+                        ''msgBox("Ins incompleted2")
+                        transfer_flg = "0"
+                        Backoffice_model.Insert_prd_close_lot_sqlite(wi_plan, line_cd, item_cd, plan_qty, act_qty, seq_no, shift_prd, staff_no, prd_st_datetime, prd_end_datetime, lot_no, comp_flg2, transfer_flg, del_flg, prd_flg, close_lot_flg, avarage_eff, avarage_act_prd_time)
+                        'Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time, end_time, use_timee, tr_status)
+                    End Try
+                End If
+            End If
+        Next
+    End Function
+    Private Sub btn_ins_act_Click(sender As Object, e As EventArgs) Handles btn_ins_act.Click
+        Me.Enabled = False
+        select_int_qty.Show()
+        'ins_qty.Show()
+    End Sub
+    Private Async Sub btn_desc_act_Click(sender As Object, e As EventArgs) Handles btn_desc_act.Click
+        Dim snp As Integer = Convert.ToInt32(Label27.Text)
+        Try
+            Desc_act.Label1.Text = Label6.Text 'LB_COUNTER_SHIP.Text '_Edit_Up_0.Text Mod snp
+        Catch ex As Exception
+            Desc_act.Label1.Text = "0"
+        End Try
+        Dim result As Integer = 0
+        If CDbl(Val(LB_COUNTER_SHIP.Text)) = 0 Or CDbl(Val(Label6.Text)) = 0 Then
+            result = 0 'LB_COUNTER_SHIP.Text
+        ElseIf CDbl(Val(LB_COUNTER_SHIP.Text)) > CDbl(Val(Label6.Text)) Then
+            result = CDbl(Val(Label6.Text)) 'CDbl(Val(LB_COUNTER_SHIP.Text)) - CDbl(Val(Label6.Text))
+        ElseIf CDbl(Val(LB_COUNTER_SHIP.Text)) < CDbl(Val(Label6.Text)) Then
+            result = LB_COUNTER_SHIP.Text
+        Else
+            result = LB_COUNTER_SHIP.Text
+        End If
+        Desc_act.Label1.Text = CDbl(Val(LB_COUNTER_SEQ.Text)) 'result
+        Try
+            If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
+                Desc_act.Show()
+                Me.Enabled = False
+            Else
+                load_show.Show()
+            End If
+        Catch ex As Exception
+            load_show.Show()
+        End Try
+    End Sub
+    Private Sub _Edit_Up_0_TextChanged(sender As Object, e As EventArgs) Handles _Edit_Up_0.TextChanged
+
+    End Sub
+    Private Sub Timer2_Tick(sender As Object, e As EventArgs) Handles Timer2.Tick
+        Dim date_data As Date = DateTime.Now.ToString("HH:mm:ss")
+        If TimeOfDay.ToString("HH:mm:ss") >= Backoffice_model.coles_lot_start_shift And TimeOfDay.ToString("HH:mm:ss") <= Backoffice_model.coles_lot_end_shift Then
+            'If Auto_close_lot.Visible = True Then
+            If closeLotsummary.Visible = True Then
+
+            Else
+                ' Auto_close_lot.Show()
+                If btn_start.Enabled Then
+                    stop_working()
+                End If
+                Dim rs = Backoffice_model.AlertCheck_close_lot(MainFrm.Label4.Text, MainFrm.Label6.Text)
+                closeLotsummary.Show()
+            End If
+        End If
+    End Sub
+    Private Sub Panel5_Paint(sender As Object, e As PaintEventArgs)
+
+    End Sub
+    Private Async Sub Timer3_Tick(sender As Object, e As EventArgs) Handles Timer3.Tick
+        delay_btn += 1
+        If delay_btn = s_delay Then
+            check_bull = 0
+            delay_btn = 0
+            Timer3.Enabled = False
+        Else
+            check_bull = 1
+        End If
+    End Sub
+    Private Sub Label16_Click(sender As Object, e As EventArgs) Handles Label16.Click
+
+    End Sub
+    Public Shared Function CheckSingnalScanQrProd(statusSingnal As Integer)
+        signalScanQrProd = statusSingnal
+        Return signalScanQrProd
+    End Function
+    Public Async Function ManageScanQrProd() As Task
+        If StopMenu.Visible Then
+            Dim newItem As New ListViewItem(RemainScanDmc)
+            Me.Enabled = False
+            newItem.SubItems.Add(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))
+            lvRemain.Items.Add(newItem)
+            '  ScanQRprod.ManageQrScanFA("1", RemainScanDmc)
+            '  ScanQRprod.ShowDialog()
+        Else
+            Dim newItem As New ListViewItem(RemainScanDmc)
+            Me.Enabled = False
+            newItem.SubItems.Add(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))
+            lvRemain.Items.Add(newItem)
+            ScanQRprod.ManageQrScanFA("1", RemainScanDmc)
+            ScanQRprod.ShowDialog()
+        End If
+    End Function
+    Public Async Function counter_data_new_dio() As Task ' NI MAX
+        If Not CanAcceptContinueCounterInput() Then Return
+        WriteDebugDiagnostic("Auto counter_data_new_dio")
+        ''''Console.WriteLine("READY NI MAX")
+        Dim hasError As Boolean = False
+        Dim statusLossManualE1 As Integer = 0
+        Try
+            'If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+            Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+            If rsNetwork Then
+                Await Backoffice_model.updated_data_to_dbsvr(Me, "2")
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
+            Else
+                Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
+                ' 'msgBox("NO NET")
+            End If
+        Catch ex As Exception
+            hasError = True
+        End Try
+        If hasError Then
+            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), statusLossManualE1)
+            hasError = False
+        End If
+        Dim yearNow As Integer = DateTime.Now.ToString("yyyy")
+        Dim monthNow As Integer = DateTime.Now.ToString("MM")
+        Dim dayNow As Integer = DateTime.Now.ToString("dd")
+        Dim hourNow As Integer = DateTime.Now.ToString("HH")
+        Dim minNow As Integer = DateTime.Now.ToString("mm")
+        Dim secNow As Integer = DateTime.Now.ToString("ss")
+        ''msgBox(yearNow & monthNow & dayNow & hourNow & minNow & secNow)
+        Dim yearSt As Integer = st_time.Text.Substring(0, 4)
+        Dim monthSt As Integer = st_time.Text.Substring(5, 2)
+        Dim daySt As Integer = st_time.Text.Substring(8, 2)
+        Dim hourSt As Integer = st_time.Text.Substring(11, 2)
+        Dim minSt As Integer = st_time.Text.Substring(14, 2)
+        Dim secSt As Integer = st_time.Text.Substring(17, 2)
+        ''msgBox(yearSt & minthSt & daySt & hourSt & minSt & secSt)
+        Dim firstDate As New System.DateTime(yearSt, monthSt, daySt, hourSt, minSt, secSt)
+        Dim secondDate As New System.DateTime(yearNow, monthNow, dayNow, hourNow, minNow, secNow)
+        Dim diff As System.TimeSpan = secondDate.Subtract(firstDate)
+        Dim diff1 As System.TimeSpan = secondDate - firstDate
+        Dim diff2 As String = (secondDate - firstDate).TotalSeconds.ToString()
+        ''msgBox(diff2)
+        ''msgBox(diff2 / 60)
+        Dim actCT As Double = Format(diff2 / 60, "0.00")
+        'Format(ListBox2.Items(numOfindex), "0.00")
+        'st_time.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+        'Counter
+        Dim cnt_btn As Integer = Integer.Parse(MainFrm.cavity.Text)
+        'Counter
+        count = count + cnt_btn
+        _Edit_Up_0.Text = count
+        Dim Act As Integer = 0
+        Dim action_plus As Integer = 0
+        If Label6.Text <= 0 Then ' condition  
+            Act = 1
+            action_plus = 0
+        Else
+            Act = lb_good.Text 'Label6.Text
+            action_plus = 1
+        End If
+        Dim start_time As Date = st_count_ct.Text
+        Dim end_time As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+        Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+        Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+        Dim checkTransection As String
+        statusPrint = "Normal_NI_MAX"
+        'Try
+        'If My.Computer.Network.Ping("192.168.161.101") Then
+        'checkTransection = Backoffice_model.checkTransection(pwi_id, CDbl(Val(Label6.Text)) + Integer.Parse(MainFrm.cavity.Text), start_time2)
+        'Else
+        'checkTransection = "1"
+        'End If
+        'Catch ex As Exception
+        'checkTransection = "1"
+        'End Try
+        ' If checkTransection = "1" Then
+        If comp_flg = 0 Then
+            'If signalScanQrProd = 1 Or signalScanQrProd = 2 Then '1 =  Check signalScanQrProd  / 2 = No Scan QR Product type pass
+            'Dim result_mod As Double = Integer.Parse(_Edit_Up_0.Text) Mod Integer.Parse(Label27.Text)
+            ''msgBox("Act + action_plus===>" & (Act + action_plus))
+            Dim result_mod As Double = If(IsNormalNewBoxPackagingBaselineForCurrentContext(),
+                                          GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)) + cnt_btn) Mod Integer.Parse(Label27.Text),
+                                          Integer.Parse(Act + action_plus) Mod Integer.Parse(Label27.Text)) 'Integer.Parse(_Edit_Up_0.Text) Mod Integer.Parse(Label27.Text)
+            ' 'msgBox("result_mod===>" & result_mod)
+            lb_qty_for_box.Text = lb_qty_for_box.Text + cnt_btn
+            Dim textp_result As Integer = Label10.Text
+            textp_result = Math.Abs(textp_result) - 1
+            ''msgBox(textp_result)
+
+            Dim sum_act_total As Integer = Label6.Text + cnt_btn
+            Dim V_label6 = sum_act_total
+            Dim V_LB_COUNTER_SHIP = LB_COUNTER_SHIP.Text + cnt_btn
+            Dim V_LB_COUNTER_SEQ = LB_COUNTER_SEQ.Text + cnt_btn
+            Dim V_lb_good = lb_good.Text + cnt_btn
+            Dim specialTagQuantities As List(Of Integer) = GetCompletedTagQuantities(GetCounterPackagingBeforeQuantity(CInt(Val(Label6.Text))), cnt_btn, CInt(Val(Label27.Text)), GetCounterPackagingBasis(PackagingQuantityBasis.TotalActual))
+            ' 'msgBox("F1")
+            If check_tag_type = "3" Then
+                Dim break = lbPosition1.Text & " " & lbPosition2.Text
+                Dim plb = New PrintLabelBreak
+                plb.loadData(Label3.Text, break, Label18.Text, Label22.Text, CDbl(Val(V_LB_COUNTER_SEQ)))
+            End If
+            If check_format_tag = "1" Then ' for tag_type = '2' and tag_issue_flg = '2'  OR K1M183
+                lb_box_count.Text = lb_box_count.Text + 1
+                print_back.PrintDocument2.Print()
+                For Each completedQty As Integer In specialTagQuantities
+                    Label_bach.Text += 1
+                    GoodQty = completedQty
+                    '  'msgBox("IF result_mod ====>" & GoodQty)
+                    LogTagBoundaryTrigger("NI_MAX_Special", CInt(Val(Label6.Text)), cnt_btn, CInt(Val(Label27.Text)), completedQty)
+                    If DeferResumeSourceTagUntilActualPersistence(completedQty,
+                                                                   CInt(Val(Label6.Text)) + cnt_btn,
+                                                                   CInt(Val(lb_good.Text)) + cnt_btn,
+                                                                   Math.Max(0, GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)) + cnt_btn) - CInt(Val(Label27.Text))),
+                                                                   False) Then Exit For
+                    tag_print()
+                Next
+            Else
+                If textp_result <> 0 Then
+                    Dim snp As Integer = CInt(Val(Label27.Text))
+                    Dim isPlanFinish As Boolean = (V_label6 = CInt(Val(Label8.Text)))
+                    If V_check_line_reprint = "0" Then
+                        PrintCompletedNormalTags("NI_MAX", CInt(Val(lb_good.Text)), cnt_btn, snp, isPlanFinish, False, PackagingQuantityBasis.GoodActual)
+                    ElseIf snp <> 1 AndAlso snp <> 999999 Then
+                        PrintCompletedNormalTags("NI_MAX", GetCounterPackagingBeforeQuantity(CInt(Val(Label6.Text))), cnt_btn, snp, isPlanFinish, True, GetCounterPackagingBasis(PackagingQuantityBasis.TotalActual))
+                    End If
+                End If
+            End If
+            '  'msgBox("F2")
+            '  Dim sum_prg As Integer = (Label6.Text * 100) / Label8.Text
+            ''msgBox(sum_prg)
+            ' If sum_prg > 100 Then
+            'sum_prg = 100
+            'ElseIf sum_prg < 0 Then
+            '   sum_prg = 0
+            'End If
+            '   CircularProgressBar1.Text = sum_prg & "%"
+            '  CircularProgressBar1.Value = sum_prg
+            Dim use_time As Integer = Label34.Text
+            Dim dt1 As DateTime = DateTime.Now
+            Dim dt2 As DateTime = st_count_ct.Text
+            Dim dtspan As TimeSpan = dt1 - dt2
+            Dim actCT_jing As Double = Format((dtspan.Seconds / _Edit_Up_0.Text) + (dtspan.Minutes * 60), "0.00")
+            ListBox1.Items.Add((dtspan.Seconds) + (dtspan.Minutes * 60) + (dtspan.Hours * 3600))
+            Dim Total As Double = 0
+            Dim Count As Double = 0
+            Dim Average As Double = 0
+            Dim I As Integer
+            ' 'msgBox("F3")
+            For I = 0 To ListBox1.Items.Count - 1
+                Total += Val(ListBox1.Items(I))
+                Count += 1
+            Next
+            Average = Total / Count
+            If Count = 1 Then
+                Try
+                    Backoffice_model.Tag_seq_rec_sqlite(lb_ref_scan.Text.Substring(0, 10), lb_ref_scan.Text.Substring(10, 3), lb_ref_scan.Text.Substring(13, (lb_ref_scan.Text.Length - 13)), RTrim(lb_ref_scan.Text))
+                Catch ex As Exception
+                End Try
+            End If
+            Label37.Text = Format(Average, "0.0")
+            st_count_ct.Text = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            Dim dt11 As DateTime = DateTime.Now
+            Dim dt22 As DateTime = st_time.Text
+            Dim dtspan1 As TimeSpan = dt11 - dt22
+            If (dtspan1.Minutes + (dtspan1.Hours * 60)) >= use_time Then
+                Label20.ForeColor = Color.Red
+            End If
+            Dim temppola As Double = ((dtspan1.Seconds / 60) + (dtspan1.Minutes + (dtspan1.Hours * 60)))
+            If temppola < 1 Then
+                temppola = 1
+            End If
+            Dim loss_sum As Integer
+            Dim pd As String = MainFrm.Label6.Text
+            Dim line_cd As String = MainFrm.Label4.Text
+            Dim wi_plan As String = wi_no.Text
+            Dim item_cd As String = Label3.Text
+            Dim item_name As String = Label12.Text
+            Dim staff_no As String = Label29.Text
+            Dim seq_no As String = Label22.Text
+            Dim prd_qty As Integer = cnt_btn
+            'Dim use_timee As Double = actCT_jingna
+            Dim tr_status As String = "0"
+            Dim number_qty As Integer = V_label6  ' Label6.Text
+            Dim result_use_time As Double = Cal_Use_Time_ins_qty_fn_manual(start_time2, end_time2)
+            Dim PK_pad_id_sqlite As Integer = 0
+            Try
+                ' If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+                If rsNetwork Then
+                    tr_status = "1"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim indRow As String = itemPlanData.IND_ROW
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, start_time, end_time, result_use_time, number_qty, Spwi_id(j), tr_status)
+                            If PK_pad_id = 0 Then
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, "0", Spwi_id(j))
+                            Else
+                                PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j))
+                            End If
+                            j = j + 1
+                        Next
+                        If PK_pad_id > 0 Or PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        End If
+                    Else
+                        PK_pad_id = Backoffice_model.Insert_prd_detail(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, result_use_time, number_qty, pwi_id, tr_status)
+                        If PK_pad_id = 0 Then
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, "0", pwi_id)
+                        Else
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id)
+                        End If
+                        If PK_pad_id > 0 Or PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        End If
+                    End If
+                Else
+                    tr_status = "0"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim indRow As String = itemPlanData.IND_ROW
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j))
+                            j = j + 1
+                        Next
+                        If PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        Else
+                            'msgBox("1 Not Counter")
+                        End If
+                    Else
+                        PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id)
+                        If PK_pad_id_sqlite > 0 Then
+                            Label6.Text = sum_act_total
+                            LB_COUNTER_SHIP.Text += cnt_btn
+                            LB_COUNTER_SEQ.Text += cnt_btn
+                            lb_good.Text += cnt_btn
+                        Else
+                            'msgBox("2 Not Counter")
+                        End If
+                    End If
+                End If
+                ' 'msgBox("F5")
+            Catch ex As Exception
+                tr_status = "0"
+                If MainFrm.chk_spec_line = "2" Then
+                    Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                    Dim Iseq = GenSEQ
+                    Dim j As Integer = 0
+                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                        Iseq += 1
+                        Dim indRow As String = itemPlanData.IND_ROW
+                        Dim special_wi As String = itemPlanData.wi
+                        Dim special_item_cd As String = itemPlanData.item_cd
+                        Dim special_item_name As String = itemPlanData.item_name
+                        PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j))
+                        j = j + 1
+                    Next
+                    If PK_pad_id_sqlite > 0 Then
+                        Label6.Text = sum_act_total
+                        LB_COUNTER_SHIP.Text += cnt_btn
+                        LB_COUNTER_SEQ.Text += cnt_btn
+                        lb_good.Text += cnt_btn
+                    Else
+                        'msgBox("3 Not Counter")
+                    End If
+                Else
+                    PK_pad_id_sqlite = Backoffice_model.insPrdDetail_sqlite(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id)
+                    If PK_pad_id_sqlite > 0 Then
+                        Label6.Text = sum_act_total
+                        LB_COUNTER_SHIP.Text += cnt_btn
+                        LB_COUNTER_SEQ.Text += cnt_btn
+                        lb_good.Text += cnt_btn
+                    Else
+                        'msgBox("4 Not Counter")
+                    End If
+                End If
+            End Try
+            CommitDeferredSourceTagAfterActualPersistence()
+            flg_tag_print = 0
+            Dim sum_diff As Integer = Label8.Text - Label6.Text
+            Label10.Text = "-" & sum_diff
+            If sum_diff = 0 Then
+                Me.Enabled = False
+                comp_flg = 1
+                'If result_mod <> "0" Then ' New
+                'tag_print()
+                'End If
+                Finish_work.Show() ' เกี่ยว
+            End If
+            If sum_diff < 1 Then
+                If sum_diff = 0 Then
+                    If check_format_tag = "1" Then ' for tag_type = '2' and tag_issue_flg = '2'  OR K1M183
+                        lb_box_count.Text = lb_box_count.Text + 1
+                        print_back.PrintDocument2.Print()
+                        If specialTagQuantities.Count = 0 AndAlso result_mod = "0" Then
+                            Label_bach.Text += 1
+                            GoodQty = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)))
+                            ''msgBox("IF IF IF ====>" & GoodQty)
+                            tag_print()
+                        End If
+                    Else
+                        lb_box_count.Text = lb_box_count.Text + 1
+                        'If Backoffice_model.check_line_reprint() = "0" Then
+                        Label_bach.Text = Label_bach.Text + 1
+                        GoodQty = GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)))
+                        ' 'msgBox("ELSE ====>" & GoodQty)
+                        tag_print()
+                        'End If
+                    End If
+                Else
+                End If
+                Me.Enabled = False
+                comp_flg = 1
+                ' 'msgBox("IN NAJA")
+                ' Finish_work.Show() ' เกี่ยว
+                Dim plan_qty As Integer = Label8.Text
+                Dim shift_prd As String = Label14.Text
+                Dim prd_st_datetime As Date = st_time.Text
+                Dim prd_end_datetime As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+                Dim lot_no As String = Label18.Text
+                Dim comp_flg2 As String = "1"
+                Dim transfer_flg As String = "1"
+                Dim del_flg As String = "0"
+                Dim prd_flg As String = "1"
+                Dim close_lot_flg As String = "1"
+                Dim avarage_act_prd_time As Double = Average
+            End If
+            ' 'msgBox("F6")
+            'End If
+        End If
+    End Function
+    Public Async Function Manage_counter_NI_MAX_By_OP(pd As String, line_cd As String, wi_plan As String, item_cd As String, item_name As String, staff_no As String, seq_no As String, op_id As String,
+        flagIndex As Integer) As Task
+        If Not CanAcceptContinueCounterInput() Then Return
+        If check_bull_op(flagIndex) = 0 Then
+            check_bull_op(flagIndex) = 1
+            Dim PK_pad_id_by_op As Integer = 0
+            Dim PK_pad_id_sqlite_by_op = 0
+            Dim status_work = "1"
+            Dim start_time As Date = last_start_time
+            Dim end_time As Date = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")
+            Dim start_time2 As String = start_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            Dim end_time2 As String = end_time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            last_start_time = end_time2
+            Dim prd_qty = 1
+            Dim result_use_time = Cal_Use_Time_ins_qty_fn_manual(start_time2, end_time2)
+            Dim number_qty = Label6.Text + prd_qty
+            Try
+                ' If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
+                Dim rsNetwork = Await Backoffice_model.CheckSingnalNetwork()
+                If rsNetwork Then
+                    tr_status = "1"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim indRow As String = itemPlanData.IND_ROW
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            PK_pad_id_by_op = Backoffice_model.Insert_prd_detail_by_op(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, start_time, end_time, result_use_time, number_qty, Spwi_id(j), tr_status, op_id, status_work)
+                            If PK_pad_id_by_op = 0 Then
+                                PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, "0", Spwi_id(j), op_id, status_work)
+                            Else
+                                PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j), op_id, status_work)
+                            End If
+                            j = j + 1
+                        Next
+                    Else
+                        PK_pad_id_by_op = Backoffice_model.Insert_prd_detail_by_op(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, start_time, end_time, result_use_time, number_qty, pwi_id, tr_status, op_id, status_work)
+                        If PK_pad_id_by_op = 0 Then
+                            PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, "0", pwi_id, op_id, status_work)
+                        Else
+                            PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id, op_id, status_work)
+                        End If
+                    End If
+                Else
+                    tr_status = "0"
+                    If MainFrm.chk_spec_line = "2" Then
+                        Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                        Dim Iseq = GenSEQ
+                        Dim j As Integer = 0
+                        For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                            Iseq += 1
+                            Dim indRow As String = itemPlanData.IND_ROW
+                            Dim special_wi As String = itemPlanData.wi
+                            Dim special_item_cd As String = itemPlanData.item_cd
+                            Dim special_item_name As String = itemPlanData.item_name
+                            PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, special_wi, special_item_cd, item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j), op_id, status_work)
+                            j = j + 1
+                        Next
+                    Else
+                        PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id, op_id, status_work)
+                    End If
+                End If
+            Catch ex As Exception
+                tr_status = "0"
+                If MainFrm.chk_spec_line = "2" Then
+                    Dim GenSEQ As Integer = CInt(Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
+                    Dim Iseq = GenSEQ
+                    Dim j As Integer = 0
+                    For Each itemPlanData As DataPlan In Confrime_work_production.ArrayDataPlan
+                        Iseq += 1
+                        Dim indRow As String = itemPlanData.IND_ROW
+                        Dim special_wi As String = itemPlanData.wi
+                        Dim special_item_cd As String = itemPlanData.item_cd
+                        Dim special_item_name As String = itemPlanData.item_name
+                        PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, special_wi, special_item_cd, special_item_name, staff_no, Iseq, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, Spwi_id(j), op_id, status_work)
+                        j = j + 1
+                    Next
+                Else
+                    PK_pad_id_sqlite_by_op = Backoffice_model.insPrdDetail_sqlite_by_op(pd, line_cd, wi_plan, item_cd, item_name, staff_no, seq_no, prd_qty, number_qty, start_time2, end_time2, result_use_time, tr_status, pwi_id, op_id, status_work)
+                End If
+            End Try
+            Try
+                Dim delay_setting As Integer = If(status_conter = "0", s_delay * 100, s_delay * 1000)
+                Await Task.Delay(delay_setting, cts.Token).ContinueWith(Sub(task)
+                                                                            If Not task.IsCanceled Then
+                                                                                If Me.IsHandleCreated AndAlso Not Me.IsDisposed Then
+                                                                                    Try
+                                                                                        Me.Invoke(Sub()
+                                                                                                      check_bull_op(flagIndex) = 0
+
+                                                                                                  End Sub)
+                                                                                    Catch ex As Exception
+                                                                                        ''Console.WriteLine("[Invoke Error] " & ex.Message)
+                                                                                        check_bull_op(flagIndex) = 0
+
+                                                                                    End Try
+                                                                                Else
+                                                                                    check_bull_op(flagIndex) = 0
+
+                                                                                End If
+                                                                            End If
+                                                                        End Sub, TaskScheduler.FromCurrentSynchronizationContext())
+            Catch ex As Exception
+                ''Console.WriteLine("[Manage_counter_NI_MAX] " & ex.Message)
+                check_bull_op(0) = 0
+            End Try
+        End If
+    End Function
+    Private Shared ReadOnly alertLock As New Object()
+    Public Async Function CheckModel_Pokayoke() As Task
+        Try
+            ' 1) Ensure reader ready
+            If CheckWindow.reader_new_dio_check_model Is Nothing Then
+                Dim r = CheckWindow.count_NIMAX_CheckModel()
+                If r <> "OK" OrElse CheckWindow.reader_new_dio_check_model Is Nothing Then
+                    WriteDebugDiagnostic("[Pokayoke] reader not ready: " & r)
+                    Exit Function
+                End If
+            End If
+
+            ' 2) Read and validate
+            Dim states As Boolean() = CheckWindow.reader_new_dio_check_model.ReadSingleSampleMultiLine()
+            If states Is Nothing OrElse states.Length < 3 Then
+                WriteDebugDiagnostic("[Pokayoke ] states invalid (Nothing or Length<3)")
+                Exit Function
+            End If
+
+            Dim lineA As Boolean = states(1) ' Port 2:1
+            Dim lineB As Boolean = states(2) ' Port 2:2
+            WriteDebugDiagnostic("Pokayoke input read")
+
+            ' 3) Interpret (False = model is running)
+            Dim partNo As String = ""
+            If Not lineA Then
+                partNo = CheckWindow.PART_A
+            ElseIf Not lineB Then
+                partNo = CheckWindow.PART_B
+            End If
+
+            ' 4) Expected PART จากหน้าจอ (Label3.Text)
+            Dim expected As String = Label3.Text.Trim()
+            If String.IsNullOrEmpty(expected) Then expected = CheckWindow.PART_A
+
+            WriteDebugDiagnostic("[Pokayoke] part comparison evaluated")
+
+            ' 5) เงื่อนไขผิดรุ่น (ไม่แจ้งถ้า identify ไม่ได้)
+            If partNo <> "" AndAlso partNo <> expected Then
+
+                ' Debounce 1 วินาที กันเด้งถี่
+                Dim canAlert As Boolean = (DateTime.UtcNow - lastPokayokeAlarmUtc).TotalMilliseconds > 1000
+                If Not canAlert Then Exit Function
+                lastPokayokeAlarmUtc = DateTime.UtcNow
+
+                ' กันเปิด Dialog ซ้ำ (หลาย thread/timer)
+                SyncLock alertLock
+                    If isAlertShowing Then
+                        WriteDebugDiagnostic("[Pokayoke] Alert already showing, skip.")
+                        Exit Function
+                    End If
+                    isAlertShowing = True
+                End SyncLock
+
+                ' หยุดงานหลักก่อน
+                Try : stop_working() : Catch : End Try
+                Await Task.Delay(100)
+
+                ' ===== เปิด Alert แบบ Modal บน UI thread =====
+                Dim showAction As Action =
+                Sub()
+                    Dim alertForm As New Alert_worng_model()
+                    AddHandler alertForm.FormClosed, Sub()
+                                                         SyncLock alertLock
+                                                             isAlertShowing = False
+                                                         End SyncLock
+                                                     End Sub
+                    ' (ถ้ามีฟิลด์ข้อความในฟอร์ม ก็ set ได้ เช่น)
+                    ' alertForm.lblInfo.Text = $"Detected: {partNo}{Environment.NewLine}Expected: {expected}"
+
+                    ' ถ้าฟังก์ชันนี้อยู่ในฟอร์ม ให้ใช้ ShowDialog(Me) จะ center-parent
+                    ' มิฉะนั้นใช้ ShowDialog() ธรรมดา
+                    If TypeOf Me Is Form Then
+                        alertForm.ShowDialog(DirectCast(Me, IWin32Window))
+                    Else
+                        alertForm.StartPosition = FormStartPosition.CenterScreen
+                        alertForm.ShowDialog()
+                    End If
+                End Sub
+
+                ' เรียกบน UI thread เสมอ (กัน cross-thread)
+                If TypeOf Me Is Control AndAlso DirectCast(Me, Control).InvokeRequired Then
+                    DirectCast(Me, Control).BeginInvoke(showAction)
+                Else
+                    showAction()
+                End If
+            End If
+
+            WriteDebugDiagnostic("[Pokayoke] validation evaluated")
+
+        Catch ex As NationalInstruments.DAQmx.DaqException
+            Console.WriteLine("DAQ Error: " & ex.Message)
+            SyncLock alertLock : isAlertShowing = False : End SyncLock
+        Catch ex As Exception
+            Console.WriteLine("เกิดข้อผิดพลาดในการอ่านค่า: " & ex.Message)
+            SyncLock alertLock : isAlertShowing = False : End SyncLock
+        End Try
+    End Function
+    Private Function GetExpectedModel() As String
+
+        'Return cboExpected.SelectedItem.ToString()
+    End Function
+    Private Async Sub Tiemr_new_dio_Tick(sender As Object, e As EventArgs) Handles Timer_new_dio.Tick
+        If rsWindow Then
+            Try
+                'Await CheckModel_Pokayoke()
+                Dim states As Boolean() = CheckWindow.reader_new_dio.ReadSingleSampleMultiLine()
+                CheckWindow.data_new_dio = CheckWindow.reader_new_dio.ReadSingleSamplePortUInt32()
+                WriteDebugDiagnostic("[Timer] Pokayoke states read")
+                'If CheckWindow.data_new_dio.ToString() <> "255" Then
+                If Not states(0) Then
+                    If check_bull = 0 Then
+                        If start_flg = 1 Then
+                            WriteDebugDiagnostic("Pokayoke counter event")
+                            Await Manage_counter_NI_MAX()
+                        End If
+                    End If
+                End If
+                If Not String.IsNullOrWhiteSpace(map_OP) AndAlso map_OP <> "0" Then
+                    Dim serializer As New JavaScriptSerializer()
+                    Dim dict2 As List(Of Dictionary(Of String, Object)) = serializer.Deserialize(Of List(Of Dictionary(Of String, Object)))(map_OP)
+                    For Each m As Dictionary(Of String, Object) In dict2
+                        Dim idx As Integer = Convert.ToInt32(m("port_line_ni"))
+                        If idx < 0 OrElse idx >= states.Length Then Continue For
+                        EnsureFlagSize(idx) ' ขยาย list กัน index เกิน
+                        ' Active-Low: False แปลว่ามีสัญญาณ
+                        If Not states(idx) Then
+                            If check_bull_op(idx) = 0 Then
+                                Dim plan_seq As String = Label22.Text.PadLeft(3, "0"c)
+                                Dim opId As String = Convert.ToString(m("op_id"))
+                                ' check_bull_op(idx) = 1 ' กันเด้งก่อน Await
+                                Await Manage_counter_NI_MAX_By_OP(
+                    MainFrm.Label6.Text,  ' pd
+                    MainFrm.Label4.Text,  ' line_cd
+                    wi_no.Text,           ' wi_plan
+                    Label3.Text,          ' item_cd
+                    Label12.Text,         ' item_name
+                    Label29.Text,         ' staff_no
+                    plan_seq,             ' seq_no
+                    opId,                 ' ใช้จาก JSON
+                    idx
+)
+                            End If
+                        Else
+                            check_bull_op(idx) = 0 ' ปล่อยสัญญาณแล้ว รีเซ็ต
+                        End If
+                    Next
+                End If
+            Catch ex As Exception
+                'Button1.Enabled = False
+                btnStart.Enabled = False
+                btn_back.Enabled = False
+                Dim listdetail = "Please Check DIO"
+                PictureBox10.BringToFront()
+                PictureBox10.Show()
+                PictureBox16.BringToFront()
+                PictureBox16.Show()
+                Panel2.BringToFront()
+                Panel2.Show()
+                Label2.Text = listdetail
+                Label2.BringToFront()
+                Label2.Show()
+                Timer_new_dio.Stop()
+            End Try
+        End If
+    End Sub
+    Private Sub EnsureFlagSize(index As Integer)
+        While check_bull_op.Count <= index
+            check_bull_op.Add(0)
+        End While
+    End Sub
+    Public Sub Main()
+        StartAutoBreakScheduler()
+    End Sub
+
+    Public Sub StartAutoBreakScheduler()
+        If _breakTimer Is Nothing Then
+            _breakTimer = New System.Windows.Forms.Timer()
+            _breakTimer.Interval = 1000
+        End If
+        If Not _timerHooked Then
+            AddHandler _breakTimer.Tick, AddressOf BreakTimer_Tick
+            _timerHooked = True
+        End If
+        ScheduleBreakFromLabel()
+    End Sub
+
+    Private Sub ScheduleBreakFromLabel()
+        Dim txt = lbNextTime.Text
+        If String.IsNullOrWhiteSpace(txt) Then
+            _breakTimer.Stop() : Exit Sub
+        End If
+
+        Dim t As DateTime
+        If Not DateTime.TryParseExact(txt, "HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, t) Then
+            _breakTimer.Stop() : Exit Sub
+        End If
+
+        _breakTarget = Date.Today.Add(t.TimeOfDay)
+        If _breakTarget <= DateTime.Now Then _breakTarget = _breakTarget.AddDays(1)
+        ArmBreakTimer()
+    End Sub
+
+    Private Sub ArmBreakTimer()
+        Dim remaining = _breakTarget - DateTime.Now
+        If remaining <= TimeSpan.Zero Then remaining = TimeSpan.FromMilliseconds(1)
+        Dim nextSliceMs As Integer = CInt(Math.Min(remaining.TotalMilliseconds, 60000)) ' ยิงทีละ ≤ 60s
+        If nextSliceMs < 1 Then nextSliceMs = 1
+        _breakTimer.Interval = nextSliceMs
+        _breakTimer.Start()
+    End Sub
+
+    Private Async Sub BreakTimer_Tick(sender As Object, e As EventArgs)
+        If DateTime.Now >= _breakTarget Then
+            _breakTimer.Stop()
+            Await HandleBreakTick()
+        Else
+            ArmBreakTimer()
+        End If
+    End Sub
+
+    Private Sub CompleteResumedBoxAfterFullTagCommit(insertedTagId As Integer)
+        If insertedTagId <= 0 OrElse Not IsResumeContextForCurrentWi() OrElse _resumeContext.SelectedBox Is Nothing Then Return
+        If _resumeContext.SourceBoxCompleted Then Return
+        If CInt(Val(GoodQty)) < CInt(Val(Label27.Text)) Then Return
+
+        ' The Continue-specific atomic insert already completed the selected
+        ' source TagId. The source lifecycle ends at this point: transition to
+        ' normal Current-WI sequence and discard every source-only offset before
+        ' any overflow reaches the next normal box.
+        ' Do NOT restore the old box counter here: the continued box was committed
+        ' as Current Box 1, so the counter must remain at 1 to advance to Box 2.
+        lb_box_count.Text = _resumeContext.CurrentBoxNo.ToString(CultureInfo.InvariantCulture)
+        If check_tag_type = "2" Then Label_bach.Text = _resumeContext.CurrentBoxNo.ToString(CultureInfo.InvariantCulture)
+        BeginNormalPackagingRebaseAfterSourceCompletion()
+        _resumeContext.Reset()
+        ' UI-only notification after the successful Full state has replaced the
+        ' live ResumeContext. The existing rebase flag keeps Finish visible for
+        ' this sequence without changing any production or tag lifecycle.
+        For Each detail As show_detail_production In Application.OpenForms.OfType(Of show_detail_production)()
+            detail.RefreshOldIncompleteResumeDisplay()
+        Next
+    End Sub
+
+    ' Close Lot replaces a partial source tag with one new tag for the same
+    ' physical box.  Finish the old tag only after the replacement insert is
+    ' confirmed, so the picker can never show both pending representations.
+    Private Sub CompleteResumedBoxAfterPartialCloseLotTagCommit(insertedTagId As Integer)
+        If insertedTagId <= 0 OrElse Not IsResumedPartialCloseLotTag() OrElse _resumeContext.SelectedBox Is Nothing Then Return
+
+        ' Insert replacement + complete source committed in one SQL transaction.
+        _resumeContext.Reset()
+    End Sub
+
+    ' ===== ถึงเวลา Break → ทำงานเดิม แล้วตั้งรอบใหม่ =====
+    Private Async Function HandleBreakTick() As Task
+        Try
+            check_network_frist = 1
+
+            If Application.OpenForms().OfType(Of closeLotsummary)().Any() _
+               OrElse Application.OpenForms().OfType(Of Loss_reg)().Any() _
+               OrElse Application.OpenForms().OfType(Of Loss_reg_pass)().Any() Then
+
+                ' Keep the UI thread free while the existing network calls complete.
+                Dim BreakTime As String = Await Task.Run(Function() Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Label14.Text))
+                Await Task.Run(Sub() Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, wi_no.Text, Label22.Text))
+                lbNextTime.Text = BreakTime
+                ScheduleBreakFromLabel()
+                Return
+            End If
+
+            ' เข้าหยุดงาน + เปิด StopMenu แบบ "อินสแตนซ์เดียว"
+            stop_working()
+            Backoffice_model.TimeStartBreakTime = DateTime.Now.ToString("HH:mm:ss")
+            If check_in_up_seq = 0 Then Backoffice_model.IDLossCodeAuto = "36"
+
+            Dim statusLossManualE1 As Integer = 0
+            ' Await the existing async loss update so it cannot outlive the form
+            ' or fault silently while the StopMenu is being shown.
+            Await insLossClickStart_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"),
+                                            DateTime.Now.ToString("HH:mm:ss"),
+                                            statusLossManualE1)
+
+            ' ---- เปิด StopMenu อย่างปลอดภัย ไม่ซ้อน ----
+            If _autoBreakStopMenu Is Nothing OrElse _autoBreakStopMenu.IsDisposed Then _autoBreakStopMenu = New StopMenu()
+            If Not _autoBreakStopMenu.Visible Then _autoBreakStopMenu.Show(Me)
+
+            ' รอบถัดไป: StopMenu จะคำนวณ BreakTime ใหม่แล้วเรียก RescheduleAfterNextTimeChanged()
+
+        Catch
+            'TODO: log
+        End Try
+    End Function
+
+    ' ให้ StopMenu เรียกกลับเมื่อได้ BreakTime ใหม่
+    Public Sub RescheduleAfterNextTimeChanged(newNextTime As String)
+        lbNextTime.Text = newNextTime
+        ScheduleBreakFromLabel()
+    End Sub
+
+    ' โหลด/ปิดฟอร์ม: สร้าง-ทำลาย Timer ให้สะอาด
+    Protected Overrides Sub OnLoad(e As EventArgs)
+        MyBase.OnLoad(e)
+        StartAutoBreakScheduler()
+    End Sub
+
+    Protected Overrides Sub OnFormClosing(e As FormClosingEventArgs)
+        MyBase.OnFormClosing(e)
+        If _breakTimer IsNot Nothing Then
+            _breakTimer.Stop()
+            If _timerHooked Then
+                RemoveHandler _breakTimer.Tick, AddressOf BreakTimer_Tick
+                _timerHooked = False
+            End If
+            _breakTimer.Dispose()
+            _breakTimer = Nothing
+        End If
+    End Sub
+    Public Function calTimeBreakTime(pdStart As Date, timeNextBreak As String)
+        Dim total_loss As Integer = 0
+        Dim parsedBreakTime As DateTime
+        Dim normalizedBreakTime As String = If(timeNextBreak, String.Empty).Trim()
+        If Not DateTime.TryParseExact(normalizedBreakTime,
+                                      New String() {"HH:mm:ss", "HH:mm"},
+                                      CultureInfo.InvariantCulture,
+                                      DateTimeStyles.None,
+                                      parsedBreakTime) Then
+            ' A placeholder or unavailable next-break value has no calculable
+            ' delay.  Preserve the legacy no-delay result without inventing a time.
+            Return total_loss
+        End If
+
+        Dim dueDateTime As Date = Date.Today.Add(parsedBreakTime.TimeOfDay)
+        Dim condueDateTime As Date = dueDateTime.ToString("yyyy-MM-dd HH:mm:ss")
+        Try
+            total_loss = DateDiff(DateInterval.Second, DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")), DateTime.Parse((condueDateTime).ToString("yyyy-MM-dd HH:mm") & ":00"))
+            If total_loss < 0 Then
+                total_loss = Math.Abs(CDbl(Val(total_loss)))
+            End If
+        Catch ex As Exception
+            total_loss = 0
+        End Try
+        Return total_loss
+    End Function
+    Private Sub TimerLossBT_Tick(sender As Object, e As EventArgs)
+        Try
+            If Application.OpenForms().OfType(Of Loss_reg).Any Or Application.OpenForms().OfType(Of Loss_reg_pass).Any Then
+
+            ElseIf Application.OpenForms().OfType(Of closeLotsummary).Any Then
+                If TimeOfDay.ToString("HH:mm:ss") = Backoffice_model.TimeShowBreakTime Then
+                    Dim BreakTime = Backoffice_model.GetTimeAutoBreakTime(MainFrm.Label4.Text, Label14.Text) ' for set data 
+                    Backoffice_model.ILogLossBreakTime(MainFrm.Label4.Text, wi_no.Text, Label22.Text)
+                    lbNextTime.Text = BreakTime
+                End If
+            Else
+                If Backoffice_model.TimeShowBreakTime <> "" Then
+                    If TimeOfDay.ToString("HH:mm:ss") = Backoffice_model.TimeShowBreakTime Then
+                        check_network_frist = 1
+                        stop_working()
+                        Backoffice_model.TimeStartBreakTime = TimeOfDay.ToString("HH:mm:ss")
+                        Me.Enabled = False
+                        ' StopMenu.ShowDialog()
+                        StopMenu.Show()
+                    End If
+                Else
+                    ' TimerLossBT.Enabled = False
+                End If
+            End If
+        Catch ex As Exception
+        End Try
+    End Sub
+    Private Sub PictureBox8_Click(sender As Object, e As EventArgs) Handles PictureBox8.Click
+
+    End Sub
+    Private Sub PictureBox2_Click(sender As Object, e As EventArgs) Handles PictureBox2.Click
+
+    End Sub
+    Private Sub lb_ref_scan_Click(sender As Object, e As EventArgs) Handles lb_ref_scan.Click
+
+    End Sub
+    Private Sub CircularProgressBar2_Click(sender As Object, e As EventArgs) Handles CircularProgressBar2.Click
+
+    End Sub
+    Private Sub Label23_Click(sender As Object, e As EventArgs) Handles Label23.Click
+
+    End Sub
+    Private Sub PictureBox10_Click(sender As Object, e As EventArgs)
+
+    End Sub
+    Private Sub PictureBox13_Click(sender As Object, e As EventArgs) Handles panelpcWorker1.Click
+        Dim work = New Show_Worker
+        work.Show()
+    End Sub
+    Public Shared Function CheckOs()
+        Dim arr_os = My.Computer.Info.OSFullName.Split(" ")
+        If arr_os(2).ToString = "7" Then
+            Return False
+        Else
+            Return True
+        End If
+    End Function
+    Private Sub PictureBox14_Click(sender As Object, e As EventArgs) Handles PictureBox14.Click, btnInfo.Click
+        'Dim showD = New show_detail_production
+        Me.Enabled = False
+        show_detail_production.ShowDialog()
+    End Sub
+    Private Sub PictureBox16_Click(sender As Object, e As EventArgs) Handles PictureBox16.Click
+        PictureBox10.Hide()
+        PictureBox16.Hide()
+        Panel2.Hide()
+        panelpcWorker1.Enabled = True
+        btnInfo.Enabled = True
+        'Button1.Enabled = True
+        btnStart.Enabled = True
+        btn_back.Enabled = True
+        connect_counter_qty()
+    End Sub
+    Private Sub TIME_CAL_EFF_Tick(sender As Object, e As EventArgs) Handles TIME_CAL_EFF.Tick
+        'If check_cal_eff = 1000 Then
+        'cal_eff()
+        'check_cal_eff = 1
+        'Else
+        'check_cal_eff = check_cal_eff + 1
+        'End If
+    End Sub
+    Private Sub Button4_Click(sender As Object, e As EventArgs)
+        Main()
+    End Sub
+    Private Sub ReceivedText(ByVal [text] As String)
+        If Me.InvokeRequired Then
+            Dim x As New SetTextCallback(AddressOf ReceivedText)
+            Me.Invoke(x, New Object() {(text)})
+        Else
+            BeginInvoke(Sub()
+                            ''''Console.WriteLine("RES check_bull===>", check_bull)
+                            If check_bull = 0 Then
+                                Manage_counter_contect_DIO_RS232()
+                            End If
+                        End Sub)
+        End If
+        ''''Console.WriteLine("Read Data Success")
+    End Sub
+    Private Sub serialPort_DataReceived(sender As Object, e As SerialDataReceivedEventArgs) Handles serialPort.DataReceived
+        ' ทำอะไรกับข้อมูลที่ได้รับ RS232 อ่านค่า
+        ReceivedText(serialPort.ReadExisting())
+        ''''Console.WriteLine("READ OK")
+        '    Dim data As String = serialPort.ReadExisting()
+    End Sub
+    Private Sub serialPort_PinChanged(sender As Object, e As SerialPinChangedEventArgs) Handles serialPort.PinChanged
+        ' การตรวจสอบการเปลี่ยนแปลงของ CTS หรือ DSR
+        If e.EventType = SerialPinChange.CtsChanged Then
+            If serialPort.CtsHolding Then
+                ''''Console.WriteLine("1 High OK")
+            Else
+                ''''Console.WriteLine("1 LOW")
+            End If
+        ElseIf e.EventType = SerialPinChange.DsrChanged Then
+            If serialPort.DsrHolding Then
+                '   ''''Console.WriteLine("2 High OK")
+            Else
+                '  ''''Console.WriteLine("2 LOW")
+            End If
+        End If
+    End Sub
+    Public Sub TowerLamp(DataBits As Integer, WriteLine As Integer)
+        Try
+            If comportTowerLamp <> "NO DEVICE" Then
+                If SerialPortLamp.IsOpen() Then
+                    SerialPortLamp.Close()
+                End If
+                Try
+                    SerialPortLamp.PortName = comportTowerLamp
+                    SerialPortLamp.BaudRate = 9600
+                    SerialPortLamp.Parity = IO.Ports.Parity.None
+                    SerialPortLamp.StopBits = IO.Ports.StopBits.One
+                    SerialPortLamp.DataBits = DataBits
+                    SerialPortLamp.Open()
+                    SerialPortLamp.WriteLine(WriteLine)
+                Catch ex As Exception
+                    'msgBox(ex.Message)
+                End Try
+            End If
+        Catch ex As Exception
+            'msgBox("Please Check Comport For Tower Lamp In Server ")
+        End Try
+    End Sub
+    Public Sub ResetRed()
+        Try
+            If comportTowerLamp <> "NO DEVICE" Then
+                If SerialPortLamp.IsOpen() Then
+                    SerialPortLamp.Close()
+                End If
+                SerialPortLamp.PortName = comportTowerLamp
+                SerialPortLamp.BaudRate = 9600
+                SerialPortLamp.Parity = IO.Ports.Parity.None
+                SerialPortLamp.StopBits = IO.Ports.StopBits.One
+                SerialPortLamp.DataBits = 5
+                SerialPortLamp.Open()
+                SerialPortLamp.WriteLine(9999)
+                Console.ReadLine()
+                If SerialPortLamp.IsOpen() Then
+                    SerialPortLamp.Close()
+                End If
+                SerialPortLamp.PortName = comportTowerLamp
+                SerialPortLamp.BaudRate = 9600
+                SerialPortLamp.Parity = IO.Ports.Parity.None
+                SerialPortLamp.StopBits = IO.Ports.StopBits.One
+                SerialPortLamp.DataBits = 6
+                SerialPortLamp.Open()
+                SerialPortLamp.WriteLine(11)
+                Console.ReadLine()
+            End If
+        Catch ex As Exception
+            'msgBox("Please Check Comport For Tower Lamp In Server ")
+        End Try
+    End Sub
+    Public Sub Load_Working_OEE()
+        Working_OEE.Show()
+    End Sub
+    Private Sub PictureBox11_Click(sender As Object, e As EventArgs) Handles redBox.Click
+    End Sub
+    Private Sub lvA_SelectedIndexChanged(sender As Object, e As EventArgs) Handles lvA.SelectedIndexChanged
+    End Sub
+    Private Sub btn_desc_act_Click_1(sender As Object, e As EventArgs)
+    End Sub
+    Private Async Sub btnStart_Click(sender As Object, e As EventArgs) Handles btnStart.Click
+        If _resumeStartInFlight Then Return
+        _resumeStartInFlight = True
+        btnStart.Enabled = False
+        ' btnStart is displayed by stop_working() for a temporary Stop/Loss/
+        ' Setup pause.  It must resume the already selected current production
+        ' and must not reopen the initial Continue/New-Box decision flow.
+        Try
+            Await Start_Production()
+        Finally
+            _resumeStartInFlight = False
+            ' Start_Production hides btnStart when it succeeds. If it returned
+            ' early (for example, a real pending tag failure), keep the stopped
+            ' screen usable without bypassing its existing safety guard.
+            If btnStart.Visible Then btnStart.Enabled = True
+        End Try
+    End Sub
+    Public Sub GenQrScanChecklist(line_cd As String)
+        ' สร้าง QR Code generator
+        ' สร้าง QR Code จาก URL หรือข้อความที่ต้องการ
+        Dim url As String = "http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/CheckList/form_Checklist?line_cd=" & line_cd
+        '''''Console.WriteLine(url)
+        ' สร้าง QR Code
+        ' ปรับขนาด QR Code ที่สร้างขึ้น
+        Dim qrCodeImage As Bitmap
+        Using qrGenerator As New QRCodeGenerator()
+            Using qrCodeData As QRCodeData = qrGenerator.CreateQrCode(url, QRCodeGenerator.ECCLevel.Q)
+                Using qrCode As New QRCode(qrCodeData)
+                    qrCodeImage = qrCode.GetGraphic(6) 'ปรับค่าที่นี่เพื่อทำให้ QR Code ใหญ่ขึ้น
+                End Using
+            End Using
+        End Using
+        ' แสดง QR Code ใน PictureBox
+        Dim oldQrImage As Image = qrScanChecklist.Image
+        qrScanChecklist.Image = qrCodeImage
+        If oldQrImage IsNot Nothing AndAlso Not Object.ReferenceEquals(oldQrImage, qrCodeImage) Then
+            oldQrImage.Dispose()
+        End If
+        ' ปรับขนาด Panel เพื่อให้พอดีกับ QR Code
+        qrScanChecklist.Location = New Point(15, 9) ' กำหนดตำแหน่ง
+        qrScanChecklist.Size = New Size(330, 330)   ' ปรับขนาด Panel ให้ใหญ่ขึ้นตาม QR Code
+        PanelQrScanChecklist.Visible = True
+        PanelQrScanChecklist.Location = New Point(183, 101)
+        PanelQrScanChecklist.Size = New Size(353, 349)
+    End Sub
+    Private Sub Button4_Click_1(sender As Object, e As EventArgs)
+        ' WebViewProgressbar.Reload()
+    End Sub
+    Private Sub btnDefects_Click(sender As Object, e As EventArgs) Handles btnDefects.Click
+        MenuDefect()
+    End Sub
+    Private Sub MenuDefect()
+        Dim dfHome = New defectHome()
+        dfHome.Show()
+        'defectHome.Show()
+        Me.Enabled = False
+        'Close_lot.Show()
+        'Me.Close()
+    End Sub
+    Private Sub PanelQrScanChecklist_Paint(sender As Object, e As PaintEventArgs) Handles PanelQrScanChecklist.Paint
+    End Sub
+    Private Sub lvRemainmanual_SelectedIndexChanged(sender As Object, e As EventArgs) Handles lvRemainmanual.SelectedIndexChanged
+    End Sub
+    Private Sub Button1_Click_1(sender As Object, e As EventArgs) Handles btn_close_log_scan_product.Click
+        Panel_log_scan_qr_product.Visible = False
+    End Sub
+    Public Sub stop_popup_loss_E1()
+        If lossPopupCts IsNot Nothing Then
+            lossPopupCts.Cancel()
+            lossPopupCts.Dispose()
+            lossPopupCts = Nothing
+        End If
+    End Sub
+    Public Sub load_popup_loss_E1()
+        Dim rsString = Backoffice_model.M_loadsecPopUp_Loss_E1(DateTime.Now.ToString("yyyy-MM-dd"), DateTime.Now.ToString("HH:mm:ss"), Label14.Text, Label3.Text, MainFrm.chk_spec_line, MainFrm.Label4.Text)
+        Try
+            ' ยกเลิก Task เดิมถ้ามี
+            If lossPopupCts IsNot Nothing Then
+                lossPopupCts.Cancel()
+                lossPopupCts.Dispose()
+            End If
+            Dim rs As Integer
+            If Integer.TryParse(rsString, rs) AndAlso rs > 0 Then
+                lossPopupCts = New CancellationTokenSource()
+                Dim token = lossPopupCts.Token
+                Task.Delay(TimeSpan.FromSeconds(rs), token).ContinueWith(Sub(t)
+                                                                             If t.IsCanceled Then Return
+                                                                             Try
+                                                                                 Me.Invoke(Sub()
+                                                                                               Try
+                                                                                                   If check_in_up_seq = 0 Then
+                                                                                                       PopUpLossDelayStart.ShowDialog()
+                                                                                                   End If
+                                                                                               Catch ex As Exception
+                                                                                                   ' Handle inner error
+                                                                                               End Try
+                                                                                           End Sub)
+                                                                             Catch ex As Exception
+                                                                                 ' Handle outer error
+                                                                             End Try
+                                                                         End Sub, TaskScheduler.FromCurrentSynchronizationContext())
+            End If
+        Catch ex As Exception
+            ' Handle global error
+        End Try
+    End Sub
+    Private Sub btnTestPrint_Click(sender As Object, e As EventArgs)
+        tag_print()
+    End Sub
+
+
+    ' === UNIVERSAL: Stop all timers owned  by this form ===
+    Private Sub StopAllTimers()
+        Try
+            If Me.components Is Nothing Then Return
+            For Each obj In Me.components.Components
+                Dim t = TryCast(obj, System.Windows.Forms.Timer)
+                If t IsNot Nothing Then
+                    Try : t.Stop() : Catch : End Try
+                End If
+            Next
+        Catch
+        End Try
+    End Sub
+
+    ' === Find and close StopMenu form safely ===
+    Private Sub CloseStopMenuIfOpen()
+        Try
+            Dim sm As StopMenu = Application.OpenForms().OfType(Of StopMenu)().FirstOrDefault()
+            If sm IsNot Nothing AndAlso Not sm.IsDisposed Then
+                Try : sm.ShutdownTimers() : Catch : End Try
+                Try : sm.Close() : Catch : End Try
+            End If
+        Catch
+        End Try
+    End Sub
+
+    ' === Ensure cleanup order when this form is closing ===
+    Private Sub Working_Pro_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
+        Me.Enabled = False
+        load_show_OEE.HideIfOpen()
+        CloseStopMenuIfOpen()
+        StopAllTimers()
+        Try
+            CancelLOAD_OEE()
+        Catch
+        End Try
+        Try
+            stop_popup_loss_E1()
+        Catch
+        End Try
+        Try
+            If TimerCheckDIO IsNot Nothing Then
+                RemoveHandler TimerCheckDIO.Tick, AddressOf TimerCheckDIO_Tick
+                TimerCheckDIO.Stop()
+                TimerCheckDIO.Dispose()
+                TimerCheckDIO = Nothing
+            End If
+        Catch
+        End Try
+        Try
+            If serialPort IsNot Nothing Then
+                If serialPort.IsOpen Then serialPort.Close()
+                serialPort.Dispose()
+            End If
+        Catch
+        End Try
+        Try
+            If pcWorker1.Image IsNot Nothing Then
+                pcWorker1.Image.Dispose()
+                pcWorker1.Image = Nothing
+            End If
+            If pcWorker2.Image IsNot Nothing Then
+                pcWorker2.Image.Dispose()
+                pcWorker2.Image = Nothing
+            End If
+        Catch
+        End Try
+    End Sub
+
+    Private Enum PackagingQuantityBasis
+        TotalActual = 0
+        GoodActual = 1
+    End Enum
+
+    Private Function PersistPendingContinueTagReplacement() As Integer
+        If _pendingContinueTagPersistence Is Nothing OrElse Not IsResumeContextForCurrentWi() OrElse _resumeContext.SelectedBox Is Nothing Then Return 0
+
+        Dim request = _pendingContinueTagPersistence
+        Dim attemptedNewTagId As Integer = 0
+        Dim insertedTagId As Integer = Backoffice_model.ReplaceSelectedIncompleteBoxAtomic(
+            _resumeContext.SelectedBox.TagId, request.SourceWi, request.CurrentWi, CInt(Val(Label27.Text)), request.QrDetail,
+            request.SourceBoxNo, request.CurrentBoxNo, request.PrintCount, request.SeqNo, request.Shift,
+            request.FlgControl, request.ItemCd, request.PwiId, request.TagGroupNo,
+            request.GoodQty, request.NextProcess, attemptedNewTagId)
+        _continueTagAttemptedNewTagId = attemptedNewTagId
+        Return insertedTagId
+    End Function
+
+    Private Sub ApplyCommittedContinueTagReplacement(insertedTagId As Integer)
+        If insertedTagId <= 0 OrElse _pendingContinueTagPersistence Is Nothing Then Return
+
+        If _pendingContinueTagPersistence.IsPartialSourceReplacement Then
+            CompleteResumedBoxAfterPartialCloseLotTagCommit(insertedTagId)
+        ElseIf _pendingContinueTagPersistence.IsFullSourceReplacement Then
+            CompleteResumedBoxAfterFullTagCommit(insertedTagId)
+            ProcessDeferredNormalOverflowAfterSourceCommit()
+        End If
+    End Sub
+
+    Private Sub ClearPendingContinueTagPersistence()
+        _continueTagPersistenceFailed = False
+        _continueTagAttemptedNewTagId = 0
+        _pendingContinueTagPersistence = Nothing
+    End Sub
+
+    ' A failure flag by itself is not ownership.  Only block/retry when the
+    ' prepared replacement request is still for this active, Current-WI source.
+    Private Function HasPendingContinuePersistenceForCurrentSource() As Boolean
+        If Not _continueTagPersistenceFailed OrElse _pendingContinueTagPersistence Is Nothing Then Return False
+        If Not IsResumeContextForCurrentWi() OrElse _resumeContext.SourceBoxCompleted OrElse _resumeContext.SelectedBox Is Nothing Then Return False
+
+        Dim request = _pendingContinueTagPersistence
+        Return request.SourceTagId > 0 AndAlso
+               request.SourceTagId = _resumeContext.SelectedBox.TagId AndAlso
+               String.Equals(Trim(request.SourceWi), Trim(_resumeContext.SelectedBox.Wi), StringComparison.OrdinalIgnoreCase) AndAlso
+               String.Equals(Trim(request.CurrentWi), Trim(wi_no.Text), StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    Private Sub PreservePendingContinueInput(remainingInput As Integer, acceptedReworkForPackaging As Boolean)
+        _pendingContinueInputRemaining = Math.Max(0, remainingInput)
+        _pendingContinueInputIsAcceptedRework = acceptedReworkForPackaging AndAlso _pendingContinueInputRemaining > 0
+    End Sub
+
+    Private Sub ClearPendingContinueInput()
+        _pendingContinueInputRemaining = 0
+        _pendingContinueInputIsAcceptedRework = False
+    End Sub
+
+    ' This path retries database persistence only.  The already-recorded counter
+    ' event, Good snapshot, source TagId and prepared QR payload are never rebuilt.
+    Private Function ResolvePendingContinueTagPersistence() As Boolean
+        If Not HasPendingContinuePersistenceForCurrentSource() Then Return False
+
+        Dim request = _pendingContinueTagPersistence
+        Dim resolution As ContinueTagPersistenceResolution = Backoffice_model.ReconcileSelectedIncompleteBoxReplacement(
+            _resumeContext.SelectedBox.TagId, _continueTagAttemptedNewTagId, request.SourceWi, request.CurrentWi,
+            request.SourceBoxNo, request.CurrentBoxNo, request.QrDetail)
+
+        Select Case resolution
+            Case ContinueTagPersistenceResolution.Committed
+                ApplyCommittedContinueTagReplacement(_continueTagAttemptedNewTagId)
+                ClearPendingContinueTagPersistence()
+                Return True
+
+            Case ContinueTagPersistenceResolution.RetrySafe
+                Dim retry As DialogResult = MessageBox.Show(
+                    "Continue Box tag save failed. Production is blocked until the tag is saved." & vbCrLf & vbCrLf &
+                    "Retry saving the same source box tag now?",
+                    "Continue Tag Persistence Failed",
+                    MessageBoxButtons.RetryCancel,
+                    MessageBoxIcon.Error)
+                If retry <> DialogResult.Retry Then Return False
+
+                Dim insertedTagId As Integer = PersistPendingContinueTagReplacement()
+                If insertedTagId <= 0 Then Return False
+
+                ApplyCommittedContinueTagReplacement(insertedTagId)
+                ClearPendingContinueTagPersistence()
+                Return True
+
+            Case ContinueTagPersistenceResolution.Inconsistent
+                MessageBox.Show("Continue Box tag state is inconsistent on the server. No retry was performed. Please contact support.",
+                                "Continue Tag Data Integrity Error",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error)
+            Case Else
+                MessageBox.Show("Continue Box tag status could not be confirmed. No retry was performed.",
+                                "Continue Tag Persistence Unknown",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error)
+        End Select
+        Return False
+    End Function
+
+    Private Function CanAcceptContinueCounterInput() As Boolean
+        If _oldRecoveryFullPending Then
+            If _oldRecoveryFullPrintSubmitted Then Return False
+            If _deferredSourceTagAfterActual Then
+                CommitDeferredSourceTagAfterActualPersistence()
+            Else
+                tag_print()
+            End If
+            Return Not _oldRecoveryFullPending AndAlso Not _continueTagPersistenceFailed
+        End If
+        If ProductionStartFlowState.SelectedOldActiveRecovery IsNot Nothing AndAlso
+            Not ProductionStartFlowState.OldActiveRecoverySeedApplied Then Return False
+        If IsDurableContinueFullCompletionPending() Then
+            ' The selected Current BOX001 reached SNP but its authoritative
+            ' completion is unresolved. Retry/reconcile that same request
+            ' before any new physical event can change production or packaging.
+            Return ResolveDurableContinueFullCompletion()
+        End If
+
+        If HasPendingContinuePersistenceForCurrentSource() Then
+            ' Reconciliation is tag-only. If it succeeds, the source context is
+            ' ended and ins_qty_fn continues only the retained input tail.
+            Return ResolvePendingContinueTagPersistence()
+        End If
+
+        If _continueTagPersistenceFailed OrElse _pendingContinueTagPersistence IsNot Nothing Then
+            ClearPendingContinueTagPersistence()
+        End If
+        Return True
+    End Function
+
+    Private Function IsDurableContinueFullCompletionPending() As Boolean
+        If Not IsResumeContextForCurrentWi() OrElse _resumeContext.SourceBoxCompleted OrElse
+           Not _resumeContext.DurableActiveConfirmed OrElse _resumeContext.BackendTransferId <= 0 Then Return False
+
+        Dim snp As Integer = CInt(Val(Label27.Text))
+        Return snp > 1 AndAlso snp <> 999999 AndAlso GetLiveCurrentBoxQuantity() >= snp
+    End Function
+
+    Private Function ResolveDurableContinueFullCompletion() As Boolean
+        If Not IsDurableContinueFullCompletionPending() Then Return True
+
+        Dim snp As Integer = CInt(Val(Label27.Text))
+        lb_qty_for_box.Text = snp.ToString(CultureInfo.InvariantCulture)
+        GoodQty = snp
+        LogTransferTrace("DURABLE COMPLETE RETRY | TransferId=" & _resumeContext.BackendTransferId.ToString() &
+                         " | CurrentBoxNo=" & _resumeContext.CurrentBoxNo.ToString() &
+                         " | Qty=" & snp.ToString() & " | Snp=" & snp.ToString())
+        tag_print()
+        Return Not IsDurableContinueFullCompletionPending() AndAlso Not _continueTagPersistenceFailed
+    End Function
+
+    Private Function GetPackagingQuantity(actualQuantity As Integer,
+                                          basis As PackagingQuantityBasis) As Integer
+        Dim safeActual As Integer = Math.Max(0, actualQuantity)
+        If Not IsResumeContextForCurrentWi() Then
+            If IsNormalPackagingRebaseForCurrentWi() Then
+                Dim baseline As Integer = If(basis = PackagingQuantityBasis.GoodActual,
+                                              _normalPackagingGoodBaseline,
+                                              _normalPackagingActualBaseline)
+                Dim normalContribution As Integer = Math.Max(0, safeActual - baseline)
+                If basis = PackagingQuantityBasis.GoodActual Then
+                    normalContribution += Math.Max(0, _normalAcceptedReworkPackagingQuantity)
+                End If
+                Return Math.Max(0, _resumeNormalBoxQuantityAtRebase + normalContribution)
+            End If
+            If IsNormalNewBoxPackagingBaselineForCurrentContext() Then
+                Dim baseline As Integer = If(basis = PackagingQuantityBasis.GoodActual,
+                                              _normalNewBoxPackagingGoodBaseline,
+                                              _normalNewBoxPackagingActualBaseline)
+                Return Math.Max(0, safeActual - baseline)
+            End If
+            Return safeActual
+        End If
+
+        Dim snapshot As Integer = If(basis = PackagingQuantityBasis.GoodActual,
+                                     _resumeContext.ProductionGoodAtResume,
+                                     _resumeContext.ProductionActualAtResume)
+        Dim producedAfterResume As Integer = Math.Max(0, safeActual - snapshot)
+        Dim acceptedReworkAfterResume As Integer = Math.Max(0, _resumeContext.AcceptedReworkPackagingQuantity)
+        Dim producedPackagingAfterResume As Integer = producedAfterResume + acceptedReworkAfterResume
+        If _resumeContext.SourceBoxCompleted Then
+            Dim sourceSnp As Integer = Math.Max(0, _resumeContext.SelectedBox.Snp)
+            Dim sourceRemaining As Integer = Math.Max(0, sourceSnp - _resumeContext.BaseBoxQuantity)
+            Return Math.Max(0, producedPackagingAfterResume - sourceRemaining)
+        End If
+        Return _resumeContext.BaseBoxQuantity + producedPackagingAfterResume
+    End Function
+
+    ' Snapshot the Current-WI packaging origin before the source context is
+    ' reset.  The overflow from this same input is intentionally left in the
+    ' normal contribution, while the source-only pieces are excluded.
+    Private _resumeNormalBoxQuantityAtRebase As Integer = 0
+
+    Private Sub BeginNormalPackagingRebaseAfterSourceCompletion()
+        If Not IsResumeContextForCurrentWi() OrElse _resumeContext.SelectedBox Is Nothing Then Return
+
+        Dim sourceRemaining As Integer = Math.Max(0, _resumeContext.SelectedBox.Snp - _resumeContext.BaseBoxQuantity)
+        Dim sourceGoodContribution As Integer = Math.Max(0, CInt(Val(lb_good.Text)) - _resumeContext.ProductionGoodAtResume) +
+                                               Math.Max(0, _resumeContext.AcceptedReworkPackagingQuantity)
+        Dim overflow As Integer = Math.Max(0, sourceGoodContribution - sourceRemaining)
+
+        ApplyNormalPackagingRebase(_resumeContext.NormalBoxQuantityBeforeResume, overflow)
+    End Sub
+
+    Private Sub ApplyNormalPackagingRebase(normalBoxQuantity As Integer, overflow As Integer)
+        _resumeNormalBoxQuantityAtRebase = Math.Max(0, normalBoxQuantity)
+        _normalPackagingActualBaseline = Math.Max(0, CInt(Val(Label6.Text)) - overflow)
+        _normalPackagingGoodBaseline = Math.Max(0, CInt(Val(lb_good.Text)) - overflow)
+        _normalAcceptedReworkPackagingQuantity = 0
+        _normalPackagingRebaseWi = Trim(wi_no.Text)
+        _normalPackagingRebaseActive = Not String.IsNullOrWhiteSpace(_normalPackagingRebaseWi)
+        lb_qty_for_box.Text = _resumeNormalBoxQuantityAtRebase.ToString()
+    End Sub
+
+    Private Function IsNormalPackagingRebaseForCurrentWi() As Boolean
+        If Not _normalPackagingRebaseActive Then Return False
+        If String.Equals(Trim(_normalPackagingRebaseWi), Trim(wi_no.Text), StringComparison.OrdinalIgnoreCase) Then Return True
+        ClearNormalPackagingRebase()
+        Return False
+    End Function
+
+    Private Sub ClearNormalPackagingRebase()
+        _normalPackagingRebaseActive = False
+        _normalPackagingRebaseWi = String.Empty
+        _normalPackagingActualBaseline = 0
+        _normalPackagingGoodBaseline = 0
+        _normalAcceptedReworkPackagingQuantity = 0
+        _resumeNormalBoxQuantityAtRebase = 0
+    End Sub
+
+    Private Function IsNormalNewBoxPackagingBaselineForCurrentContext() As Boolean
+        If Not _normalNewBoxPackagingBaselineActive Then Return False
+        Dim isCurrentContext As Boolean =
+            String.Equals(Trim(_normalNewBoxPackagingBaselineWi), Trim(wi_no.Text), StringComparison.OrdinalIgnoreCase) AndAlso
+            String.Equals(Trim(_normalNewBoxPackagingBaselinePwi), Trim(pwi_id), StringComparison.OrdinalIgnoreCase) AndAlso
+            String.Equals(Trim(_normalNewBoxPackagingBaselineSeq), Trim(Label22.Text), StringComparison.OrdinalIgnoreCase) AndAlso
+            String.Equals(Trim(_normalNewBoxPackagingBaselineLot), Trim(Label18.Text), StringComparison.OrdinalIgnoreCase)
+        If isCurrentContext Then Return True
+
+        ClearNormalNewBoxPackagingBaseline()
+        Return False
+    End Function
+
+    Private Sub ClearNormalNewBoxPackagingBaseline()
+        _normalNewBoxPackagingBaselineActive = False
+        _normalNewBoxPackagingBaselineWi = String.Empty
+        _normalNewBoxPackagingBaselinePwi = String.Empty
+        _normalNewBoxPackagingBaselineSeq = String.Empty
+        _normalNewBoxPackagingBaselineLot = String.Empty
+        _normalNewBoxPackagingGoodBaseline = 0
+        _normalNewBoxPackagingActualBaseline = 0
+    End Sub
+
+    ' Capture once per genuine normal WI/PWI/Seq/Lot context.  Stop, Loss and
+    ' Setup retain the identity and therefore cannot recapture this baseline.
+    Private Sub EnsureNormalNewBoxPackagingBaseline()
+        If IsResumeContextForCurrentWi() Then Return
+        If String.IsNullOrWhiteSpace(Trim(wi_no.Text)) OrElse String.IsNullOrWhiteSpace(Trim(pwi_id)) Then Return
+        If IsNormalNewBoxPackagingBaselineForCurrentContext() Then Return
+
+        Dim currentGood As Integer = Math.Max(0, CInt(Val(lb_good.Text)))
+        Dim currentActual As Integer = Math.Max(0, CInt(Val(Label6.Text)))
+        _normalNewBoxPackagingGoodBaseline = currentGood
+        _normalNewBoxPackagingActualBaseline = currentActual
+        _normalNewBoxPackagingBaselineWi = Trim(wi_no.Text)
+        _normalNewBoxPackagingBaselinePwi = Trim(pwi_id)
+        _normalNewBoxPackagingBaselineSeq = Trim(Label22.Text)
+        _normalNewBoxPackagingBaselineLot = Trim(Label18.Text)
+        _normalNewBoxPackagingBaselineActive = True
+    End Sub
+
+    ' Called only after Close Lot has completed its existing lifecycle for the
+    ' Current WI. It prevents an in-memory baseline leaking into a later plan.
+    Public Sub ClearNormalPackagingRebaseAfterCloseLot()
+        _oldRecoveryBoxFinished = False
+        ClearNormalPackagingRebase()
+        ClearNormalNewBoxPackagingBaseline()
+        ClearDeferredSourceTagAfterActual()
+    End Sub
+
+    Private Sub AddNormalAcceptedReworkPackagingQuantity(quantity As Integer)
+        If quantity <= 0 OrElse Not IsNormalPackagingRebaseForCurrentWi() Then Return
+        _normalAcceptedReworkPackagingQuantity += quantity
+    End Sub
+
+    Public Function GetResumePackagingGoodQuantity(actualGoodQuantity As Integer) As Integer
+        If IsSelectedOldActiveRecoveryBox() Then Return GetLiveCurrentBoxQuantity()
+        Return GetPackagingQuantity(actualGoodQuantity, PackagingQuantityBasis.GoodActual)
+    End Function
+
+    Public Function GetResumePackagingActualQuantity(actualQuantity As Integer) As Integer
+        If IsSelectedOldActiveRecoveryBox() Then Return GetLiveCurrentBoxQuantity()
+        ' Legacy/manual/rework callers still pass Label6 because their Actual
+        ' persistence contract must remain untouched.  That value is never a
+        ' valid physical-box basis while a Continue source is active: only the
+        ' current canonical Good quantity may move the resumed box boundary.
+        ' Outside Resume this keeps the original Actual-based behaviour.
+        If IsResumeContextForCurrentWi() Then
+            Return GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text)))
+        End If
+        Return GetPackagingQuantity(actualQuantity, PackagingQuantityBasis.TotalActual)
+    End Function
+
+    ' The source can belong to another WI, but an ACTIVE resume snapshot belongs
+    ' only to the exact Current WI/PWI/sequence that passed revalidation at
+    ' Continue start.  A later sequence must never inherit that context.
+    Private Function IsResumeContextForCurrentWi() As Boolean
+        If Not _resumeContext.IsResumeActive OrElse _resumeContext.SelectedBox Is Nothing Then Return False
+        Dim currentWiAndPartMatch As Boolean =
+            String.Equals(Trim(_resumeContext.CurrentWiAtResume), Trim(wi_no.Text), StringComparison.OrdinalIgnoreCase) AndAlso
+            String.Equals(Trim(_resumeContext.SelectedBox.PartNo), Trim(Label3.Text), StringComparison.OrdinalIgnoreCase)
+        If Not currentWiAndPartMatch Then Return False
+
+        ' A newly selected Continue source has no backend PWI/sequence identity
+        ' until POST /start succeeds.  It must remain an active resume context so
+        ' Start_Production can create that durable ownership.  Once durable, the
+        ' context is strictly scoped to its exact Current PWI/sequence.
+        If Not _resumeContext.DurableActiveConfirmed Then Return True
+        Return AreEquivalentNumericIdentity(_resumeContext.CurrentPwiAtResume, pwi_id) AndAlso
+               AreEquivalentNumericIdentity(_resumeContext.CurrentSeqAtResume, Label22.Text)
+    End Function
+
+    Public Function IsResumedPartialCloseLotTag() As Boolean
+        Return String.Equals(statusPrint, "CloseLot", StringComparison.OrdinalIgnoreCase) AndAlso
+               HasResumedPartialSourceForCloseLot()
+    End Function
+
+    ' Option A guard: Current BOX001 may be prepared only before this runtime
+    ' has started or accumulated a Current-WI box, and only after the existing
+    ' server tag table proves the current WI/sequence is empty.
+    Private Function IsOptionACurrentSequenceFresh(ByRef reason As String) As Boolean
+        reason = String.Empty
+        If start_flg <> 0 Then
+            reason = "Production is already active. Continue Existing Box requires a fresh current sequence."
+            Return False
+        End If
+        If CInt(Val(lb_box_count.Text)) <> 0 OrElse CInt(Val(lb_qty_for_box.Text)) <> 0 Then
+            reason = "The current runtime already has an active box. Continue Existing Box requires a fresh current sequence."
+            Return False
+        End If
+
+        Return Backoffice_model.IsOptionACurrentSequenceFresh(Trim(wi_no.Text),
+                                                               Trim(pwi_id),
+                                                               Trim(Label22.Text),
+                                                               reason)
+    End Function
+
+    <System.Diagnostics.Conditional("DEBUG")>
+    Private Sub LogIncompleteTransferDecision(message As String)
+        System.Diagnostics.Debug.WriteLine("IncompleteTransfer | " & message)
+    End Sub
+
+    <System.Diagnostics.Conditional("DEBUG")>
+    Private Sub LogTransferTrace(message As String)
+        System.Diagnostics.Debug.WriteLine("[TRANSFER] " & message)
+    End Sub
+
+    Private Sub LogCrashRecovery(message As String)
+#If DEBUG Then
+        System.Diagnostics.Debug.WriteLine("[CRASH-RECOVERY] " & message)
+#End If
+        Console.WriteLine("[CRASH-RECOVERY] " & message)
+    End Sub
+
+    ' Phase 1 crash recovery is deliberately conservative.  It runs before the
+    ' caller reloads candidate data, never selects a source, and only releases
+    ' a historical ACTIVE when both durable stores contain no event at all for
+    ' the exact old Current WI/PWI/Seq.  Partial/full reconstruction is outside
+    ' this phase and remains fail-closed.
+    Public Sub RecoverZeroNetCrashTransfersBeforeCandidateSelection(currentWi As String, currentSeq As String)
+        Dim lineCd As String = Trim(MainFrm.Label4.Text)
+        Dim runtimePwi As String = Trim(pwi_id)
+        Dim runtimeSeq As String = Trim(currentSeq)
+
+        LogCrashRecovery("PRE-CANDIDATE ENTER | Line=" & lineCd &
+                         " | RuntimePwi=" & runtimePwi &
+                         " | RuntimeSeq=" & runtimeSeq)
+
+        If HasIncompleteTransferOwnershipPendingConfirmation() Then
+            LogCrashRecovery("UNSAFE | Reason=LIVE_CURRENT_CONTINUE_CONTEXT")
+            Return
+        End If
+        If String.IsNullOrWhiteSpace(lineCd) Then
+            LogCrashRecovery("PRE-CANDIDATE RESULT | Line=" & lineCd & " | ActiveCount=0 | Reason=LINE_CODE_UNAVAILABLE")
+            Return
+        End If
+
+        Dim activeTransfers As List(Of IncompleteTransferCrashRecoveryRecord) = Nothing
+        Dim discoveryReason As String = String.Empty
+        Dim discoverySuccess As Boolean = Backoffice_model.GetCrashRecoveryActiveTransfersForLine(lineCd, activeTransfers, discoveryReason)
+        Dim activeCount As Integer = If(activeTransfers IsNot Nothing, activeTransfers.Count, 0)
+
+        LogCrashRecovery("PRE-CANDIDATE RESULT | Line=" & lineCd &
+                         " | ActiveCount=" & activeCount.ToString() &
+                         " | Reason=" & If(activeCount > 0, "ACTIVE_DISCOVERED", If(discoverySuccess, "NO_ACTIVE", discoveryReason)))
+
+        If activeTransfers Is Nothing OrElse activeTransfers.Count = 0 Then Return
+
+        For Each item As IncompleteTransferCrashRecoveryRecord In activeTransfers
+            If item Is Nothing OrElse item.Transfer Is Nothing Then Continue For
+            Dim transfer As IncompleteTransferApiRecord = item.Transfer
+
+            Dim isCurrentSession As Boolean =
+                _resumeContext.IsResumeActive AndAlso
+                _resumeContext.DurableActiveConfirmed AndAlso
+                _resumeContext.BackendTransferId = transfer.TransferId AndAlso
+                String.Equals(Trim(_resumeContext.CurrentWiAtResume), Trim(transfer.CurrentWi), StringComparison.OrdinalIgnoreCase) AndAlso
+                AreEquivalentNumericIdentity(_resumeContext.CurrentPwiAtResume, transfer.CurrentPwi) AndAlso
+                AreEquivalentNumericIdentity(_resumeContext.CurrentSeqAtResume, transfer.CurrentSeq)
+
+            If isCurrentSession Then
+                LogCrashRecovery("CURRENT SESSION REUSED | TransferId=" & transfer.TransferId.ToString() &
+                                 " | Pwi=" & transfer.CurrentPwi &
+                                 " | Seq=" & transfer.CurrentSeq)
+            Else
+                LogCrashRecovery("DISCOVER | HblId=" & transfer.TransferId.ToString() &
+                                 " | SourceTagId=" & transfer.SourceTagId.ToString() &
+                                 " | OldPwi=" & transfer.CurrentPwi &
+                                 " | OldSeq=" & transfer.CurrentSeq &
+                                 " | Base=" & transfer.BaseQty.ToString() &
+                                 " | Snp=" & transfer.CurrentSnp.ToString())
+
+                LogCrashRecovery("BLOCKED | HblId=" & transfer.TransferId.ToString() &
+                                 " | SourceTagId=" & transfer.SourceTagId.ToString() &
+                                 " | Reason=BLOCKED_UNRESOLVED_OLD_ACTIVE")
+            End If
+        Next
+    End Sub
+
+    Private Function NormalizeCrashRecoverySequence(value As String) As String
+        Dim number As Integer
+        If Integer.TryParse(Trim(value), NumberStyles.Integer, CultureInfo.InvariantCulture, number) Then
+            Return number.ToString(CultureInfo.InvariantCulture)
+        End If
+        Return "INVALID:" & Trim(value)
+    End Function
+
+    Private Function HasValidDurableResumeForRuntime(runtimeWi As String,
+                                                      runtimePwi As String,
+                                                      runtimeSeq As String) As Boolean
+        Return IsResumeContextForCurrentWi() AndAlso
+               _resumeContext.DurableActiveConfirmed AndAlso
+               _resumeContext.BackendTransferId > 0 AndAlso
+               String.Equals(Trim(_resumeContext.CurrentWiAtResume), runtimeWi, StringComparison.OrdinalIgnoreCase) AndAlso
+               AreEquivalentNumericIdentity(_resumeContext.CurrentPwiAtResume, runtimePwi) AndAlso
+               AreEquivalentNumericIdentity(_resumeContext.CurrentSeqAtResume, runtimeSeq)
+    End Function
+
+    Private Function AreEquivalentNumericIdentity(leftValue As String, rightValue As String) As Boolean
+        Dim leftNumber As Integer
+        Dim rightNumber As Integer
+        If Integer.TryParse(Trim(leftValue), NumberStyles.Integer, CultureInfo.InvariantCulture, leftNumber) AndAlso
+           Integer.TryParse(Trim(rightValue), NumberStyles.Integer, CultureInfo.InvariantCulture, rightNumber) Then
+            Return leftNumber = rightNumber
+        End If
+        Return String.Equals(Trim(leftValue), Trim(rightValue), StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    ' A POST response can be lost after the server transaction commits.  Re-use
+    ' the authoritative active-transfer validation before permitting any reset
+    ' or another /start request.
+    Private Function TryResolveUncertainIncompleteTransferStart(ByRef reason As String) As IncompleteTransferRecoveryResult
+        LogTransferTrace("START RESERVATION RECONCILE | CALL ACTIVE | currentPwi=" & Trim(pwi_id) & " | currentSeq=" & Trim(Label22.Text))
+        Return TryRecoverActiveIncompleteTransfer(reason, isUncertainStartReconciliation:=True)
+    End Function
+
+    Private Function TryRecoverActiveIncompleteTransfer(ByRef reason As String, Optional isUncertainStartReconciliation As Boolean = False) As IncompleteTransferRecoveryResult
+        reason = String.Empty
+        If String.IsNullOrWhiteSpace(Trim(pwi_id)) OrElse String.IsNullOrWhiteSpace(Trim(Label22.Text)) Then
+            reason = "Current PWI or sequence is unavailable."
+            LogTransferTrace("ACTIVE VALIDATION | Runtime identity FAIL | Reason=" & reason)
+            Return IncompleteTransferRecoveryResult.Failed
+        End If
+
+        Dim hasActive As Boolean = False
+        Dim transfer As IncompleteTransferApiRecord = Nothing
+        LogIncompleteTransferDecision("GET active requested Pwi=" & Trim(pwi_id) & " Seq=" & Trim(Label22.Text))
+        If Not Backoffice_model.GetActiveIncompleteTransfer(Trim(pwi_id), Trim(Label22.Text), hasActive, transfer, reason) Then
+            LogTransferTrace("ACTIVE RESULT | ApiSuccess=False | ParseOrValidationReason=" & reason)
+            Return IncompleteTransferRecoveryResult.Failed
+        End If
+        LogTransferTrace("ACTIVE RESULT | ApiSuccess=True | HasActive=" & hasActive.ToString() &
+                         " | HblId=" & If(transfer Is Nothing, "0", transfer.TransferId.ToString()) &
+                         " | CurrentWi=" & If(transfer Is Nothing, "", transfer.CurrentWi) &
+                         " | CurrentPwi=" & If(transfer Is Nothing, "", transfer.CurrentPwi) &
+                         " | CurrentSeq=" & If(transfer Is Nothing, "", transfer.CurrentSeq) &
+                         " | CurrentSnp=" & If(transfer Is Nothing, "0", transfer.CurrentSnp.ToString()) &
+                         " | Flag=" & If(transfer Is Nothing, "", transfer.Flag.ToString()))
+        If Not hasActive OrElse transfer Is Nothing Then
+            LogIncompleteTransferDecision("GET active completed HasActive=False")
+            Return IncompleteTransferRecoveryResult.NoActive
+        End If
+
+        LogCrashRecovery("DISCOVER | HblId=" & transfer.TransferId.ToString() &
+                         " | SourceTagId=" & transfer.SourceTagId.ToString() &
+                         " | OldPwi=" & transfer.CurrentPwi &
+                         " | OldSeq=" & transfer.CurrentSeq &
+                         " | Base=" & transfer.BaseQty.ToString() &
+                         " | Snp=" & transfer.CurrentSnp.ToString())
+
+        If Not isUncertainStartReconciliation Then
+            reason = "พบกล่อง Continue เดิมที่ยังปิดไม่สมบูรณ์ กรุณาตรวจสอบก่อนเริ่ม Continue กล่องนี้"
+            LogCrashRecovery("BLOCKED | HblId=" & transfer.TransferId.ToString() &
+                             " | SourceTagId=" & transfer.SourceTagId.ToString() &
+                             " | Reason=BLOCKED_UNRESOLVED_OLD_ACTIVE")
+            LogTransferTrace("ACTIVE RECOVERY BLOCKED | TransferId=" & transfer.TransferId.ToString() &
+                             " | SourceTagId=" & transfer.SourceTagId.ToString() &
+                             " | Reason=BLOCKED_UNRESOLVED_OLD_ACTIVE")
+            Return IncompleteTransferRecoveryResult.BlockedUnresolvedOldActive
+        End If
+        Dim transferPresent As Boolean = transfer IsNot Nothing
+        Dim flagMatches As Boolean = transferPresent AndAlso transfer.Flag = 0
+        Dim runtimeWiMatches As Boolean = transferPresent AndAlso String.Equals(Trim(transfer.CurrentWi), Trim(wi_no.Text), StringComparison.OrdinalIgnoreCase)
+        Dim runtimePwiMatches As Boolean = transferPresent AndAlso AreEquivalentNumericIdentity(transfer.CurrentPwi, pwi_id)
+        Dim runtimeSeqMatches As Boolean = transferPresent AndAlso AreEquivalentNumericIdentity(transfer.CurrentSeq, Label22.Text)
+        Dim runtimeSnpMatches As Boolean = transferPresent AndAlso transfer.CurrentSnp = CInt(Val(Label27.Text))
+        Dim currentBoxIsOne As Boolean = transferPresent AndAlso transfer.CurrentBoxNo = 1
+        Dim basePositive As Boolean = transferPresent AndAlso transfer.BaseQty > 0
+        Dim baseBelowSnp As Boolean = transferPresent AndAlso transfer.BaseQty < CInt(Val(Label27.Text))
+        Dim sourceTagValid As Boolean = transferPresent AndAlso transfer.SourceTagId > 0
+        Dim transferIdValid As Boolean = transferPresent AndAlso transfer.TransferId > 0
+        Dim transferSnpValid As Boolean = transferPresent AndAlso transfer.CurrentSnp > 1 AndAlso transfer.CurrentSnp <> 999999
+        LogTransferTrace("ACTIVE VALIDATION | flag=" & flagMatches.ToString() & " | runtimeWi=" & runtimeWiMatches.ToString() &
+                         " | runtimePwi=" & runtimePwiMatches.ToString() & " | runtimeSeq=" & runtimeSeqMatches.ToString() &
+                         " | runtimeSnp=" & runtimeSnpMatches.ToString() & " | currentBox001=" & currentBoxIsOne.ToString() &
+                         " | basePositive=" & basePositive.ToString() & " | baseBelowSnp=" & baseBelowSnp.ToString() &
+                         " | sourceTagIdPositive=" & sourceTagValid.ToString() & " | transferIdPositive=" & transferIdValid.ToString() &
+                         " | transferSnpValid=" & transferSnpValid.ToString())
+        If Not (transferPresent AndAlso flagMatches AndAlso transferIdValid AndAlso sourceTagValid AndAlso
+                basePositive AndAlso baseBelowSnp AndAlso currentBoxIsOne AndAlso transferSnpValid AndAlso runtimeSnpMatches AndAlso
+                runtimeWiMatches AndAlso runtimePwiMatches AndAlso runtimeSeqMatches) Then
+            reason = "The active incomplete-transfer record does not match the current production identity."
+            LogTransferTrace("ACTIVE VALIDATION FAIL | Reason=" & reason)
+            Return IncompleteTransferRecoveryResult.Failed
+        End If
+
+        Dim refreshed As IncompleteBoxRecord = Nothing
+        Dim revalidationReason As String = String.Empty
+        Dim sourceRevalidationPassed As Boolean = Backoffice_model.RevalidateIncompleteBox(transfer.SourceTagId, wi_no.Text, MainFrm.Label4.Text, Label3.Text,
+                                                                                             CInt(Val(Label27.Text)), value_next_process, refreshed, revalidationReason, True, True)
+        LogTransferTrace("SOURCE REVALIDATION | result=" & sourceRevalidationPassed.ToString() & " | Reason=" & revalidationReason)
+        If Not sourceRevalidationPassed Then
+            reason = "Source revalidation failed. " & revalidationReason
+            Return IncompleteTransferRecoveryResult.Failed
+        End If
+        Dim sourcePresent As Boolean = refreshed IsNot Nothing
+        Dim sourceTagMatches As Boolean = sourcePresent AndAlso refreshed.TagId = transfer.SourceTagId
+        Dim sourceWiMatches As Boolean = sourcePresent AndAlso String.Equals(Trim(refreshed.Wi), Trim(transfer.SourceWi), StringComparison.OrdinalIgnoreCase)
+        Dim sourcePwiMatches As Boolean = sourcePresent AndAlso AreEquivalentNumericIdentity(refreshed.PwiId, transfer.SourcePwi)
+        Dim sourceSeqMatches As Boolean = sourcePresent AndAlso AreEquivalentNumericIdentity(refreshed.SeqNo, transfer.SourceSeq)
+        Dim sourceBoxMatches As Boolean = sourcePresent AndAlso refreshed.BoxNo = transfer.SourceBoxNo
+        Dim sourceQtyMatches As Boolean = sourcePresent AndAlso refreshed.Quantity = transfer.BaseQty
+        LogTransferTrace("SOURCE VALIDATION | sourcePresent=" & sourcePresent.ToString() & " | sourceTag=" & sourceTagMatches.ToString() &
+                         " | sourceWi=" & sourceWiMatches.ToString() & " | sourcePwi=" & sourcePwiMatches.ToString() &
+                         " | sourceSeq=" & sourceSeqMatches.ToString() & " | sourceBox=" & sourceBoxMatches.ToString() &
+                         " | sourceQty=" & sourceQtyMatches.ToString())
+        If Not (sourcePresent AndAlso sourceTagMatches AndAlso sourceWiMatches AndAlso sourcePwiMatches AndAlso sourceSeqMatches AndAlso sourceBoxMatches AndAlso sourceQtyMatches) Then
+            reason = "The active incomplete-transfer history does not match the current source tag."
+            LogTransferTrace("SOURCE VALIDATION FAIL | Reason=" & reason)
+            Return IncompleteTransferRecoveryResult.Failed
+        End If
+
+        _resumeContext.BeginResume(refreshed, CInt(Val(Label6.Text)), transfer.GoodSnapshot, True, False, wi_no.Text,
+                                   CInt(Val(lb_box_count.Text)), CInt(Val(Label_bach.Text)), CInt(Val(lb_qty_for_box.Text)))
+        _resumeContext.BackendTransferId = transfer.TransferId
+        _resumeContext.CurrentPwiAtResume = transfer.CurrentPwi
+        _resumeContext.CurrentSeqAtResume = transfer.CurrentSeq
+        _resumeContext.CurrentBoxNo = 1
+        _resumeContext.DurableActiveConfirmed = True
+        _resumeContext.AcceptedReworkPackagingQuantity = 0
+        lb_qty_for_box.Text = transfer.BaseQty.ToString()
+        lb_box_count.Text = Math.Max(0, transfer.CurrentBoxNo - 1).ToString()
+        If check_tag_type = "2" Then Label_bach.Text = Math.Max(0, transfer.CurrentBoxNo - 1).ToString()
+        LogIncompleteTransferDecision("GET active restored Resume=True Durable=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                                      " TransferId=" & _resumeContext.BackendTransferId.ToString() &
+                                      " Pwi=" & _resumeContext.CurrentPwiAtResume & " Seq=" & _resumeContext.CurrentSeqAtResume)
+        LogTransferTrace("RESTORED | BackendTransferId=" & _resumeContext.BackendTransferId.ToString() &
+                         " | DurableActiveConfirmed=" & _resumeContext.DurableActiveConfirmed.ToString() &
+                         " | CurrentPwiAtResume=" & _resumeContext.CurrentPwiAtResume & " | CurrentSeqAtResume=" & _resumeContext.CurrentSeqAtResume &
+                         " | SourceTagId=" & _resumeContext.SelectedBox.TagId.ToString() & " | BaseBoxQuantity=" & _resumeContext.BaseBoxQuantity.ToString())
+        Return IncompleteTransferRecoveryResult.Recovered
+    End Function
+
+    Public Function HasResumedPartialSourceForCloseLot() As Boolean
+        If Not IsResumeContextForCurrentWi() OrElse _resumeContext.SourceBoxCompleted Then Return False
+        Dim packagingGood As Integer = GetLiveCurrentBoxQuantity()
+        Dim snp As Integer = CInt(Val(Label27.Text))
+        Return packagingGood > 0 AndAlso snp > 0 AndAlso packagingGood < snp
+    End Function
+
+    ' A Continue tag belongs to the Current sequence. SourceBoxNo is trace
+    ' only; both full and partial Current tags use Current BOX001.
+    Public Sub PrepareResumedBoxForCloseLotPrint()
+        If Not IsResumedPartialCloseLotTag() OrElse _resumeContext.SelectedBox Is Nothing Then Return
+        lb_box_count.Text = _resumeContext.CurrentBoxNo.ToString()
+        If check_tag_type = "2" Then Label_bach.Text = _resumeContext.CurrentBoxNo.ToString()
+    End Sub
+
+    ' Close Lot must never finish the Current WI before a partially resumed
+    ' source box has been atomically replaced.  This method is deliberately
+    ' Continue-specific; normal Close Lot ordering is left unchanged.
+    Public Function TryPersistResumedPartialCloseLotBeforeFinalization() As Boolean
+        If _resumeContext.IsResumeActive AndAlso Not _resumeContext.DurableActiveConfirmed Then
+            LogTransferTrace("CLOSE LOT DURABILITY BLOCK | Resume=True | Durable=False | TransferId=" & _resumeContext.BackendTransferId.ToString())
+            MessageBox.Show("Continue Existing Box has no confirmed server reservation. Close Lot was cancelled.",
+                            "Continue Existing Box", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return False
+        End If
+        If Not IsResumeContextForCurrentWi() Then Return True
+
+        statusPrint = "CloseLot"
+
+        ' A previous request may be committed, retry-safe or ambiguous. Always
+        ' reconcile it before building another replacement payload.
+        If _continueTagPersistenceFailed OrElse _pendingContinueTagPersistence IsNot Nothing Then
+            If Not ResolvePendingContinueTagPersistence() Then Return False
+            If Not IsResumeContextForCurrentWi() Then Return True
+        End If
+
+        If Not IsResumedPartialCloseLotTag() Then Return True
+
+        Try
+            _durablePartialCloseLotFailed = False
+            PrepareResumedBoxForCloseLotPrint()
+            GoodQty = GetLiveCurrentBoxQuantity()
+            tag_print()
+            ' A successful atomic replacement resets the source context. Any
+            ' remaining active source or persistence flag is unsafe to close.
+            If _durablePartialCloseLotFailed OrElse _continueTagPersistenceFailed Then
+                Return False
+            End If
+            Return Not IsResumeContextForCurrentWi() AndAlso Not _continueTagPersistenceFailed
+        Catch ex As Exception
+            MessageBox.Show("The incomplete source box could not be saved. Close Lot was cancelled and production remains open." & vbCrLf & ex.Message,
+                            "Continue Box Close Lot", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return False
+        End Try
+    End Function
+
+    Public Sub FinalizeCompletedResumeWithoutRemainderAtCloseLot()
+        If Not IsResumeContextForCurrentWi() OrElse Not _resumeContext.SourceBoxCompleted Then Return
+        Dim snp As Integer = CInt(Val(Label27.Text))
+        If snp <= 0 Then Return
+        If GetResumePackagingGoodQuantity(CInt(Val(lb_good.Text))) Mod snp = 0 Then
+            _resumeContext.Reset()
+        End If
+    End Sub
+
+    Private Sub RestoreNormalBoxSequenceAfterResume()
+        If Not IsResumeContextForCurrentWi() Then Return
+        lb_box_count.Text = _resumeContext.NormalBoxCounterBeforeResume.ToString()
+        If check_tag_type = "2" Then
+            Label_bach.Text = _resumeContext.NormalBatchCounterBeforeResume.ToString()
+        End If
+    End Sub
+
+    ' A resumed box always uses good quantity for packaging.  Non-resume paths
+    ' keep their existing quantity basis unchanged.
+    Private Function GetCounterPackagingBasis(normalBasis As PackagingQuantityBasis) As PackagingQuantityBasis
+        If IsResumeContextForCurrentWi() Then Return PackagingQuantityBasis.GoodActual
+        Return normalBasis
+    End Function
+
+    ' Hardware paths historically pass Label6 for some tag formats.  During a
+    ' resume this must be replaced by the pre-event good quantity so the source
+    ' box never completes from raw production actual.
+    Private Function GetCounterPackagingBeforeQuantity(normalBeforeQuantity As Integer) As Integer
+        If IsResumeContextForCurrentWi() Then Return CInt(Val(lb_good.Text))
+        Return normalBeforeQuantity
+    End Function
+
+    ' Returns every full-pack quantity crossed by one counter input.
+    ' Example: before=178, increment=3, SNP=180 returns 180.
+    Private Function GetCompletedTagQuantities(beforeQty As Integer,
+                                               incrementQty As Integer,
+                                               snp As Integer,
+                                               Optional basis As PackagingQuantityBasis = PackagingQuantityBasis.TotalActual) As List(Of Integer)
+        Dim completedQuantities As New List(Of Integer)()
+        If incrementQty <= 0 OrElse snp <= 0 Then Return completedQuantities
+
+        Dim safeBeforeQty As Integer = GetPackagingQuantity(beforeQty, basis)
+        If IsSelectedOldActiveRecoveryBox() Then safeBeforeQty = Math.Max(0, GetLiveCurrentBoxQuantity() - incrementQty)
+        Dim afterQty As Integer = safeBeforeQty + incrementQty
+        Dim nextBoundary As Integer = ((safeBeforeQty \ snp) + 1) * snp
+
+        While nextBoundary <= afterQty
+            completedQuantities.Add(nextBoundary)
+            nextBoundary += snp
+        End While
+
+        Return completedQuantities
+    End Function
+
+    Private Sub LogTagBoundaryTrigger(source As String, beforeQty As Integer, incrementQty As Integer, snp As Integer, completedQty As Integer)
+        Try
+            EnsureLogDir()
+            Dim p = Path.Combine(logDir, $"print_{DateTime.Now:yyyyMMdd}.log")
+            Using w As New StreamWriter(p, append:=True)
+                w.WriteLine("===== TAG BOUNDARY @ {0:yyyy-MM-dd HH:mm:ss.fff} =====", DateTime.Now)
+                w.WriteLine("Source: {0}", source)
+                w.WriteLine("PartNo: {0}", SafeText(Me.Label3))
+                w.WriteLine("SNP: {0}, Cavity: {1}", snp, incrementQty)
+                w.WriteLine("Qty: {0} -> {1}, Tag Qty: {2}", beforeQty, beforeQty + incrementQty, completedQty)
+                w.WriteLine()
+            End Using
+        Catch
+        End Try
+    End Sub
+
+    Private Sub PrintCompletedNormalTags(source As String,
+                                         beforeQty As Integer,
+                                         incrementQty As Integer,
+                                         snp As Integer,
+                                         isPlanFinish As Boolean,
+                                         incrementBatch As Boolean,
+                                         Optional basis As PackagingQuantityBasis = PackagingQuantityBasis.TotalActual)
+        ' The existing end-of-plan flow owns the final full or incomplete tag.
+        ' Skipping it here prevents duplicate printing when the plan finishes exactly on SNP.
+        If isPlanFinish Then Return
+
+        Dim packagingBefore As Integer = GetPackagingQuantity(beforeQty, basis)
+        For Each completedQty As Integer In GetCompletedTagQuantities(beforeQty, incrementQty, snp, basis)
+            If IsOldActiveRecoveryFull() Then
+                DeferResumeSourceTagUntilActualPersistence(snp,
+                    CInt(Val(Label6.Text)) + incrementQty, CInt(Val(lb_good.Text)) + incrementQty,
+                    Math.Max(0, GetLiveCurrentBoxQuantity() - snp), False)
+                Exit For
+            End If
+            lb_box_count.Text = (CInt(Val(lb_box_count.Text)) + 1).ToString()
+            If incrementBatch Then
+                Label_bach.Text = (CInt(Val(Label_bach.Text)) + 1).ToString()
+            End If
+            GoodQty = completedQty
+            LogTagBoundaryTrigger(source, beforeQty, incrementQty, snp, completedQty)
+
+            If IsResumeContextForCurrentWi() AndAlso Not _resumeContext.SourceBoxCompleted Then
+                ' This tag is the selected historical source.  Hardware and
+                ' button flows save Actual later in their event; defer only the
+                ' source commit until that existing local queue has accepted it.
+                DeferResumeSourceTagUntilActualPersistence(completedQty,
+                                                            CInt(Val(Label6.Text)) + incrementQty,
+                                                            CInt(Val(lb_good.Text)) + incrementQty,
+                                                            Math.Max(0, packagingBefore + incrementQty - snp),
+                                                            False)
+                Exit For
+            End If
+
+            tag_print()
+            If _continueTagPersistenceFailed Then Exit For
+        Next
+    End Sub
+
+    ' Called only after a counter path has successfully used its existing
+    ' SQLite/Actual persistence contract. It commits the source tag once, then
+    ' emits any already accepted tail through normal Current-WI tag flow.
+    Private Sub CommitDeferredSourceTagAfterActualPersistence()
+        If Not _deferredSourceTagAfterActual Then Return
+        If Not IsResumeContextForCurrentWi() AndAlso Not _oldRecoveryFullPending Then
+            ClearDeferredSourceTagAfterActual()
+            Return
+        End If
+        If _deferredSourceRequiresActualAcceptance AndAlso Not _deferredSourceActualAccepted Then Return
+        If CInt(Val(Label6.Text)) < _deferredSourceExpectedActual OrElse
+           CInt(Val(lb_good.Text)) < _deferredSourceExpectedGood Then
+            ' The current event was not accepted by the existing counter
+            ' persistence path. Never complete the source tag.
+            Return
+        End If
+
+        GoodQty = _deferredSourceTagQuantity
+        tag_print()
+        If _continueTagPersistenceFailed Then Return
+
+        ProcessDeferredNormalOverflowAfterSourceCommit()
+    End Sub
+
+    ' Returns True only when the current tag is the active Continue source and
+    ' must wait for the caller's existing Actual persistence contract.
+    Private Function DeferResumeSourceTagUntilActualPersistence(completedQty As Integer,
+                                                                 expectedActual As Integer,
+                                                                 expectedGood As Integer,
+                                                                 normalOverflow As Integer,
+                                                                 requireExplicitActualAcceptance As Boolean) As Boolean
+        Dim recoveryFull As Boolean = IsOldActiveRecoveryFull()
+        If Not recoveryFull AndAlso (Not IsResumeContextForCurrentWi() OrElse _resumeContext.SourceBoxCompleted) Then Return False
+        If recoveryFull Then
+            ' Split only this source box. The tail remains accepted production
+            ' and will be handled by the existing normal overflow routine.
+            normalOverflow = Math.Max(normalOverflow, Math.Max(0, GetLiveCurrentBoxQuantity() - CInt(Val(Label27.Text))))
+            PrepareOldRecoveryFull(normalOverflow)
+            completedQty = CInt(Val(Label27.Text))
+        End If
+
+        _deferredSourceTagAfterActual = True
+        _deferredSourceTagQuantity = completedQty
+        _deferredSourceExpectedActual = Math.Max(0, expectedActual)
+        _deferredSourceExpectedGood = Math.Max(0, expectedGood)
+        _deferredNormalOverflowAfterSource = Math.Max(0, normalOverflow)
+        _deferredSourceRequiresActualAcceptance = requireExplicitActualAcceptance
+        _deferredSourceActualAccepted = Not requireExplicitActualAcceptance
+        Return True
+    End Function
+
+    Private Sub MarkDeferredSourceActualAccepted()
+        If _deferredSourceTagAfterActual AndAlso _deferredSourceRequiresActualAcceptance Then
+            _deferredSourceActualAccepted = True
+        End If
+    End Sub
+
+    Private Sub ProcessDeferredNormalOverflowAfterSourceCommit()
+        If _deferredNormalOverflowAfterSource <= 0 Then
+            ClearDeferredSourceTagAfterActual()
+            Return
+        End If
+        If Not IsNormalPackagingRebaseForCurrentWi() Then Return
+
+        Dim snp As Integer = CInt(Val(Label27.Text))
+        If snp <= 0 Then Return
+        Dim afterQty As Integer = GetResumePackagingActualQuantity(CInt(Val(Label6.Text)))
+        Dim beforeQty As Integer = Math.Max(0, afterQty - _deferredNormalOverflowAfterSource)
+        Dim nextBoundary As Integer = ((beforeQty \ snp) + 1) * snp
+        While nextBoundary <= afterQty
+            lb_box_count.Text = (CInt(Val(lb_box_count.Text)) + 1).ToString()
+            Label_bach.Text = (CInt(Val(Label_bach.Text)) + 1).ToString()
+            GoodQty = nextBoundary
+            tag_print()
+            If _continueTagPersistenceFailed Then Return
+            nextBoundary += snp
+        End While
+        lb_qty_for_box.Text = (afterQty Mod snp).ToString()
+        ClearDeferredSourceTagAfterActual()
+    End Sub
+
+    Private Sub ClearDeferredSourceTagAfterActual()
+        _deferredSourceTagAfterActual = False
+        _deferredSourceTagQuantity = 0
+        _deferredSourceExpectedActual = 0
+        _deferredSourceExpectedGood = 0
+        _deferredNormalOverflowAfterSource = 0
+        _deferredSourceRequiresActualAcceptance = False
+        _deferredSourceActualAccepted = False
+    End Sub
+
+End Class

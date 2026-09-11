@@ -772,6 +772,12 @@
     </Compile>
     <Compile Include="OEE_NODE.vb" />
     <Compile Include="OEE_SQLITE.vb" />
+    <Compile Include="OrderSelectPart.Designer.vb">
+      <DependentUpon>OrderSelectPart.vb</DependentUpon>
+    </Compile>
+    <Compile Include="OrderSelectPart.vb">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="PopUpLossDelayStart.Designer.vb">
       <DependentUpon>PopUpLossDelayStart.vb</DependentUpon>
     </Compile>
@@ -1445,6 +1451,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="numPadSetStartTime.resx">
       <DependentUpon>numPadSetStartTime.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="OrderSelectPart.resx">
+      <DependentUpon>OrderSelectPart.vb</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="PopUpLossDelayStart.resx">
       <DependentUpon>PopUpLossDelayStart.vb</DependentUpon>

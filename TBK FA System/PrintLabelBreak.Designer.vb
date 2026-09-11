@@ -36,6 +36,9 @@ Partial Class PrintLabelBreak
         CType(Me.picBarcode, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.SuspendLayout()
         '
+        'PrintDocument31
+        '
+        '
         'lbButton
         '
         Me.lbButton.AutoSize = True

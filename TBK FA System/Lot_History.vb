@@ -71,6 +71,7 @@ Public Class Lot_History
                     Dim dict2 As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(result_data)
                     For Each item As Object In dict2
                         datlvDefectsumary = New ListViewItem(i)
+                        datlvDefectsumary.SubItems.Add(item("rm_componece_part").ToString())
                         datlvDefectsumary.SubItems.Add(item("rm_QR_code").ToString())
                         datlvDefectsumary.SubItems.Add(item("rm_created_date").ToString())
                         lvShowData.Items.Add(datlvDefectsumary)
