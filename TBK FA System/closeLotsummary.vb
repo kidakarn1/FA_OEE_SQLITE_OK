@@ -261,6 +261,21 @@ Public Class closeLotsummary
             Dim prdFlg As String = "1"
             Dim clFlg As String = "1"
             btnOk.Visible = False
+            Dim resumedPartialSourceSavedBeforeCloseLot As Boolean = False
+            ' Continue Existing Box is the sole exception to the legacy Close
+            ' Lot order: its partial source replacement must be confirmed
+            ' before work_complete / close-lot records become irreversible.
+            Dim wasResumedPartialSource As Boolean = Working_Pro.HasResumedPartialSourceForCloseLot()
+            If MainFrm.chk_spec_line <> "2" AndAlso
+               (Working_Pro.HasUnresolvedContinueTagPersistence OrElse wasResumedPartialSource) Then
+                If Not Working_Pro.TryPersistResumedPartialCloseLotBeforeFinalization() Then
+                    btnOk.Visible = True
+                    MessageBox.Show("Close Lot was not completed because the incomplete source box is still unresolved.",
+                                    "Continue Box Close Lot", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    Return
+                End If
+                resumedPartialSourceSavedBeforeCloseLot = wasResumedPartialSource
+            End If
             If MainFrm.chk_spec_line = "2" Then
                 'Special
                 Dim GenSEQ As Integer = CInt(Working_Pro.Label22.Text) - MainFrm.ArrayDataPlan.ToArray().Length
@@ -369,7 +384,10 @@ Public Class closeLotsummary
             Await WaitForNetworkWithPopup()
             insertProductionactual(sWi, sLine, sPart, pQty, seqQty, sSeq, sShift, staffNo, stDatetime, eDatetime, sLot, cFlg, trFlg, dFlg, prdFlg, clFlg, avarage_eff, avarage_act_prd_time)
             Await WaitForNetworkWithPopup()
-            checkPrintnormal()
+            If Not resumedPartialSourceSavedBeforeCloseLot Then
+                checkPrintnormal()
+            End If
+            Working_Pro.ClearNormalPackagingRebaseAfterCloseLot()
             If MainFrm.chk_spec_line = "2" Then
                 Dim GenSEQ As Integer = sSeq - MainFrm.ArrayDataPlan.ToArray.Length
                 Dim Iseq = GenSEQ
@@ -558,7 +576,8 @@ Public Class closeLotsummary
     End Function
     Public Sub checkPrintnormal()
         Dim defectAll = CDbl(Val(Working_Pro.lb_ng_qty.Text)) + CDbl(Val(Working_Pro.lb_nc_qty.Text))
-        Dim result_mod As Double = (Integer.Parse(Working_Pro.lb_good.Text)) Mod Integer.Parse(Working_Pro.Label27.Text) 'Integer.Parse(_Edit_Up_0.Text) Mod Integer.Parse(Label27.Text)
+        Dim packagingGood As Integer = Working_Pro.GetResumePackagingGoodQuantity(Integer.Parse(Working_Pro.lb_good.Text))
+        Dim result_mod As Double = packagingGood Mod Integer.Parse(Working_Pro.Label27.Text) ' Packaging Qty is independent from Production Actual.
         Dim result_total As Double = (Integer.Parse(Working_Pro.LB_COUNTER_SEQ.Text) - defectAll) Mod Integer.Parse(Working_Pro.Label27.Text) '(Integer.Parse(Working_Pro.LB_COUNTER_SEQ.Text) - defectAll) Mod Integer.Parse(Working_Pro.Label27.Text)
         ''Console.WriteLine("Working_Pro.LB_COUNTER_SEQ.Text===>" & Working_Pro.LB_COUNTER_SEQ.Text)
         ''Console.WriteLine("result_total===>" & result_total)
@@ -584,10 +603,17 @@ Public Class closeLotsummary
             End If
         End If
         'If Integer.Parse(lbGood.Text) > 0 And result_mod > 0 And CDbl(Val(Working_Pro.Label10.Text)) < 0 Then
-        If Integer.Parse(lbGood.Text) > 0 And result_mod > 0 Then
+        If (Integer.Parse(lbGood.Text) > 0 OrElse Working_Pro.IsSelectedOldActiveRecoveryBox()) And result_mod > 0 Then
             If CDbl(Val(Working_Pro.Label10.Text)) < 0 Or result_mod > 0 And Working_Pro.flg_tag_print = 0 Then
-                Working_Pro.lb_box_count.Text = Working_Pro.lb_box_count.Text + 1
-                Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
+                Dim isResumedPartialBox As Boolean = Working_Pro.IsResumedPartialCloseLotTag()
+                If isResumedPartialBox Then
+                    ' Reissue the incomplete state for the same physical box;
+                    ' do not consume the next normal Current-WI box number.
+                    Working_Pro.PrepareResumedBoxForCloseLotPrint()
+                Else
+                    Working_Pro.lb_box_count.Text = Working_Pro.lb_box_count.Text + 1
+                    Working_Pro.Label_bach.Text = Working_Pro.Label_bach.Text + 1
+                End If
                 Dim cupprint = 0
                 Dim rs = (CDbl(Val(lbNc.Text)) + (CDbl(Val(lbNg.Text))))
                 If rs > 0 Then
@@ -601,7 +627,7 @@ Public Class closeLotsummary
                 End If
                 If MainFrm.chk_spec_line = "2" Then
                     If result_mod <> 0 Then
-                        Working_Pro.GoodQty = Working_Pro.lb_good.Text 'lbGood.Text
+                        Working_Pro.GoodQty = packagingGood
                         Working_Pro.tag_print()
                         Dim GenSEQ As Integer = sSeq - MainFrm.ArrayDataPlan.ToArray.Length
                         Dim Iseq = GenSEQ
@@ -614,7 +640,7 @@ Public Class closeLotsummary
                         Next
                     End If
                 Else
-                    Working_Pro.GoodQty = Working_Pro.lb_good.Text
+                    Working_Pro.GoodQty = packagingGood
                     Working_Pro.tag_print()
                     ''msgBox(Math.Ceiling(cupprint))
                     'Backoffice_model.update_tagprintforDefect(sWi, "2", "1", Working_Pro.pwi_id, (CDbl(Val(Working_Pro.lb_box_count.Text)) - 1), Working_Pro.GoodQty, Math.Ceiling(cupprint))
@@ -628,6 +654,7 @@ Public Class closeLotsummary
         Catch ex As Exception
             Working_Pro.LB_COUNTER_SEQ.Text = 0
         End Try
+        Working_Pro.FinalizeCompletedResumeWithoutRemainderAtCloseLot()
         ' End If
     End Sub
     Public Async Sub insertProductionactual(wi_plan As String, line_cd As String, item_cd As String, plan_qty As String, act_qty As String, seq_no As String, shift_prd As String, staff_no As String, prd_st_datetime As String, prd_end_datetime As String, lot_no As String, comp_flg2 As String, transfer_flg As String, del_flg As String, prd_flg As String, close_lot_flg As String, avarage_eff As String, avarage_act_prd_time As String)

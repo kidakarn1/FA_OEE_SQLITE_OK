@@ -3698,7 +3698,7 @@ where
 
     Public Shared Function Insert_tag_print(wi As String, qr_detail As String, box_no As Integer, print_count As Integer, seq_no As String, shift As String, flg_control As Integer, item_cd As String, pwi_id As String, tag_group_no As String, goodQty As Integer, Gobal_NEXT_PROCESS As String, tr_status As Integer, Optional preserveExistingIncompleteTags As Boolean = False) As Integer
         Dim currdated As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
-        update_tagprint(wi, "2", "0")
+        If Not preserveExistingIncompleteTags Then update_tagprint(wi, "2", "0")
         Dim SQLConn As New SqlConnection()
         Dim SQLCmd As New SqlCommand()
         Try
@@ -3708,6 +3708,25 @@ where
             SQLConn.ConnectionString = sqlConnect
             SQLConn.Open()
             SQLCmd.Connection = SQLConn
+
+            ' Idempotency check: verify whether a tag for this exact (PWI, Seq, BoxNo) already exists
+            If Not String.IsNullOrWhiteSpace(Trim(pwi_id)) AndAlso box_no > 0 Then
+                Using checkCmd As New SqlCommand(
+                    "SELECT TOP 1 id FROM tag_print_detail WITH (NOLOCK) " &
+                    "WHERE pwi_id = @check_pwi_id AND (seq_no = @check_seq_no OR TRY_CONVERT(INT, seq_no) = TRY_CONVERT(INT, @check_seq_no)) " &
+                    "AND box_no = @check_box_no AND flg_control IN ('0','1','2') ORDER BY id DESC;", SQLConn)
+                    checkCmd.Parameters.AddWithValue("@check_pwi_id", Trim(pwi_id))
+                    checkCmd.Parameters.AddWithValue("@check_seq_no", If(seq_no, String.Empty).Trim())
+                    checkCmd.Parameters.AddWithValue("@check_box_no", box_no)
+                    Dim existingIdObj As Object = checkCmd.ExecuteScalar()
+                    If existingIdObj IsNot Nothing AndAlso Not IsDBNull(existingIdObj) Then
+                        Dim existingId As Integer = Convert.ToInt32(existingIdObj)
+                        If existingId > 0 Then
+                            Return existingId
+                        End If
+                    End If
+                End Using
+            End If
             ' Prepare the SQL command
             SQLCmd.CommandText = "INSERT INTO tag_print_detail (wi, qr_detail, box_no, print_count, created_date, updated_date, seq_no, shift, next_proc, flg_control, pwi_id, tag_group_no) " &
                                  "VALUES (@wi, @qr_detail, @box_no, @print_count, @created_date, @updated_date, @seq_no, @shift, @next_proc, @flg_control, @pwi_id, @tag_group_no); " &
