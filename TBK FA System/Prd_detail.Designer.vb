@@ -49,6 +49,10 @@ Partial Class Prd_detail
         Me.Label1 = New System.Windows.Forms.Label()
         Me.Button4 = New System.Windows.Forms.Button()
         Me.Button3 = New System.Windows.Forms.Button()
+        Me.pnlCavity = New System.Windows.Forms.Panel()
+        Me.lblCavityArrow = New System.Windows.Forms.Label()
+        Me.lblCavityValue = New System.Windows.Forms.Label()
+        Me.lblCavityTitle = New System.Windows.Forms.Label()
         Me.PictureBox1 = New System.Windows.Forms.PictureBox()
         Me.QTY_NC = New System.Windows.Forms.Label()
         Me.QTY_NG = New System.Windows.Forms.Label()
@@ -63,6 +67,7 @@ Partial Class Prd_detail
         Me.PART_NO = CType(New System.Windows.Forms.ColumnHeader(), System.Windows.Forms.ColumnHeader)
         Me.btnUp = New System.Windows.Forms.PictureBox()
         Me.btnDown = New System.Windows.Forms.PictureBox()
+        Me.pnlCavity.SuspendLayout()
         CType(Me.PictureBox1, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.LB_ShowWorker, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.picSpecial, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -371,6 +376,58 @@ Partial Class Prd_detail
         Me.Button3.TabIndex = 17
         Me.Button3.UseVisualStyleBackColor = False
         '
+        'pnlCavity
+        '
+        Me.pnlCavity.BackColor = System.Drawing.Color.FromArgb(CType(CType(7, Byte), Integer), CType(CType(20, Byte), Integer), CType(CType(35, Byte), Integer))
+        Me.pnlCavity.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle
+        Me.pnlCavity.Controls.Add(Me.lblCavityArrow)
+        Me.pnlCavity.Controls.Add(Me.lblCavityValue)
+        Me.pnlCavity.Controls.Add(Me.lblCavityTitle)
+        Me.pnlCavity.Cursor = System.Windows.Forms.Cursors.Hand
+        Me.pnlCavity.Location = New System.Drawing.Point(220, 503)
+        Me.pnlCavity.Name = "pnlCavity"
+        Me.pnlCavity.Size = New System.Drawing.Size(175, 75)
+        Me.pnlCavity.TabIndex = 49
+        '
+        'lblCavityArrow
+        '
+        Me.lblCavityArrow.BackColor = System.Drawing.Color.Transparent
+        Me.lblCavityArrow.Cursor = System.Windows.Forms.Cursors.Hand
+        Me.lblCavityArrow.Font = New System.Drawing.Font("Arial", 16.0!, System.Drawing.FontStyle.Bold)
+        Me.lblCavityArrow.ForeColor = System.Drawing.Color.White
+        Me.lblCavityArrow.Location = New System.Drawing.Point(137, 27)
+        Me.lblCavityArrow.Name = "lblCavityArrow"
+        Me.lblCavityArrow.Size = New System.Drawing.Size(32, 36)
+        Me.lblCavityArrow.TabIndex = 2
+        Me.lblCavityArrow.Text = "▼"
+        Me.lblCavityArrow.TextAlign = System.Drawing.ContentAlignment.MiddleCenter
+        '
+        'lblCavityValue
+        '
+        Me.lblCavityValue.BackColor = System.Drawing.Color.Transparent
+        Me.lblCavityValue.Cursor = System.Windows.Forms.Cursors.Hand
+        Me.lblCavityValue.Font = New System.Drawing.Font("Catamaran", 30.0!, System.Drawing.FontStyle.Bold)
+        Me.lblCavityValue.ForeColor = System.Drawing.Color.SpringGreen
+        Me.lblCavityValue.Location = New System.Drawing.Point(8, 29)
+        Me.lblCavityValue.Name = "lblCavityValue"
+        Me.lblCavityValue.Size = New System.Drawing.Size(125, 43)
+        Me.lblCavityValue.TabIndex = 1
+        Me.lblCavityValue.Text = "1"
+        Me.lblCavityValue.TextAlign = System.Drawing.ContentAlignment.MiddleCenter
+        '
+        'lblCavityTitle
+        '
+        Me.lblCavityTitle.AutoSize = True
+        Me.lblCavityTitle.BackColor = System.Drawing.Color.Transparent
+        Me.lblCavityTitle.Cursor = System.Windows.Forms.Cursors.Hand
+        Me.lblCavityTitle.Font = New System.Drawing.Font("Catamaran", 18.0!, System.Drawing.FontStyle.Bold)
+        Me.lblCavityTitle.ForeColor = System.Drawing.Color.Aqua
+        Me.lblCavityTitle.Location = New System.Drawing.Point(8, 0)
+        Me.lblCavityTitle.Name = "lblCavityTitle"
+        Me.lblCavityTitle.Size = New System.Drawing.Size(121, 33)
+        Me.lblCavityTitle.TabIndex = 0
+        Me.lblCavityTitle.Text = "CAVITY"
+        '
         'PictureBox1
         '
         Me.PictureBox1.BackColor = System.Drawing.Color.Transparent
@@ -541,6 +598,7 @@ Partial Class Prd_detail
         Me.Controls.Add(Me.Label6)
         Me.Controls.Add(Me.Button4)
         Me.Controls.Add(Me.Button3)
+        Me.Controls.Add(Me.pnlCavity)
         Me.Controls.Add(Me.Label3)
         Me.Controls.Add(Me.lb_temp_txt)
         Me.Controls.Add(Me.QTY_NG)
@@ -558,6 +616,8 @@ Partial Class Prd_detail
         Me.Name = "Prd_detail"
         Me.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen
         Me.Text = "Prd_detail"
+        Me.pnlCavity.ResumeLayout(False)
+        Me.pnlCavity.PerformLayout()
         CType(Me.PictureBox1, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.LB_ShowWorker, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.picSpecial, System.ComponentModel.ISupportInitialize).EndInit()
@@ -574,6 +634,10 @@ Partial Class Prd_detail
     Friend WithEvents Label12 As Label
     Friend WithEvents Button4 As Button
     Friend WithEvents Button3 As Button
+    Friend WithEvents pnlCavity As Panel
+    Friend WithEvents lblCavityTitle As Label
+    Friend WithEvents lblCavityValue As Label
+    Friend WithEvents lblCavityArrow As Label
     Friend WithEvents Label22 As Label
     Friend WithEvents Label1 As Label
     Friend WithEvents Timer2 As Timer

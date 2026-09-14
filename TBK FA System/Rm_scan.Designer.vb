@@ -25,6 +25,8 @@ Partial Class Rm_scan
         Dim resources As System.ComponentModel.ComponentResourceManager = New System.ComponentModel.ComponentResourceManager(GetType(Rm_scan))
         Me.Panel1 = New System.Windows.Forms.Panel()
         Me.Panel_scan_picking = New System.Windows.Forms.Panel()
+        Me.lbQty = New System.Windows.Forms.Label()
+        Me.Label2 = New System.Windows.Forms.Label()
         Me.lbPartNo = New System.Windows.Forms.Label()
         Me.PictureBox2 = New System.Windows.Forms.PictureBox()
         Me.Label1 = New System.Windows.Forms.Label()
@@ -53,6 +55,8 @@ Partial Class Rm_scan
         '
         Me.Panel_scan_picking.BackColor = System.Drawing.Color.CadetBlue
         Me.Panel_scan_picking.BackgroundImage = Global.TBK_FA_System.My.Resources.Resources.scanMaterial
+        Me.Panel_scan_picking.Controls.Add(Me.lbQty)
+        Me.Panel_scan_picking.Controls.Add(Me.Label2)
         Me.Panel_scan_picking.Controls.Add(Me.lbPartNo)
         Me.Panel_scan_picking.Controls.Add(Me.PictureBox2)
         Me.Panel_scan_picking.Controls.Add(Me.Label1)
@@ -65,14 +69,36 @@ Partial Class Rm_scan
         Me.Panel_scan_picking.Size = New System.Drawing.Size(763, 473)
         Me.Panel_scan_picking.TabIndex = 23
         '
+        'lbQty
+        '
+        Me.lbQty.AutoSize = True
+        Me.lbQty.BackColor = System.Drawing.Color.Transparent
+        Me.lbQty.Font = New System.Drawing.Font("Microsoft Sans Serif", 23.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.lbQty.Location = New System.Drawing.Point(598, 406)
+        Me.lbQty.Name = "lbQty"
+        Me.lbQty.Size = New System.Drawing.Size(103, 35)
+        Me.lbQty.TabIndex = 15
+        Me.lbQty.Text = "XXXX"
+        '
+        'Label2
+        '
+        Me.Label2.AutoSize = True
+        Me.Label2.BackColor = System.Drawing.Color.Transparent
+        Me.Label2.Font = New System.Drawing.Font("Microsoft Sans Serif", 27.0!, System.Drawing.FontStyle.Bold)
+        Me.Label2.Location = New System.Drawing.Point(490, 403)
+        Me.Label2.Name = "Label2"
+        Me.Label2.Size = New System.Drawing.Size(126, 40)
+        Me.Label2.TabIndex = 14
+        Me.Label2.Text = "QTY : "
+        '
         'lbPartNo
         '
         Me.lbPartNo.AutoSize = True
         Me.lbPartNo.BackColor = System.Drawing.Color.Transparent
-        Me.lbPartNo.Font = New System.Drawing.Font("Microsoft Sans Serif", 23.25!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.lbPartNo.Location = New System.Drawing.Point(548, 389)
+        Me.lbPartNo.Font = New System.Drawing.Font("Microsoft Sans Serif", 19.25!, System.Drawing.FontStyle.Bold)
+        Me.lbPartNo.Location = New System.Drawing.Point(497, 362)
         Me.lbPartNo.Name = "lbPartNo"
-        Me.lbPartNo.Size = New System.Drawing.Size(147, 35)
+        Me.lbPartNo.Size = New System.Drawing.Size(121, 30)
         Me.lbPartNo.TabIndex = 13
         Me.lbPartNo.Text = "XXXXXX"
         '
@@ -93,7 +119,7 @@ Partial Class Rm_scan
         Me.Label1.AutoSize = True
         Me.Label1.BackColor = System.Drawing.Color.Transparent
         Me.Label1.Font = New System.Drawing.Font("Microsoft Sans Serif", 27.0!, System.Drawing.FontStyle.Bold)
-        Me.Label1.Location = New System.Drawing.Point(529, 337)
+        Me.Label1.Location = New System.Drawing.Point(490, 311)
         Me.Label1.Name = "Label1"
         Me.Label1.Size = New System.Drawing.Size(184, 40)
         Me.Label1.TabIndex = 11
@@ -177,4 +203,6 @@ Partial Class Rm_scan
     Friend WithEvents lbPartNo As Label
     Friend WithEvents PictureBox2 As PictureBox
     Friend WithEvents Label1 As Label
+    Friend WithEvents Label2 As Label
+    Friend WithEvents lbQty As Label
 End Class

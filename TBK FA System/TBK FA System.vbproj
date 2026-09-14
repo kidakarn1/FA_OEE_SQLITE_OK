@@ -225,22 +225,13 @@
       <Private>True</Private>
       <Private>True</Private>
     </Reference>
-    <Reference Include="System.Speech, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Speech.8.0.0\lib\netstandard2.0\System.Speech.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Text.Json, Version=4.0.1.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\PACKING_CONTROL\packages\System.Text.Json.5.0.2\lib\net461\System.Text.Json.dll</HintPath>
-    </Reference>
+    <Reference Include="System.Speech" />
     <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="Vse.Web.Serialization">
-      <HintPath>..\..\PACKING_CONTROL\packages\Vse.Web.Serialization.ControlledSerializationJsonConverter.1.0.4\lib\net45\Vse.Web.Serialization.dll</HintPath>
-    </Reference>
     <Reference Include="WebApiContrib.Formatting.JavaScriptSerializer">
       <HintPath>..\WebApiContrib.Formatting.JavaScriptSerializer.dll</HintPath>
     </Reference>
@@ -360,6 +351,12 @@
       <DependentUpon>Chang_Admin_Shift.vb</DependentUpon>
     </Compile>
     <Compile Include="Chang_Admin_Shift.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Chang_cavity.Designer.vb">
+      <DependentUpon>Chang_cavity.vb</DependentUpon>
+    </Compile>
+    <Compile Include="Chang_cavity.vb">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Chang_sh.Designer.vb">
@@ -758,6 +755,12 @@
     <Compile Include="ModelSqliteDefect.vb" />
     <Compile Include="model_api_sqlite.vb" />
     <Compile Include="model_rm_scan.vb" />
+    <Compile Include="NumpadQtySet_Scan_Rm.Designer.vb">
+      <DependentUpon>NumpadQtySet_Scan_Rm.vb</DependentUpon>
+    </Compile>
+    <Compile Include="NumpadQtySet_Scan_Rm.vb">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="numPadSetQTY.Designer.vb">
       <DependentUpon>numPadSetQTY.vb</DependentUpon>
     </Compile>
@@ -835,6 +838,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="modelSpecialLine.vb" />
+    <Compile Include="ProductionResumeContext.vb" />
     <Compile Include="TagPrintData.vb" />
     <Compile Include="TagPrintModel.vb" />
     <Compile Include="tag_print_normal.Designer.vb">
@@ -856,6 +860,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="FunctionGobal.vb" />
+    <Compile Include="ImageLifetime.vb" />
     <Compile Include="IArchive.vb" />
     <Compile Include="Inf_manage.Designer.vb">
       <DependentUpon>Inf_manage.vb</DependentUpon>
@@ -1091,6 +1096,12 @@
       <DependentUpon>Sel_prod_start.vb</DependentUpon>
     </Compile>
     <Compile Include="Sel_prod_start.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="IncompleteBoxSelect.Designer.vb">
+      <DependentUpon>IncompleteBoxSelect.vb</DependentUpon>
+    </Compile>
+    <Compile Include="IncompleteBoxSelect.vb">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Set_print_tag.Designer.vb">
@@ -1445,6 +1456,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="MenuReprint.resx">
       <DependentUpon>MenuReprint.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="NumpadQtySet_Scan_Rm.resx">
+      <DependentUpon>NumpadQtySet_Scan_Rm.vb</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="numPadSetQTY.resx">
       <DependentUpon>numPadSetQTY.vb</DependentUpon>

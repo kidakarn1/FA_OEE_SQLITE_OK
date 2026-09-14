@@ -8,9 +8,8 @@ Public Class OrderSelectPart
     sender As Object,
     e As EventArgs
 ) Handles btnSelect.Click
-
         SelectCurrentPart()
-
+        NumpadQtySet_Scan_Rm.Show()
     End Sub
     Private Sub btnUp_Click(
     sender As Object,
@@ -131,7 +130,7 @@ Public Class OrderSelectPart
     '========================================================
     ' SELECT CURRENT RECORD
     '========================================================
-    Private Sub SelectCurrentPart()
+    Public Sub SelectCurrentPart()
         Try
             If lvOrderPartNo.Items.Count = 0 Then
                 MsgBox("Component Part Not Found.")
@@ -152,11 +151,17 @@ Public Class OrderSelectPart
             '========================================
             Dim partNo As String =
             lvOrderPartNo.SelectedItems(0).SubItems(1).Text.Trim()
-
+            Dim partName As String =
+            lvOrderPartNo.SelectedItems(0).SubItems(2).Text.Trim()
+            Dim partModel As String =
+            lvOrderPartNo.SelectedItems(0).SubItems(3).Text.Trim()
             'Set Part No ไปหน้า RM Scan
+            NumpadQtySet_Scan_Rm.lbPartNumber.Text = partNo
             Rm_scan.lbPartNo.Text = partNo
-
-            Me.Close()
+            NumpadQtySet_Scan_Rm.lbPartNumber2.Text = partNo
+            NumpadQtySet_Scan_Rm.lbPartName.Text = partName
+            NumpadQtySet_Scan_Rm.lbModel.Text = partModel
+            'Me.Close()
 
         Catch ex As Exception
 

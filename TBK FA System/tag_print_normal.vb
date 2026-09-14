@@ -1,6 +1,8 @@
 ﻿Imports System.Globalization
 Imports System.Web.Script.Serialization
 Public Class tag_print_normal
+    Private _isExactReprint As Boolean = False
+    Private _lastPrintSucceeded As Boolean = False
     Dim QR_Generator As New MessagingToolkit.QRCode.Codec.QRCodeEncoder
     Public Shared get_qr As String = ""
     Public Shared wi As String = ""
@@ -20,7 +22,34 @@ Public Class tag_print_normal
     Public Shared productType As String = ""
     Public Shared planDate As String = ""
     Public Shared partNo As String = ""
+    Public Function ReprintIncompleteBox(box As IncompleteBoxRecord) As Boolean
+        If box Is Nothing Then Throw New ArgumentNullException(NameOf(box))
+        If String.IsNullOrWhiteSpace(box.QrDetail) Then Throw New InvalidOperationException("The selected tag has no QR detail.")
+
+        wi = box.Wi
+        lot = box.LotNo
+        shift = box.Shift
+        get_qr = box.QrDetail
+        nextProcess = box.NextProcess
+        dateAct = If(box.CreatedDate = DateTime.MinValue, DateTime.Now, box.CreatedDate)
+        SNP = box.Snp
+        qty = box.Quantity
+        tag_batch_no = box.BoxNo
+        seq_no = box.SeqNo
+        pwi_id = box.PwiId
+        partNo = box.PartNo
+        GgoodQty = box.Quantity.ToString()
+        UseDefect = "0"
+        Seq = box.SeqNo
+        statusPrint = "(REPRINT INCOMPLETE)"
+        _isExactReprint = True
+        _lastPrintSucceeded = False
+        tag_print()
+        Return _lastPrintSucceeded
+    End Function
     Public Sub set_tag_print_normal(lwi As String, llot As String, lseq As String, lshift As String, useDf As String, goodQty As String)
+        _isExactReprint = False
+        _lastPrintSucceeded = False
         Dim md = New modelDefect
         UseDefect = useDf
         GgoodQty = goodQty
@@ -284,10 +313,10 @@ Public Class tag_print_normal
                         box_no = Working_Pro.lb_box_count.Text
                     End If
                     Try
-                        PictureBox3.Image = QR_Generator.Encode(qr_detailss)
+                        ImageLifetime.ReplaceOwned(PictureBox3, QR_Generator.Encode(qr_detailss))
                         e.Graphics.DrawImage(PictureBox3.Image, 597, 17, 95, 95)
                         e.Graphics.DrawImage(PictureBox3.Image, 31, 190, 95, 95)
-                        PictureBox4.Image = QR_Generator.Encode(qr_detailss)
+                        ImageLifetime.ReplaceOwned(PictureBox4, QR_Generator.Encode(qr_detailss))
                         e.Graphics.DrawImage(PictureBox4.Image, 620, 199, 70, 70)
                     Catch ex As Exception
 
@@ -713,11 +742,14 @@ Public Class tag_print_normal
             If MainFrm.chk_spec_line = "2" Then
                 printSpecial(e)
             Else
-                Adminkeep_data_and_gen_qr_tag_fa_completed(GgoodQty, UseDefect, SNP, Seq, Newbox, dateAct, productType, MainFrm.chk_spec_line, "0", lot)
+                If Not _isExactReprint Then
+                    Adminkeep_data_and_gen_qr_tag_fa_completed(GgoodQty, UseDefect, SNP, Seq, Newbox, dateAct, productType, MainFrm.chk_spec_line, "0", lot)
+                End If
                 priontNornal(e)
             End If
+            _lastPrintSucceeded = True
         Catch ex As Exception
-
+            _lastPrintSucceeded = False
         End Try
     End Sub
     Public Function GenNewBox(box As Integer)
@@ -764,7 +796,9 @@ Public Class tag_print_normal
         End If
         Dim shift_new As String = shift
         Dim plan_seq_new As String = qr_detailss.Substring(16, 3)
-        Dim box_no_new As String = GenNewBox(CDbl(Val(qr_detailss.Substring(100, 3))))
+        Dim box_no_new As String = If(_isExactReprint,
+                                     qr_detailss.Substring(100, 3),
+                                     GenNewBox(CDbl(Val(qr_detailss.Substring(100, 3)))))
         lot_no = "NO_DATA"
         aPen.Width = 2.0F
         Try
@@ -966,10 +1000,10 @@ Public Class tag_print_normal
                     box_no = Working_Pro.lb_box_count.Text
                 End If
                 Try
-                    PictureBox3.Image = QR_Generator.Encode(qr_detailss)
+                    ImageLifetime.ReplaceOwned(PictureBox3, QR_Generator.Encode(qr_detailss))
                     e.Graphics.DrawImage(PictureBox3.Image, 597, 17, 95, 95)
                     e.Graphics.DrawImage(PictureBox3.Image, 31, 190, 95, 95)
-                    PictureBox4.Image = QR_Generator.Encode(qr_detailss)
+                    ImageLifetime.ReplaceOwned(PictureBox4, QR_Generator.Encode(qr_detailss))
                     e.Graphics.DrawImage(PictureBox4.Image, 620, 199, 70, 70)
                 Catch ex As Exception
 

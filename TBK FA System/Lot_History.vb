@@ -73,6 +73,7 @@ Public Class Lot_History
                         datlvDefectsumary = New ListViewItem(i)
                         datlvDefectsumary.SubItems.Add(item("rm_componece_part").ToString())
                         datlvDefectsumary.SubItems.Add(item("rm_QR_code").ToString())
+                        datlvDefectsumary.SubItems.Add(item("rm_componece_qty").ToString())
                         datlvDefectsumary.SubItems.Add(item("rm_created_date").ToString())
                         lvShowData.Items.Add(datlvDefectsumary)
                         i = i + 1

@@ -42,6 +42,13 @@ Partial Class show_detail_production
         Me.LBPLAN = New System.Windows.Forms.Label()
         Me.LBSEQCOUNT = New System.Windows.Forms.Label()
         Me.lbNextTime = New System.Windows.Forms.Label()
+        Me.pnlOldIncomplete = New System.Windows.Forms.Panel()
+        Me.lblOldIncompleteTitle = New System.Windows.Forms.Label()
+        Me.lblOldIncompleteWICaption = New System.Windows.Forms.Label()
+        Me.lblOldIncompleteWI = New System.Windows.Forms.Label()
+        Me.lblIncompleteBaseQtyCaption = New System.Windows.Forms.Label()
+        Me.lblIncompleteBaseQty = New System.Windows.Forms.Label()
+        Me.pnlOldIncomplete.SuspendLayout()
         Me.SuspendLayout()
         '
         'LB_PARTNO
@@ -284,6 +291,80 @@ Partial Class show_detail_production
         Me.lbNextTime.TabIndex = 24
         Me.lbNextTime.Text = "XX:XX:XX"
         '
+        'pnlOldIncomplete
+        '
+        Me.pnlOldIncomplete.BackColor = System.Drawing.Color.White
+        Me.pnlOldIncomplete.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle
+        Me.pnlOldIncomplete.Controls.Add(Me.lblIncompleteBaseQty)
+        Me.pnlOldIncomplete.Controls.Add(Me.lblIncompleteBaseQtyCaption)
+        Me.pnlOldIncomplete.Controls.Add(Me.lblOldIncompleteWI)
+        Me.pnlOldIncomplete.Controls.Add(Me.lblOldIncompleteWICaption)
+        Me.pnlOldIncomplete.Controls.Add(Me.lblOldIncompleteTitle)
+        Me.pnlOldIncomplete.Location = New System.Drawing.Point(552, 342)
+        Me.pnlOldIncomplete.Name = "pnlOldIncomplete"
+        Me.pnlOldIncomplete.Size = New System.Drawing.Size(216, 67)
+        Me.pnlOldIncomplete.TabIndex = 25
+        '
+        'lblOldIncompleteTitle
+        '
+        Me.lblOldIncompleteTitle.AutoSize = True
+        Me.lblOldIncompleteTitle.BackColor = System.Drawing.Color.Transparent
+        Me.lblOldIncompleteTitle.Font = New System.Drawing.Font("Panton-Trial ExtraBold", 11.5!, System.Drawing.FontStyle.Bold)
+        Me.lblOldIncompleteTitle.ForeColor = System.Drawing.Color.Black
+        Me.lblOldIncompleteTitle.Location = New System.Drawing.Point(7, 1)
+        Me.lblOldIncompleteTitle.Name = "lblOldIncompleteTitle"
+        Me.lblOldIncompleteTitle.Size = New System.Drawing.Size(122, 20)
+        Me.lblOldIncompleteTitle.TabIndex = 0
+        Me.lblOldIncompleteTitle.Text = "Continue Incomplete"
+        '
+        'lblOldIncompleteWICaption
+        '
+        Me.lblOldIncompleteWICaption.AutoSize = True
+        Me.lblOldIncompleteWICaption.BackColor = System.Drawing.Color.Transparent
+        Me.lblOldIncompleteWICaption.Font = New System.Drawing.Font("Panton-Trial ExtraBold", 9.5!, System.Drawing.FontStyle.Bold)
+        Me.lblOldIncompleteWICaption.ForeColor = System.Drawing.Color.Black
+        Me.lblOldIncompleteWICaption.Location = New System.Drawing.Point(9, 24)
+        Me.lblOldIncompleteWICaption.Name = "lblOldIncompleteWICaption"
+        Me.lblOldIncompleteWICaption.Size = New System.Drawing.Size(24, 16)
+        Me.lblOldIncompleteWICaption.TabIndex = 1
+        Me.lblOldIncompleteWICaption.Text = "WI"
+        '
+        'lblOldIncompleteWI
+        '
+        Me.lblOldIncompleteWI.AutoSize = True
+        Me.lblOldIncompleteWI.BackColor = System.Drawing.Color.Transparent
+        Me.lblOldIncompleteWI.Font = New System.Drawing.Font("Panton-Trial ExtraBold", 9.5!, System.Drawing.FontStyle.Bold)
+        Me.lblOldIncompleteWI.ForeColor = System.Drawing.Color.FromArgb(CType(CType(24, Byte), Integer), CType(CType(64, Byte), Integer), CType(CType(141, Byte), Integer))
+        Me.lblOldIncompleteWI.Location = New System.Drawing.Point(77, 24)
+        Me.lblOldIncompleteWI.Name = "lblOldIncompleteWI"
+        Me.lblOldIncompleteWI.Size = New System.Drawing.Size(34, 16)
+        Me.lblOldIncompleteWI.TabIndex = 2
+        Me.lblOldIncompleteWI.Text = "000"
+        '
+        'lblIncompleteBaseQtyCaption
+        '
+        Me.lblIncompleteBaseQtyCaption.AutoSize = True
+        Me.lblIncompleteBaseQtyCaption.BackColor = System.Drawing.Color.Transparent
+        Me.lblIncompleteBaseQtyCaption.Font = New System.Drawing.Font("Panton-Trial ExtraBold", 9.5!, System.Drawing.FontStyle.Bold)
+        Me.lblIncompleteBaseQtyCaption.ForeColor = System.Drawing.Color.Black
+        Me.lblIncompleteBaseQtyCaption.Location = New System.Drawing.Point(9, 43)
+        Me.lblIncompleteBaseQtyCaption.Name = "lblIncompleteBaseQtyCaption"
+        Me.lblIncompleteBaseQtyCaption.Size = New System.Drawing.Size(66, 16)
+        Me.lblIncompleteBaseQtyCaption.TabIndex = 3
+        Me.lblIncompleteBaseQtyCaption.Text = "Base Qty"
+        '
+        'lblIncompleteBaseQty
+        '
+        Me.lblIncompleteBaseQty.AutoSize = True
+        Me.lblIncompleteBaseQty.BackColor = System.Drawing.Color.Transparent
+        Me.lblIncompleteBaseQty.Font = New System.Drawing.Font("Panton-Trial ExtraBold", 9.5!, System.Drawing.FontStyle.Bold)
+        Me.lblIncompleteBaseQty.ForeColor = System.Drawing.Color.FromArgb(CType(CType(24, Byte), Integer), CType(CType(64, Byte), Integer), CType(CType(141, Byte), Integer))
+        Me.lblIncompleteBaseQty.Location = New System.Drawing.Point(77, 43)
+        Me.lblIncompleteBaseQty.Name = "lblIncompleteBaseQty"
+        Me.lblIncompleteBaseQty.Size = New System.Drawing.Size(34, 16)
+        Me.lblIncompleteBaseQty.TabIndex = 4
+        Me.lblIncompleteBaseQty.Text = "000"
+        '
         'show_detail_production
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(96.0!, 96.0!)
@@ -291,6 +372,7 @@ Partial Class show_detail_production
         Me.BackgroundImage = Global.TBK_FA_System.My.Resources.Resources.productionListDetailNewNotext
         Me.ClientSize = New System.Drawing.Size(785, 515)
         Me.ControlBox = False
+        Me.Controls.Add(Me.pnlOldIncomplete)
         Me.Controls.Add(Me.lbNextTime)
         Me.Controls.Add(Me.LBSEQCOUNT)
         Me.Controls.Add(Me.LBPLAN)
@@ -315,6 +397,8 @@ Partial Class show_detail_production
         Me.Name = "show_detail_production"
         Me.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen
         Me.Text = "show_detail_production"
+        Me.pnlOldIncomplete.ResumeLayout(False)
+        Me.pnlOldIncomplete.PerformLayout()
         Me.ResumeLayout(False)
         Me.PerformLayout()
 
@@ -340,4 +424,10 @@ Partial Class show_detail_production
     Friend WithEvents LBPLAN As Label
     Friend WithEvents LBSEQCOUNT As Label
     Friend WithEvents lbNextTime As Label
+    Friend WithEvents pnlOldIncomplete As Panel
+    Friend WithEvents lblOldIncompleteTitle As Label
+    Friend WithEvents lblOldIncompleteWICaption As Label
+    Friend WithEvents lblOldIncompleteWI As Label
+    Friend WithEvents lblIncompleteBaseQtyCaption As Label
+    Friend WithEvents lblIncompleteBaseQty As Label
 End Class

@@ -1,7 +1,6 @@
 Imports System.Net
 Imports System.IO
 Imports Newtonsoft.Json.Linq
-
 Public Class Prd_detail
     Public Shared S_index As Integer = 0
     Public Shared requestBody As New JObject()
@@ -31,6 +30,7 @@ Public Class Prd_detail
         Return status_check_ping
     End Function
     Private Sub Prd_detail_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        RefreshCavityDisplay()
         If MainFrm.chk_spec_line = "2" Then
             lvWISpc.Visible = True
             lvWISpc.Enabled = True
@@ -69,6 +69,12 @@ Public Class Prd_detail
         'sc_wi_plan.SerialPort1.Close()
         'If sc_wi_plan.SerialPort1.IsOpen Then sc_wi_plan.SerialPort1.Close()
     End Sub
+
+    Private Sub Prd_detail_Activated(sender As Object, e As EventArgs) Handles MyBase.Activated
+        RefreshCavityDisplay()
+        load_show_OEE.HideIfOpen()
+    End Sub
+
     Private Sub Label13_Click(sender As Object, e As EventArgs)
         List_Emp.Show()
         Chang_sh.Close()
@@ -83,6 +89,21 @@ Public Class Prd_detail
         Me.Enabled = False
         Chang_sh.Show()
     End Sub
+
+    Private Sub CavitySelector_Click(sender As Object, e As EventArgs) Handles pnlCavity.Click, lblCavityTitle.Click, lblCavityValue.Click, lblCavityArrow.Click
+        If Not Me.Enabled Then Return
+        Me.Enabled = False
+        Chang_cavity.Show()
+    End Sub
+
+    Public Sub RefreshCavityDisplay()
+        Dim cavityValue As Integer
+        If Not Integer.TryParse(Trim(MainFrm.cavity.Text), cavityValue) OrElse cavityValue < 1 Then
+            cavityValue = 1
+        End If
+        lblCavityValue.Text = cavityValue.ToString()
+    End Sub
+
     Private Sub Button4_Click(sender As Object, e As EventArgs) Handles Button4.Click
         Dim line_id As String = MainFrm.line_id.Text
         Backoffice_model.line_status_upd(line_id)

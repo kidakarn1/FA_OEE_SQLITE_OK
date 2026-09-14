@@ -1,4 +1,4 @@
-﻿Public Class TagPrintData
+Public Class TagPrintData
     Public Property iden_cd As String
     Public Property PartNo As String
     Public Property PartName As String
@@ -23,4 +23,6 @@
     Public Property BoxCount As Integer
     Public Property DefectAll As Integer
     Public Property RemainWi As Integer
+    Public Property IsResumePackaging As Boolean
+    Public Property RecoveryPackagingQty As Nullable(Of Integer)
 End Class

@@ -8,6 +8,56 @@ Imports Newtonsoft.Json.Linq
 Imports System.Threading
 Imports System.IO
 Imports System.Net.NetworkInformation
+Public Enum ContinueTagPersistenceResolution
+    RetrySafe = 0
+    Committed = 1
+    Inconsistent = 2
+    Unconfirmed = 3
+End Enum
+
+Public Class IncompleteTransferApiRecord
+    Public Property TransferId As Integer
+    Public Property SourceTagId As Integer
+    Public Property SourceWi As String
+    Public Property SourcePwi As String
+    Public Property SourceSeq As String
+    Public Property SourceBoxNo As Integer
+    Public Property BaseQty As Integer
+    Public Property CurrentWi As String
+    Public Property CurrentPwi As String
+    Public Property CurrentSeq As String
+    Public Property CurrentBoxNo As Integer
+    Public Property CurrentSnp As Integer
+    Public Property GoodSnapshot As Integer
+    Public Property Flag As Integer
+    ' This remains Nothing until the current BOX001 tag is persisted.  A null
+    ' value is valid for an ACTIVE incomplete-transfer row.
+    Public Property CurrentTagId As Nullable(Of Integer)
+    Public Property AlreadyActive As Boolean
+End Class
+
+' Read-only crash-recovery evidence for one exact historical Current session.
+' The event summary is never used to reconstruct a partial/full tag in Phase 1.
+Public Class IncompleteTransferCrashRecoveryRecord
+    Public Property Transfer As IncompleteTransferApiRecord
+    Public Property ServerEventCount As Long
+    Public Property ServerNetQty As Long
+    ' Recovery quantity is read only from the historical production detail.
+    Public Property DetailQuerySucceeded As Boolean
+    Public Property DetailQueryReason As String
+    Public Property NetMovement As Long
+    Public Property LotNo As String
+    Public Property Shift As String
+    Public Property CreatedDate As DateTime
+
+    Public ReadOnly Property RecoveredQty As Long
+        Get
+            If Transfer Is Nothing Then Return 0
+            Return CLng(Transfer.BaseQty) + NetMovement
+        End Get
+    End Property
+End Class
+
 Public Class Backoffice_model
     Public Shared total_nc As Integer = 0
     Public Shared statusTransfer As Integer = 0
@@ -60,6 +110,1503 @@ Public Class Backoffice_model
     Public Shared checkSqliteTrasnfer As Boolean = False
     Public Shared isRunningupdated_data_to_dbsvr As Boolean = False
     Private Shared semTransfer As New SemaphoreSlim(1, 1)
+    Public Shared Function RollForwardActiveRecovery(transfer As IncompleteTransferApiRecord, baseQty As Integer,
+                                                     newWi As String, newPwi As String, newSeq As String,
+                                                     ByRef reason As String) As Boolean
+        reason = String.Empty
+        Try
+            Dim payload As New JObject From {{"hbl_id", transfer.TransferId},
+                {"expected_current_pwi", transfer.CurrentPwi}, {"expected_current_seq", transfer.CurrentSeq},
+                {"new_base_qty", baseQty}, {"new_current_wi", newWi},
+                {"new_current_pwi", newPwi}, {"new_current_seq", newSeq}}
+            Dim status As Integer = 0
+            Dim raw = New api().Load_dataPOST("http://" & svApi & "/API_NEW_FA/index.php/Api_incomplete_transfer/roll_forward_active", payload, True, status)
+            Dim root = JObject.Parse(raw)
+            Dim success As Boolean
+            Dim id, returnedBase, flag As Long
+            If status >= 200 AndAlso status < 300 AndAlso
+                TryReadBoolean(root("success"), success) AndAlso success AndAlso
+                TryReadLongToken(root("hbl_id"), id) AndAlso id = transfer.TransferId AndAlso
+                TryReadLongToken(root("base_qty"), returnedBase) AndAlso returnedBase = baseQty AndAlso
+                TryReadLongToken(root("flag"), flag) AndAlso flag = 0 AndAlso
+                ReadTokenText(root("current_wi")) = newWi AndAlso
+                ReadTokenText(root("current_pwi")) = newPwi AndAlso
+                ReadTokenText(root("current_seq")) = newSeq Then Return True
+            reason = "Recovery anchor was not confirmed. " & ReadTokenText(root("message"))
+        Catch ex As Exception
+            reason = "Recovery anchor was not confirmed. " & ex.Message
+        End Try
+        Return False
+    End Function
+
+    Public Shared Function StartIncompleteTransfer(sourceTagId As Integer, currentWi As String, currentPwi As String, currentSeq As String, currentSnp As Integer, goodSnapshot As Integer, ByRef transfer As IncompleteTransferApiRecord, ByRef reason As String, ByRef definitelyNotReserved As Boolean) As Boolean
+        transfer = Nothing : reason = String.Empty : definitelyNotReserved = False
+        Try
+            Dim payload As New JObject From {{"source_tag_id", sourceTagId}, {"current_wi", currentWi}, {"current_pwi", currentPwi}, {"current_seq", currentSeq}, {"current_snp", currentSnp}, {"good_snapshot", goodSnapshot}}
+            ' Preserve a safe backend JSON error payload (for example an ACTIVE
+            ' conflict) for this feature-specific operator diagnostic.  Other
+            ' callers retain the existing POST helper behaviour.
+            Dim httpStatusCode As Integer = 0
+            Dim raw As String = New api().Load_dataPOST("http://" & svApi & "/API_NEW_FA/index.php/Api_incomplete_transfer/start", payload, True, httpStatusCode)
+            Dim parsed As Boolean = ParseIncompleteTransferResponse(raw, False, transfer, reason)
+            ' Only a valid 409 business rejection proves that this request did
+            ' not reserve an ACTIVE transfer.  Timeout, 5xx, malformed JSON,
+            ' and an invalid success payload remain ambiguous and must reconcile.
+            definitelyNotReserved = Not parsed AndAlso httpStatusCode = CInt(System.Net.HttpStatusCode.Conflict) AndAlso IsValidDefinitiveStartRejection(raw)
+            Return parsed
+        Catch ex As Exception
+            reason = "Unable to create the incomplete-transfer record. " & ex.Message
+            Return False
+        End Try
+    End Function
+
+    Private Shared Function IsValidDefinitiveStartRejection(raw As String) As Boolean
+        If String.IsNullOrWhiteSpace(raw) Then Return False
+        Try
+            Dim root As JObject = JObject.Parse(raw)
+            Dim successValue As Boolean
+            Return TryReadBoolean(root("success"), successValue) AndAlso
+                   Not successValue AndAlso
+                   Not String.IsNullOrWhiteSpace(ReadTokenText(root("message")))
+        Catch ex As Exception
+            Return False
+        End Try
+    End Function
+
+    Public Shared Function GetActiveIncompleteTransfer(currentPwi As String, currentSeq As String, ByRef hasActive As Boolean, ByRef transfer As IncompleteTransferApiRecord, ByRef reason As String) As Boolean
+        hasActive = False : transfer = Nothing : reason = String.Empty
+        Try
+            Dim url As String = "http://" & svApi & "/API_NEW_FA/index.php/Api_incomplete_transfer/active?current_pwi=" & Uri.EscapeDataString(currentPwi) & "&current_seq=" & Uri.EscapeDataString(currentSeq)
+            Dim parsed As Boolean = ParseIncompleteTransferResponse(New api().Load_data(url), True, transfer, reason, hasActive)
+            WriteDebugDiagnostic("IncompleteTransfer.GET | Success=" & parsed.ToString() & " | HasActive=" & hasActive.ToString() & " | TransferId=" & If(transfer Is Nothing, "0", transfer.TransferId.ToString()))
+            Return parsed
+        Catch ex As Exception
+            reason = "Unable to check active incomplete transfer. " & ex.Message
+            Return False
+        End Try
+    End Function
+
+    Public Shared Function GetActiveIncompleteTransferForLine(lineCd As String, ByRef hasActive As Boolean, ByRef transfer As IncompleteTransferApiRecord, ByRef reason As String) As Boolean
+        hasActive = False : transfer = Nothing : reason = String.Empty
+        If String.IsNullOrWhiteSpace(lineCd) Then
+            reason = "Current line is unavailable."
+            Return False
+        End If
+        Try
+            Dim url As String = "http://" & svApi & "/API_NEW_FA/index.php/Api_incomplete_transfer/active_for_line?line_cd=" & Uri.EscapeDataString(lineCd.Trim())
+            Dim parsed As Boolean = ParseIncompleteTransferResponse(New api().Load_data(url), True, transfer, reason, hasActive)
+            WriteDebugDiagnostic("IncompleteTransfer.GET_LINE | Success=" & parsed.ToString() & " | HasActive=" & hasActive.ToString() & " | TransferId=" & If(transfer Is Nothing, "0", transfer.TransferId.ToString()))
+            Return parsed
+        Catch ex As Exception
+            reason = "Unable to check active incomplete transfer for the current line. " & ex.Message
+            Return False
+        End Try
+    End Function
+
+    ' Read-only discovery for Crash Recovery Phase 1.  Unlike the diagnostic
+    ' active_for_line endpoint, this returns every ACTIVE row deterministically
+    ' and associates each only with its own historical Current WI/PWI/Seq.
+    Public Shared Function GetCrashRecoveryActiveTransfersForLine(lineCd As String,
+                                                                    ByRef transfers As List(Of IncompleteTransferCrashRecoveryRecord),
+                                                                    ByRef reason As String) As Boolean
+        transfers = New List(Of IncompleteTransferCrashRecoveryRecord)()
+        reason = String.Empty
+        If String.IsNullOrWhiteSpace(lineCd) Then
+            reason = "Current line is unavailable."
+            Return False
+        End If
+
+        Try
+            Dim url As String = "http://" & svApi & "/API_NEW_FA/index.php/Api_incomplete_transfer/recovery_active_for_line?line_cd=" & Uri.EscapeDataString(lineCd.Trim())
+            Dim raw As String = New api().Load_data(url)
+            If String.IsNullOrWhiteSpace(raw) Then
+                reason = "Crash-recovery active lookup did not respond."
+                Return False
+            End If
+
+            Dim root As JObject = JObject.Parse(raw)
+            Dim success As Boolean
+            If Not TryReadBoolean(root("success"), success) OrElse Not success Then
+                Dim fallbackHasActive As Boolean = False
+                Dim fallbackTransfer As IncompleteTransferApiRecord = Nothing
+                Dim fallbackReason As String = String.Empty
+                If GetActiveIncompleteTransferForLine(lineCd, fallbackHasActive, fallbackTransfer, fallbackReason) Then
+                    If fallbackHasActive AndAlso fallbackTransfer IsNot Nothing Then
+                        transfers.Add(New IncompleteTransferCrashRecoveryRecord With {.Transfer = fallbackTransfer})
+                    End If
+                    Return True
+                End If
+                reason = ReadTokenText(root("message"))
+                If String.IsNullOrWhiteSpace(reason) Then reason = "Crash-recovery active lookup failed."
+                Return False
+            End If
+
+            Dim hasActive As Boolean
+            If Not TryReadBoolean(root("hasActive"), hasActive) Then
+                reason = "Crash-recovery active lookup returned no valid hasActive value."
+                Return False
+            End If
+            If Not hasActive Then Return True
+
+            Dim data As JArray = TryCast(root("data"), JArray)
+            If data Is Nothing OrElse data.Count = 0 Then
+                reason = "Crash-recovery active lookup reported ACTIVE records without a valid data array."
+                Return False
+            End If
+
+            For Each token As JToken In data
+                Dim item As JObject = TryCast(token, JObject)
+                If item Is Nothing Then
+                    reason = "Crash-recovery active lookup returned a malformed record."
+                    Return False
+                End If
+
+                Dim transfer As IncompleteTransferApiRecord = Nothing
+                Dim parseReason As String = String.Empty
+                If Not TryParseIncompleteTransferData(item, transfer, parseReason) Then
+                    reason = "Crash-recovery active record is invalid. " & parseReason
+                    Return False
+                End If
+                If transfer.Flag <> 0 Then
+                    reason = "Crash-recovery lookup returned a non-ACTIVE transfer."
+                    Return False
+                End If
+
+                Dim eventCount As Long = 0
+                Dim netQty As Long = 0
+                TryReadLongToken(item("recovery_event_count"), eventCount)
+                TryReadLongToken(item("recovery_net_qty"), netQty)
+                Dim createdDate As DateTime
+                DateTime.TryParse(ReadTokenText(item("recovery_created_date")), CultureInfo.InvariantCulture, DateTimeStyles.None, createdDate)
+                transfers.Add(New IncompleteTransferCrashRecoveryRecord With {
+                              .Transfer = transfer,
+                              .LotNo = ReadTokenText(item("recovery_lot")),
+                              .Shift = ReadTokenText(item("recovery_shift")),
+                              .CreatedDate = createdDate,
+                              .ServerEventCount = eventCount,
+                              .ServerNetQty = netQty})
+            Next
+            Return True
+        Catch ex As Exception
+            Dim fallbackHasActive As Boolean = False
+            Dim fallbackTransfer As IncompleteTransferApiRecord = Nothing
+            Dim fallbackReason As String = String.Empty
+            If GetActiveIncompleteTransferForLine(lineCd, fallbackHasActive, fallbackTransfer, fallbackReason) Then
+                If fallbackHasActive AndAlso fallbackTransfer IsNot Nothing Then
+                    transfers.Add(New IncompleteTransferCrashRecoveryRecord With {.Transfer = fallbackTransfer})
+                End If
+                Return True
+            End If
+            reason = "Unable to read crash-recovery active transfers. " & ex.GetType().Name & ": " & ex.Message
+            Return False
+        End Try
+    End Function
+
+    ' Intentionally narrow and read-only.  Crash recovery must use the exact
+    ' historical PWI/sequence already stored by the ACTIVE HBL; it never reads
+    ' act_ins and never derives a value from production_actual.
+    Public Shared Function GetProductionActualDetailNetMovement(oldPwi As String,
+                                                                  oldSeq As String,
+                                                                  ByRef netMovement As Long,
+                                                                  ByRef reason As String) As Boolean
+        netMovement = 0
+        reason = String.Empty
+        If String.IsNullOrWhiteSpace(oldPwi) OrElse String.IsNullOrWhiteSpace(oldSeq) Then
+            reason = "Historical PWI or sequence is unavailable."
+            Return False
+        End If
+
+        Try
+            Using connection As New SqlConnection(sqlConnect)
+                connection.Open()
+                Const sql As String = "SELECT COALESCE(SUM(qty), 0) FROM production_actual_detail " &
+                                      "WHERE pwi_id = @pwi_id AND seq_no = @seq_no"
+                Using command As New SqlCommand(sql, connection)
+                    command.Parameters.Add("@pwi_id", SqlDbType.VarChar, 100).Value = oldPwi.Trim()
+                    command.Parameters.Add("@seq_no", SqlDbType.VarChar, 50).Value = oldSeq.Trim()
+                    Dim value As Object = command.ExecuteScalar()
+                    If value IsNot Nothing AndAlso value IsNot DBNull.Value Then
+                        netMovement = Convert.ToInt64(value, CultureInfo.InvariantCulture)
+                    End If
+                End Using
+            End Using
+            Return True
+        Catch ex As Exception
+            reason = "Unable to read production detail movement. " & ex.GetType().Name & ": " & ex.Message
+            Return False
+        End Try
+    End Function
+
+    ' Batched quantity query for crash recovery. Executes ONE read-only SQL Server
+    ' query for all distinct (pwi_id, seq_no) pairs in this recovery set.
+    Public Shared Function GetProductionActualDetailNetMovementsBatch(
+        pairs As List(Of Tuple(Of String, String)),
+        ByRef netMovementsByPair As Dictionary(Of String, Long),
+        ByRef reason As String) As Boolean
+
+        netMovementsByPair = New Dictionary(Of String, Long)(StringComparer.OrdinalIgnoreCase)
+        reason = String.Empty
+
+        If pairs Is Nothing OrElse pairs.Count = 0 Then
+            Return True
+        End If
+
+        ' Filter out invalid pairs and collect distinct valid pairs
+        Dim distinctPairs As New List(Of Tuple(Of String, String))()
+        Dim seenKeys As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        For Each pair In pairs
+            If pair Is Nothing OrElse String.IsNullOrWhiteSpace(pair.Item1) OrElse String.IsNullOrWhiteSpace(pair.Item2) Then
+                Continue For
+            End If
+            Dim key As String = pair.Item1.Trim() & "|" & pair.Item2.Trim()
+            If seenKeys.Add(key) Then
+                distinctPairs.Add(New Tuple(Of String, String)(pair.Item1.Trim(), pair.Item2.Trim()))
+            End If
+        Next
+
+        If distinctPairs.Count = 0 Then
+            Return True
+        End If
+
+        Try
+            Using connection As New SqlConnection(sqlConnect)
+                connection.Open()
+
+                Dim whereClauses As New List(Of String)()
+                Using command As New SqlCommand()
+                    command.Connection = connection
+                    For i As Integer = 0 To distinctPairs.Count - 1
+                        Dim pwiParam As String = "@pwi" & i.ToString(CultureInfo.InvariantCulture)
+                        Dim seqParam As String = "@seq" & i.ToString(CultureInfo.InvariantCulture)
+                        whereClauses.Add("(pwi_id = " & pwiParam & " AND seq_no = " & seqParam & ")")
+
+                        command.Parameters.Add(pwiParam, SqlDbType.VarChar, 100).Value = distinctPairs(i).Item1
+                        command.Parameters.Add(seqParam, SqlDbType.VarChar, 50).Value = distinctPairs(i).Item2
+                    Next
+
+                    Dim sql As String = "SELECT pwi_id, seq_no, COALESCE(SUM(qty), 0) AS net_movement " &
+                                        "FROM production_actual_detail " &
+                                        "WHERE " & String.Join(" OR ", whereClauses) & " " &
+                                        "GROUP BY pwi_id, seq_no"
+                    command.CommandText = sql
+
+                    Using reader As SqlDataReader = command.ExecuteReader()
+                        While reader.Read()
+                            Dim rPwi As String = reader("pwi_id").ToString().Trim()
+                            Dim rSeq As String = reader("seq_no").ToString().Trim()
+                            Dim rKey As String = rPwi & "|" & rSeq
+                            Dim netVal As Long = Convert.ToInt64(reader("net_movement"), CultureInfo.InvariantCulture)
+                            netMovementsByPair(rKey) = netVal
+                        End While
+                    End Using
+                End Using
+            End Using
+            Return True
+        Catch ex As Exception
+            reason = "Unable to read batched production detail movement. " & ex.GetType().Name & ": " & ex.Message
+            Return False
+        End Try
+    End Function
+
+    ' The only automatic Phase-1 mutation.  The caller has already required
+    ' zero server and local events for this exact historical session.
+    Public Shared Function ReleaseZeroNetIncompleteTransfer(hblId As Integer,
+                                                              sourceTagId As Integer,
+                                                              ByRef alreadyReleased As Boolean,
+                                                              ByRef reason As String) As Boolean
+        alreadyReleased = False
+        reason = String.Empty
+        If hblId <= 0 OrElse sourceTagId <= 0 Then
+            reason = "Crash-recovery release identity is invalid."
+            Return False
+        End If
+        Try
+            Dim payload As New JObject From {{"hbl_id", hblId}, {"source_tag_id", sourceTagId}, {"net_qty", 0}}
+            Dim raw As String = New api().Load_dataPOST("http://" & svApi & "/API_NEW_FA/index.php/Api_incomplete_transfer/release_zero_net", payload, True)
+            If String.IsNullOrWhiteSpace(raw) Then
+                reason = "Zero-net release API did not respond."
+                Return False
+            End If
+            Dim root As JObject = JObject.Parse(raw)
+            Dim success As Boolean
+            If Not TryReadBoolean(root("success"), success) OrElse Not success Then
+                reason = ReadTokenText(root("message"))
+                If String.IsNullOrWhiteSpace(reason) Then reason = "Zero-net release failed on server."
+                Return False
+            End If
+            If Not TryReadBoolean(root("alreadyReleased"), alreadyReleased) Then
+                reason = "Zero-net release API returned an invalid idempotency result."
+                Return False
+            End If
+            Return True
+        Catch ex As Exception
+            reason = "Unable to release zero-net transfer. " & ex.GetType().Name & ": " & ex.Message
+            Return False
+        End Try
+    End Function
+
+    ' Reads every local status for one exact historical session.  A status-0,
+    ' status-1 or status-2 row is still evidence that this machine recorded a
+    ' production event, so Phase 1 does not infer zero net from it.
+    Public Shared Function GetLocalProductionActualSummary(wi As String,
+                                                            pwi As String,
+                                                            seq As String,
+                                                            ByRef eventCount As Long,
+                                                            ByRef signedNetQty As Long,
+                                                            ByRef reason As String) As Boolean
+        eventCount = 0
+        signedNetQty = 0
+        reason = String.Empty
+        Dim normalizedSeq As Integer
+        If String.IsNullOrWhiteSpace(wi) OrElse String.IsNullOrWhiteSpace(pwi) OrElse
+           Not Integer.TryParse(Trim(seq), NumberStyles.Integer, CultureInfo.InvariantCulture, normalizedSeq) Then
+            reason = "Historical local-event identity is invalid."
+            Return False
+        End If
+        If Not File.Exists("c:\sqlite3\FA_local_db.db3") Then
+            reason = "Local production-event database is unavailable."
+            Return False
+        End If
+
+        Try
+            Using connection As New SQLiteConnection(sqliteConnect)
+                connection.Open()
+                Using command As New SQLiteCommand("SELECT COUNT(1), COALESCE(SUM(qty), 0) FROM act_ins " &
+                                                   "WHERE TRIM(COALESCE(wi_plan, '')) = @wi " &
+                                                   "AND TRIM(COALESCE(pwi_id, '')) = @pwi " &
+                                                   "AND CAST(seq_no AS INTEGER) = @seq", connection)
+                    command.Parameters.AddWithValue("@wi", wi.Trim())
+                    command.Parameters.AddWithValue("@pwi", pwi.Trim())
+                    command.Parameters.AddWithValue("@seq", normalizedSeq)
+                    Using reader As SQLiteDataReader = command.ExecuteReader()
+                        If Not reader.Read() Then
+                            reason = "Local production-event summary returned no row."
+                            Return False
+                        End If
+                        eventCount = Convert.ToInt64(reader.GetValue(0), CultureInfo.InvariantCulture)
+                        signedNetQty = Convert.ToInt64(reader.GetValue(1), CultureInfo.InvariantCulture)
+                    End Using
+                End Using
+            End Using
+            Return eventCount >= 0
+        Catch ex As Exception
+            reason = "Unable to read local production-event summary. " & ex.GetType().Name & ": " & ex.Message
+            Return False
+        End Try
+    End Function
+
+    Public Shared Function CompleteIncompleteTransfer(hblId As Integer,
+                                                      sourceTagId As Integer,
+                                                      currentWi As String,
+                                                      currentPwi As String,
+                                                      currentSeq As String,
+                                                      currentBoxNo As Integer,
+                                                      currentSnp As Integer,
+                                                      qrDetail As String,
+                                                      shift As String,
+                                                      flgControl As Integer,
+                                                      itemCd As String,
+                                                      tagGroupNo As String,
+                                                      goodQty As Integer,
+                                                      nextProcess As String,
+                                                      ByRef resultTagId As Integer,
+                                                      ByRef reason As String,
+                                                      ByRef alreadyCompleted As Boolean) As Boolean
+        resultTagId = 0
+        reason = String.Empty
+        alreadyCompleted = False
+
+        Try
+            Dim payload As New JObject From {
+                {"hbl_id", hblId},
+                {"source_tag_id", sourceTagId},
+                {"current_wi", currentWi},
+                {"current_pwi", currentPwi},
+                {"current_seq", currentSeq},
+                {"current_box_no", currentBoxNo},
+                {"current_snp", currentSnp},
+                {"qr_detail", qrDetail},
+                {"shift", shift},
+                {"flg_control", flgControl},
+                {"item_cd", itemCd},
+                {"tag_group_no", tagGroupNo},
+                {"good_qty", goodQty},
+                {"next_proc", nextProcess}
+            }
+
+ #If DEBUG Then
+            System.Diagnostics.Debug.WriteLine("[TRANSFER] COMPLETE REQUEST | TransferId=" & hblId.ToString() &
+                                               " | SourceTagId=" & sourceTagId.ToString() &
+                                               " | CurrentWi=" & currentWi &
+                                               " | CurrentPwi=" & currentPwi &
+                                               " | CurrentSeq=" & currentSeq &
+                                               " | CurrentBoxNo=" & currentBoxNo.ToString() &
+                                               " | Qty=" & goodQty.ToString() &
+                                               " | Snp=" & currentSnp.ToString())
+ #End If
+            Console.WriteLine("[TRANSFER] COMPLETE REQUEST | TransferId=" & hblId.ToString() &
+                              " | SourceTagId=" & sourceTagId.ToString() &
+                              " | CurrentWi=" & currentWi &
+                              " | CurrentPwi=" & currentPwi &
+                              " | CurrentSeq=" & currentSeq &
+                              " | CurrentBoxNo=" & currentBoxNo.ToString() &
+                              " | Qty=" & goodQty.ToString() &
+                              " | Snp=" & currentSnp.ToString())
+
+            Dim httpStatusCode As Integer = 0
+            Dim raw As String = New api().Load_dataPOST("http://" & svApi & "/API_NEW_FA/index.php/Api_incomplete_transfer/complete", payload, True, httpStatusCode)
+
+ #If DEBUG Then
+            System.Diagnostics.Debug.WriteLine("[TRANSFER] COMPLETE RAW RESULT | HTTP status=" & httpStatusCode.ToString() & " | body=" & raw)
+ #End If
+            Console.WriteLine("[TRANSFER] COMPLETE RAW RESULT | HTTP status=" & httpStatusCode.ToString() & " | body=" & raw)
+            If String.IsNullOrWhiteSpace(raw) Then
+                reason = "Incomplete-transfer complete API did not respond."
+                LogCompleteTransferResult(False, alreadyCompleted, resultTagId, reason)
+                Return False
+            End If
+
+            Dim root As JObject
+            Try
+                root = JObject.Parse(raw)
+            Catch ex As Exception
+                reason = "Invalid response from incomplete-transfer complete API: " & raw
+                LogCompleteTransferResult(False, alreadyCompleted, resultTagId, reason)
+                Return False
+            End Try
+
+            Dim successToken = root("success")
+            Dim isSuccess As Boolean = (successToken IsNot Nothing AndAlso successToken.Type = JTokenType.Boolean AndAlso CBool(successToken))
+
+            Dim messageToken = root("message")
+            If messageToken IsNot Nothing Then reason = messageToken.ToString()
+
+            Dim alreadyCompletedToken = root("alreadyCompleted")
+            If alreadyCompletedToken IsNot Nothing AndAlso alreadyCompletedToken.Type = JTokenType.Boolean Then
+                alreadyCompleted = CBool(alreadyCompletedToken)
+            End If
+
+            Dim currentTagIdToken = root("current_tag_id")
+            If currentTagIdToken IsNot Nothing Then
+                TryReadOptionalInteger(currentTagIdToken, resultTagId)
+            End If
+
+            If isSuccess AndAlso resultTagId > 0 Then
+                LogCompleteTransferResult(True, alreadyCompleted, resultTagId, reason)
+                Return True
+            Else
+                If String.IsNullOrWhiteSpace(reason) Then reason = "Complete transfer failed on server."
+                LogCompleteTransferResult(False, alreadyCompleted, resultTagId, reason)
+                Return False
+            End If
+        Catch ex As Exception
+            reason = "Unable to complete incomplete transfer. " & ex.Message
+            LogCompleteTransferResult(False, alreadyCompleted, resultTagId, reason)
+            Return False
+        End Try
+    End Function
+
+    Private Shared Sub LogCompleteTransferResult(success As Boolean, alreadyCompleted As Boolean, currentTagId As Integer, reason As String)
+#If DEBUG Then
+        System.Diagnostics.Debug.WriteLine("[TRANSFER] COMPLETE RESULT | Success=" & success.ToString() &
+                                           " | AlreadyComplete=" & alreadyCompleted.ToString() &
+                                           " | CurrentTagId=" & currentTagId.ToString() &
+                                           " | Reason=" & reason)
+#End If
+        Console.WriteLine("[TRANSFER] COMPLETE RESULT | Success=" & success.ToString() &
+                          " | AlreadyComplete=" & alreadyCompleted.ToString() &
+                          " | CurrentTagId=" & currentTagId.ToString() &
+                          " | Reason=" & reason)
+    End Sub
+
+    Public Shared Function PartialIncompleteTransfer(hblId As Integer,
+                                                     sourceTagId As Integer,
+                                                     currentWi As String,
+                                                     currentPwi As String,
+                                                     currentSeq As String,
+                                                     currentBoxNo As Integer,
+                                                     currentSnp As Integer,
+                                                     qrDetail As String,
+                                                     shift As String,
+                                                     itemCd As String,
+                                                     tagGroupNo As String,
+                                                     liveBoxQty As Integer,
+                                                     nextProcess As String,
+                                                     ByRef resultTagId As Integer,
+                                                     ByRef reason As String,
+                                                     ByRef alreadyPartial As Boolean) As Boolean
+        resultTagId = 0
+        reason = String.Empty
+        alreadyPartial = False
+
+        Try
+            Dim payload As New JObject From {
+                {"hbl_id", hblId},
+                {"source_tag_id", sourceTagId},
+                {"current_wi", currentWi},
+                {"current_pwi", currentPwi},
+                {"current_seq", currentSeq},
+                {"current_box_no", currentBoxNo},
+                {"current_snp", currentSnp},
+                {"qr_detail", qrDetail},
+                {"shift", shift},
+                {"flg_control", 0},
+                {"item_cd", itemCd},
+                {"tag_group_no", tagGroupNo},
+                {"good_qty", liveBoxQty},
+                {"next_proc", nextProcess}
+            }
+
+#If DEBUG Then
+            System.Diagnostics.Debug.WriteLine("[TRANSFER] PARTIAL REQUEST | TransferId=" & hblId.ToString() &
+                                               " | SourceTagId=" & sourceTagId.ToString() &
+                                               " | CurrentWi=" & currentWi &
+                                               " | CurrentPwi=" & currentPwi &
+                                               " | CurrentSeq=" & currentSeq &
+                                               " | CurrentBoxNo=" & currentBoxNo.ToString() &
+                                               " | Qty=" & liveBoxQty.ToString() &
+                                               " | Snp=" & currentSnp.ToString())
+#End If
+            Console.WriteLine("[TRANSFER] PARTIAL REQUEST | TransferId=" & hblId.ToString() &
+                              " | SourceTagId=" & sourceTagId.ToString() &
+                              " | CurrentWi=" & currentWi &
+                              " | CurrentPwi=" & currentPwi &
+                              " | CurrentSeq=" & currentSeq &
+                              " | CurrentBoxNo=" & currentBoxNo.ToString() &
+                              " | Qty=" & liveBoxQty.ToString() &
+                              " | Snp=" & currentSnp.ToString())
+
+            Dim httpStatusCode As Integer = 0
+            Dim raw As String = New api().Load_dataPOST("http://" & svApi & "/API_NEW_FA/index.php/Api_incomplete_transfer/partial", payload, True, httpStatusCode)
+
+#If DEBUG Then
+            System.Diagnostics.Debug.WriteLine("[TRANSFER] PARTIAL RAW RESULT | HTTP status=" & httpStatusCode.ToString() &
+                                               " | body=" & raw)
+#End If
+            Console.WriteLine("[TRANSFER] PARTIAL RAW RESULT | HTTP status=" & httpStatusCode.ToString() &
+                              " | body=" & raw)
+
+            If String.IsNullOrWhiteSpace(raw) Then
+                reason = "Incomplete-transfer partial API did not respond."
+                LogPartialTransferResult(False, alreadyPartial, resultTagId, reason)
+                Return False
+            End If
+
+            Dim root As JObject = JObject.Parse(raw)
+            Dim success As Boolean
+            If Not TryReadBoolean(root("success"), success) OrElse Not success Then
+                reason = ReadTokenText(root("message"))
+                If String.IsNullOrWhiteSpace(reason) Then reason = "Partial transfer failed on server."
+                LogPartialTransferResult(False, alreadyPartial, resultTagId, reason)
+                Return False
+            End If
+
+            Dim tagToken As JToken = root("current_tag_id")
+            If tagToken Is Nothing OrElse Not TryReadOptionalInteger(tagToken, resultTagId) OrElse resultTagId <= 0 Then
+                reason = "Partial transfer API returned no valid current tag ID."
+                LogPartialTransferResult(False, alreadyPartial, resultTagId, reason)
+                Return False
+            End If
+
+            Dim partialToken As JToken = root("alreadyPartial")
+            If partialToken IsNot Nothing AndAlso Not TryReadBoolean(partialToken, alreadyPartial) Then
+                reason = "Partial transfer API returned an invalid alreadyPartial value."
+                LogPartialTransferResult(False, alreadyPartial, resultTagId, reason)
+                Return False
+            End If
+            LogPartialTransferResult(True, alreadyPartial, resultTagId, reason)
+            Return True
+        Catch ex As Exception
+            reason = "Unable to partially close incomplete transfer. " & ex.Message
+            LogPartialTransferResult(False, alreadyPartial, resultTagId, reason)
+            Return False
+        End Try
+    End Function
+
+    Private Shared Sub LogPartialTransferResult(success As Boolean, alreadyPartial As Boolean, currentTagId As Integer, reason As String)
+#If DEBUG Then
+        System.Diagnostics.Debug.WriteLine("[TRANSFER] PARTIAL RESULT | Success=" & success.ToString() &
+                                           " | AlreadyPartial=" & alreadyPartial.ToString() &
+                                           " | CurrentTagId=" & currentTagId.ToString() &
+                                           " | Reason=" & reason)
+#End If
+        Console.WriteLine("[TRANSFER] PARTIAL RESULT | Success=" & success.ToString() &
+                          " | AlreadyPartial=" & alreadyPartial.ToString() &
+                          " | CurrentTagId=" & currentTagId.ToString() &
+                          " | Reason=" & reason)
+    End Sub
+
+    ' Both /active and /start return the same history_box_log shape.  Keep one
+    ' explicit JToken parser so CodeIgniter number/string/null serialisation
+    ' cannot fall through to VB late binding.
+    Private Shared Function ParseIncompleteTransferResponse(raw As String, isActiveLookup As Boolean, ByRef transfer As IncompleteTransferApiRecord, ByRef reason As String, Optional ByRef hasActive As Boolean = False) As Boolean
+        transfer = Nothing
+        reason = String.Empty
+        hasActive = False
+        If String.IsNullOrWhiteSpace(raw) Then
+            reason = "Incomplete-transfer API did not respond."
+            Return False
+        End If
+
+        Dim root As JObject
+        Try
+            root = JObject.Parse(raw)
+        Catch ex As Newtonsoft.Json.JsonReaderException
+            reason = "Incomplete-transfer API returned invalid JSON syntax. " & ex.Message
+            Return False
+        Catch ex As Exception
+            reason = "Incomplete-transfer client could not parse the JSON response. " & ex.Message
+            Return False
+        End Try
+
+        Dim apiSuccess As Boolean
+        If Not TryReadBoolean(root("success"), apiSuccess) Then
+            reason = "Incomplete-transfer API response is missing a valid success value."
+            Return False
+        End If
+        If Not apiSuccess Then
+            reason = ReadTokenText(root("message"))
+            If String.IsNullOrWhiteSpace(reason) Then reason = "Incomplete-transfer API reported a failure."
+            Return False
+        End If
+
+        If isActiveLookup Then
+            If Not TryReadBoolean(root("hasActive"), hasActive) Then
+                reason = "Incomplete-transfer API response is missing a valid hasActive value."
+                Return False
+            End If
+            If Not hasActive Then Return True
+        End If
+
+        Dim data As JObject = TryCast(root("data"), JObject)
+        If data Is Nothing Then
+            reason = "Incomplete-transfer API returned success but no valid transfer data."
+            Return False
+        End If
+
+        If Not TryParseIncompleteTransferData(data, transfer, reason) Then Return False
+
+        Dim alreadyActive As Boolean = False
+        If Not isActiveLookup AndAlso root("alreadyActive") IsNot Nothing AndAlso Not TryReadBoolean(root("alreadyActive"), alreadyActive) Then
+            reason = "Incomplete-transfer API returned an invalid alreadyActive value."
+            transfer = Nothing
+            Return False
+        End If
+        transfer.AlreadyActive = alreadyActive
+        If isActiveLookup Then hasActive = True
+        Return True
+    End Function
+
+    Private Shared Function TryParseIncompleteTransferData(data As JObject,
+                                                            ByRef transfer As IncompleteTransferApiRecord,
+                                                            ByRef reason As String) As Boolean
+        transfer = Nothing
+        reason = String.Empty
+        Dim transferId As Integer
+        Dim sourceTagId As Integer
+        Dim sourceBoxNo As Integer
+        Dim baseQty As Integer
+        Dim currentBoxNo As Integer
+        Dim currentSnp As Integer
+        Dim goodSnapshot As Integer
+        Dim flag As Integer
+        Dim invalidField As String = String.Empty
+        If Not TryReadRequiredInteger(data, "hbl_id", transferId, invalidField) OrElse
+           Not TryReadRequiredInteger(data, "hbl_source_tag_id", sourceTagId, invalidField) OrElse
+           Not TryReadRequiredInteger(data, "hbl_source_box_no", sourceBoxNo, invalidField) OrElse
+           Not TryReadRequiredInteger(data, "hbl_base_qty", baseQty, invalidField) OrElse
+           Not TryReadRequiredInteger(data, "hbl_current_box_no", currentBoxNo, invalidField) OrElse
+           Not TryReadRequiredInteger(data, "hbl_current_snp", currentSnp, invalidField) OrElse
+           Not TryReadRequiredInteger(data, "hbl_good_snapshot", goodSnapshot, invalidField) OrElse
+           Not TryReadRequiredInteger(data, "hbl_flag", flag, invalidField) Then
+            reason = "Incomplete-transfer API returned an invalid required numeric field: " & invalidField & "."
+            Return False
+        End If
+
+        Dim sourceWi As String = ReadTokenText(data("hbl_source_wi"))
+        Dim sourcePwi As String = ReadTokenText(data("hbl_source_pwi"))
+        Dim sourceSeq As String = ReadTokenText(data("hbl_source_seq"))
+        Dim currentWi As String = ReadTokenText(data("hbl_current_wi"))
+        Dim currentPwi As String = ReadTokenText(data("hbl_current_pwi"))
+        Dim currentSeq As String = ReadTokenText(data("hbl_current_seq"))
+        If String.IsNullOrWhiteSpace(sourceWi) OrElse String.IsNullOrWhiteSpace(sourcePwi) OrElse String.IsNullOrWhiteSpace(sourceSeq) OrElse
+           String.IsNullOrWhiteSpace(currentWi) OrElse String.IsNullOrWhiteSpace(currentPwi) OrElse String.IsNullOrWhiteSpace(currentSeq) Then
+            reason = "Incomplete-transfer API returned a missing required identity string."
+            Return False
+        End If
+
+        Dim currentTagId As Nullable(Of Integer) = Nothing
+        If Not TryReadOptionalInteger(data("hbl_current_tag_id"), currentTagId) Then
+            reason = "Incomplete-transfer API returned an invalid optional current tag id."
+            Return False
+        End If
+
+        Dim record As New IncompleteTransferApiRecord With {
+            .TransferId = transferId, .SourceTagId = sourceTagId, .SourceWi = sourceWi, .SourcePwi = sourcePwi,
+            .SourceSeq = sourceSeq, .SourceBoxNo = sourceBoxNo, .BaseQty = baseQty, .CurrentWi = currentWi,
+            .CurrentPwi = currentPwi, .CurrentSeq = currentSeq, .CurrentBoxNo = currentBoxNo, .CurrentSnp = currentSnp,
+            .GoodSnapshot = goodSnapshot, .Flag = flag, .CurrentTagId = currentTagId}
+        If record.TransferId <= 0 OrElse record.SourceTagId <= 0 OrElse record.SourceBoxNo <= 0 OrElse record.BaseQty <= 0 OrElse
+           record.CurrentBoxNo <> 1 OrElse record.CurrentSnp <= 1 OrElse record.CurrentSnp = 999999 Then
+            reason = "Incomplete-transfer API returned invalid transfer identity data."
+            Return False
+        End If
+
+        transfer = record
+        Return True
+    End Function
+
+    Private Shared Function ReadTokenText(token As JToken) As String
+        If token Is Nothing OrElse token.Type = JTokenType.Null OrElse token.Type = JTokenType.Undefined Then Return String.Empty
+        Return Convert.ToString(token.ToString(), CultureInfo.InvariantCulture).Trim()
+    End Function
+
+    Private Shared Function TryReadBoolean(token As JToken, ByRef value As Boolean) As Boolean
+        value = False
+        If token Is Nothing OrElse token.Type = JTokenType.Null OrElse token.Type = JTokenType.Undefined Then Return False
+        If token.Type = JTokenType.Boolean Then
+            value = token.Value(Of Boolean)()
+            Return True
+        End If
+        Dim text As String = ReadTokenText(token)
+        If Boolean.TryParse(text, value) Then Return True
+        Dim numericValue As Integer
+        If Integer.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, numericValue) AndAlso (numericValue = 0 OrElse numericValue = 1) Then
+            value = numericValue = 1
+            Return True
+        End If
+        Return False
+    End Function
+
+    Private Shared Function TryReadRequiredInteger(data As JObject, fieldName As String, ByRef value As Integer, ByRef invalidField As String) As Boolean
+        invalidField = fieldName
+        Return TryReadIntegerToken(data(fieldName), value)
+    End Function
+
+    Private Shared Function TryReadOptionalInteger(token As JToken, ByRef value As Nullable(Of Integer)) As Boolean
+        value = Nothing
+        If token Is Nothing OrElse token.Type = JTokenType.Null OrElse token.Type = JTokenType.Undefined Then Return True
+        Dim parsedValue As Integer
+        If Not TryReadIntegerToken(token, parsedValue) Then Return False
+        value = parsedValue
+        Return True
+    End Function
+
+    Private Shared Function TryReadIntegerToken(token As JToken, ByRef value As Integer) As Boolean
+        value = 0
+        If token Is Nothing OrElse token.Type = JTokenType.Null OrElse token.Type = JTokenType.Undefined Then Return False
+        Return Integer.TryParse(ReadTokenText(token), NumberStyles.Integer, CultureInfo.InvariantCulture, value)
+    End Function
+
+    Private Shared Function TryReadLongToken(token As JToken, ByRef value As Long) As Boolean
+        value = 0
+        If token Is Nothing OrElse token.Type = JTokenType.Null OrElse token.Type = JTokenType.Undefined Then Return False
+        Return Long.TryParse(ReadTokenText(token), NumberStyles.Integer, CultureInfo.InvariantCulture, value)
+    End Function
+
+    Private Shared ReadOnly performanceLogLock As New Object()
+    Private Shared performanceLogDirectoryReady As Boolean = False
+
+    ' Release builds must not write diagnostic SQL, URLs, or timer state to the
+    ' debugger/console.  Calls to this helper are compiled out in Release and
+    ' have no production, database, or API side effect.
+    <System.Diagnostics.Conditional("DEBUG")>
+    Private Shared Sub WriteDebugDiagnostic(message As String)
+        Console.WriteLine(message)
+    End Sub
+
+    ' Diagnostic-only timing.  This intentionally has no database/API side
+    ' effect and excludes credentials, QR payloads and production quantities.
+    Public Shared Sub LogPerformance(stage As String, elapsedMilliseconds As Long)
+        Try
+            Dim directoryPath As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs")
+            Dim logPath As String = Path.Combine(directoryPath, "performance_" & DateTime.Now.ToString("yyyyMMdd") & ".log")
+            Dim line As String = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") &
+                                 " | " & If(stage, String.Empty) &
+                                 " | " & Math.Max(0, elapsedMilliseconds).ToString() & " ms" & Environment.NewLine
+            SyncLock performanceLogLock
+                If Not performanceLogDirectoryReady Then
+                    Directory.CreateDirectory(directoryPath)
+                    performanceLogDirectoryReady = True
+                End If
+                File.AppendAllText(logPath, line)
+            End SyncLock
+        Catch
+            ' Diagnostics must never alter the existing production fallback.
+        End Try
+    End Sub
+
+    Public Shared Function GetCurrentLineTagType() As String
+        Try
+            Dim service As New api()
+            Return If(service.Load_data("http://" & svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/GET_LINE_TYPE?line_cd=" & MainFrm.Label4.Text), String.Empty).Trim()
+        Catch
+            Return String.Empty
+        End Try
+    End Function
+
+    ' Incomplete-box selection is intentionally server-only.  The existing local
+    ' database remains untouched so Start New Box and all offline flows keep their
+    ' current behaviour.
+    Public Shared Function GetIncompleteBoxes(currentWi As String,
+                                              lineCode As String,
+                                              partNo As String,
+                                               snp As Integer,
+                                               nextProcess As String,
+                                               Optional includeLegacyPendingStatus As Boolean = False,
+                                               Optional allowCrossWi As Boolean = False,
+                                               Optional excludeActiveSourceOwnership As Boolean = False) As List(Of IncompleteBoxRecord)
+        Dim performanceTimer As Stopwatch = Stopwatch.StartNew()
+        Dim result As New List(Of IncompleteBoxRecord)()
+        If String.IsNullOrWhiteSpace(partNo) OrElse snp <= 0 Then Return result
+
+        Using connection As New SqlConnection(sqlConnect)
+            connection.Open()
+            Using command As SqlCommand = CreateIncompleteBoxSelectCommand(connection, Nothing, False, False, False, includeLegacyPendingStatus, allowCrossWi, excludeActiveSourceOwnership)
+                command.Parameters.Add("@partNo", SqlDbType.VarChar, 100).Value = partNo.Trim()
+
+                Using reader As SqlDataReader = command.ExecuteReader()
+                    While reader.Read()
+                        Dim candidate As IncompleteBoxRecord = MapIncompleteBox(reader)
+                        WriteDebugDiagnostic("[INCOMPLETE] Candidate TagId=" & candidate.TagId.ToString() &
+                                             " Flag=" & candidate.FlgControl & " Pwi=" & candidate.PwiId &
+                                             " Seq=" & candidate.SeqNo & " Qty=" & candidate.Quantity.ToString() &
+                                             " SQL PATH=GetIncompleteBoxes")
+                        If IsCompatibleIncompleteBox(candidate, currentWi, lineCode, partNo, snp, nextProcess, allowCrossWi) Then
+                            ' tag_print_detail has no SNP column.  PS_UNIT_NUMERATOR on the
+                            ' historical supply row is often the default value 1, so display
+                            ' and continue against the current, already-confirmed plan SNP.
+                            candidate.Snp = snp
+                            result.Add(candidate)
+                        End If
+                    End While
+                End Using
+            End Using
+        End Using
+
+        LogPerformance("GetIncompleteBoxes", performanceTimer.ElapsedMilliseconds)
+        Return result
+    End Function
+
+    Public Shared Function RevalidateIncompleteBox(tagId As Integer,
+                                                   currentWi As String,
+                                                   lineCode As String,
+                                                   partNo As String,
+                                                   snp As Integer,
+                                                   nextProcess As String,
+                                                     ByRef refreshedBox As IncompleteBoxRecord,
+                                                     ByRef reason As String,
+                                                     Optional includeLegacyPendingStatus As Boolean = False,
+                                                     Optional allowCrossWi As Boolean = False,
+                                                     Optional excludeActiveSourceOwnership As Boolean = False) As Boolean
+        Dim performanceTimer As Stopwatch = Stopwatch.StartNew()
+        refreshedBox = Nothing
+        reason = String.Empty
+
+        If String.IsNullOrWhiteSpace(partNo) OrElse snp <= 0 Then
+            reason = "Current SNP is missing or invalid. Reload the current production plan before continuing an incomplete box."
+            Return False
+        End If
+
+        Try
+            Dim sourceActivelyOwned As Boolean = False
+            Using connection As New SqlConnection(sqlConnect)
+                connection.Open()
+                refreshedBox = ReadIncompleteBox(connection, Nothing, tagId, False, False, includeLegacyPendingStatus, excludeActiveSourceOwnership)
+                If refreshedBox Is Nothing AndAlso excludeActiveSourceOwnership Then
+                    sourceActivelyOwned = IsIncompleteSourceActivelyOwned(connection, tagId)
+                End If
+            End Using
+
+            If refreshedBox Is Nothing Then
+                reason = If(sourceActivelyOwned,
+                            "This incomplete source is already reserved by another active transfer. Please refresh and select another box.",
+                            "The selected box is no longer available. Please refresh and select again.")
+                Return False
+            End If
+
+            If Not IsCompatibleIncompleteBox(refreshedBox, currentWi, lineCode, partNo, snp, nextProcess, allowCrossWi) Then
+                refreshedBox = Nothing
+                reason = "The selected box no longer matches the current production context."
+                Return False
+            End If
+
+            refreshedBox.Snp = snp
+            Return True
+        Catch ex As Exception
+            refreshedBox = Nothing
+            reason = "Unable to validate the selected box with the server: " & ex.Message
+            Return False
+        Finally
+            LogPerformance("RevalidateIncompleteBox", performanceTimer.ElapsedMilliseconds)
+        End Try
+    End Function
+
+    ' Option A must fail closed unless the Current WI/sequence has no persisted
+    ' tag rows that could collide with its prepared Current BOX001 identity.
+    ' This is a read-only check against the existing server table; no API or
+    ' schema is introduced here.
+    Public Shared Function IsOptionACurrentSequenceFresh(currentWi As String,
+                                                          currentPwiId As String,
+                                                          currentSeqNo As String,
+                                                          ByRef reason As String) As Boolean
+        reason = String.Empty
+        If String.IsNullOrWhiteSpace(currentWi) OrElse String.IsNullOrWhiteSpace(currentSeqNo) Then
+            reason = "The current WI or sequence is unavailable. Continue Existing Box requires a fresh current sequence."
+            Return False
+        End If
+
+        Try
+            Using connection As New SqlConnection(sqlConnect)
+                connection.Open()
+                Dim sql As String = "SELECT COUNT(1) FROM tag_print_detail WHERE wi = @currentWi AND seq_no = @currentSeqNo"
+                If Not String.IsNullOrWhiteSpace(currentPwiId) Then sql &= " AND pwi_id = @currentPwiId"
+
+                Using command As New SqlCommand(sql, connection)
+                    command.Parameters.Add("@currentWi", SqlDbType.VarChar, 50).Value = currentWi.Trim()
+                    command.Parameters.Add("@currentSeqNo", SqlDbType.VarChar, 50).Value = currentSeqNo.Trim()
+                    If Not String.IsNullOrWhiteSpace(currentPwiId) Then
+                        command.Parameters.Add("@currentPwiId", SqlDbType.VarChar, 50).Value = currentPwiId.Trim()
+                    End If
+
+                    Dim persistedTagCount As Integer = Convert.ToInt32(command.ExecuteScalar())
+                    If persistedTagCount > 0 Then
+                        reason = "The current sequence already has persisted box data. Continue Existing Box can only start on a fresh current sequence."
+                        Return False
+                    End If
+                End Using
+            End Using
+            Return True
+        Catch ex As Exception
+            reason = "The current sequence freshness could not be verified. Continue Existing Box was not started. " & ex.Message
+            Return False
+        End Try
+    End Function
+
+    Public Shared Function RevalidateClaimedIncompleteBox(tagId As Integer,
+                                                          currentWi As String,
+                                                          lineCode As String,
+                                                          partNo As String,
+                                                          snp As Integer,
+                                                          nextProcess As String,
+                                                          ByRef refreshedBox As IncompleteBoxRecord,
+                                                          ByRef reason As String) As Boolean
+        refreshedBox = Nothing
+        reason = String.Empty
+
+        Try
+            Using connection As New SqlConnection(sqlConnect)
+                connection.Open()
+                refreshedBox = ReadIncompleteBox(connection, Nothing, tagId, False, True)
+            End Using
+
+            If refreshedBox Is Nothing Then
+                reason = "The selected box reservation is no longer valid. Please select the box again."
+                Return False
+            End If
+
+            If Not IsCompatibleIncompleteBox(refreshedBox, currentWi, lineCode, partNo, snp, nextProcess) Then
+                refreshedBox = Nothing
+                reason = "The selected box no longer matches the current production context."
+                Return False
+            End If
+
+            refreshedBox.Snp = snp
+            Return True
+        Catch ex As Exception
+            refreshedBox = Nothing
+            reason = "Unable to validate the selected box on the server: " & ex.Message
+            Return False
+        End Try
+    End Function
+
+    Public Shared Function TryClaimIncompleteBox(tagId As Integer,
+                                                 currentWi As String,
+                                                 lineCode As String,
+                                                 partNo As String,
+                                                 snp As Integer,
+                                                 nextProcess As String,
+                                                 ByRef claimedBox As IncompleteBoxRecord,
+                                                 ByRef reason As String) As Boolean
+        claimedBox = Nothing
+        reason = String.Empty
+
+        Try
+            Using connection As New SqlConnection(sqlConnect)
+                connection.Open()
+                Using transaction As SqlTransaction = connection.BeginTransaction(IsolationLevel.Serializable)
+                    Dim currentBox As IncompleteBoxRecord = ReadIncompleteBox(connection, transaction, tagId, True)
+                    If currentBox Is Nothing Then
+                        transaction.Rollback()
+                        reason = "The selected box has already been used or is no longer available."
+                        Return False
+                    End If
+
+                    If Not IsCompatibleIncompleteBox(currentBox, currentWi, lineCode, partNo, snp, nextProcess) Then
+                        transaction.Rollback()
+                        reason = "The selected box no longer matches the current production context."
+                        Return False
+                    End If
+
+                    currentBox.Snp = snp
+
+                    Using updateCommand As New SqlCommand(
+                        "UPDATE tag_print_detail " &
+                        "SET flg_control = '2', updated_date = GETDATE() " &
+                        "WHERE id = @tagId AND flg_control = '0'", connection, transaction)
+                        updateCommand.Parameters.Add("@tagId", SqlDbType.Int).Value = tagId
+                        If updateCommand.ExecuteNonQuery() <> 1 Then
+                            transaction.Rollback()
+                            reason = "The selected box was taken by another terminal. Please select again."
+                            Return False
+                        End If
+                    End Using
+
+                    transaction.Commit()
+                    claimedBox = currentBox
+                    Return True
+                End Using
+            End Using
+        Catch ex As Exception
+            claimedBox = Nothing
+            reason = "Unable to reserve the selected box on the server: " & ex.Message
+            Return False
+        End Try
+    End Function
+
+    Public Shared Function ReleaseIncompleteBoxClaim(tagId As Integer) As Boolean
+        If tagId <= 0 Then Return False
+
+        Using connection As New SqlConnection(sqlConnect)
+            connection.Open()
+            Using command As New SqlCommand(
+                "UPDATE tag_print_detail " &
+                "SET flg_control = '0', updated_date = GETDATE() " &
+                "WHERE id = @tagId AND flg_control = '2'", connection)
+                command.Parameters.Add("@tagId", SqlDbType.Int).Value = tagId
+                Return command.ExecuteNonQuery() = 1
+            End Using
+        End Using
+    End Function
+
+    ' Marks only the Continue-selected tag as completed.  This must never update
+    ' by WI because a newly-created incomplete tag for the same WI may coexist.
+    Public Shared Function CompleteClaimedIncompleteBox(tagId As Integer) As Boolean
+        If tagId <= 0 Then Return False
+
+        Using connection As New SqlConnection(sqlConnect)
+            connection.Open()
+            Using command As New SqlCommand(
+                "UPDATE tag_print_detail " &
+                "SET flg_control = '1', updated_date = GETDATE() " &
+                "WHERE id = @tagId AND flg_control = '2'", connection)
+                command.Parameters.Add("@tagId", SqlDbType.Int).Value = tagId
+                Return command.ExecuteNonQuery() = 1
+            End Using
+        End Using
+    End Function
+
+    ' Continue Existing Box does not claim flg_control = 2.  Legacy printing may
+    ' use that value for a WI-wide transition, so a selected pending tag is
+    ' completed by its immutable tag ID only after the replacement full tag was
+    ' inserted successfully.
+    Public Shared Function CompleteSelectedIncompleteBox(tagId As Integer) As Boolean
+        If tagId <= 0 Then Return False
+
+        Using connection As New SqlConnection(sqlConnect)
+            connection.Open()
+            Using command As New SqlCommand(
+                "UPDATE tag_print_detail " &
+                "SET flg_control = '1', updated_date = GETDATE() " &
+                "WHERE id = @tagId AND flg_control IN ('0','2')", connection)
+                command.Parameters.Add("@tagId", SqlDbType.Int).Value = tagId
+                Return command.ExecuteNonQuery() = 1
+            End Using
+        End Using
+    End Function
+
+    ' Continue-only replacement of one selected incomplete tag.  The source
+    ' validation, replacement insert and source completion share one SQL Server
+    ' transaction so a partial Close Lot can never commit two pending records.
+    Public Shared Function ReplaceSelectedIncompleteBoxAtomic(oldTagId As Integer,
+                                                               sourceWi As String,
+                                                               currentWi As String,
+                                                               currentSnp As Integer,
+                                                               qrDetail As String,
+                                                               sourceBoxNo As Integer,
+                                                               currentBoxNo As Integer,
+                                                               printCount As Integer,
+                                                               seqNo As String,
+                                                               shift As String,
+                                                               replacementFlgControl As Integer,
+                                                               itemCd As String,
+                                                               pwiId As String,
+                                                               tagGroupNo As String,
+                                                               goodQty As Integer,
+                                                               nextProcess As String,
+                                                               ByRef attemptedNewTagId As Integer) As Integer
+        If oldTagId <= 0 OrElse String.IsNullOrWhiteSpace(sourceWi) OrElse String.IsNullOrWhiteSpace(currentWi) OrElse currentSnp <= 0 OrElse
+             String.IsNullOrWhiteSpace(qrDetail) OrElse sourceBoxNo <= 0 OrElse currentBoxNo <= 0 Then Return 0
+
+        Dim insertedTagId As Integer = 0
+        Dim committed As Boolean = False
+        attemptedNewTagId = 0
+        Dim createdDate As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
+
+        Try
+            Using connection As New SqlConnection(sqlConnect)
+                connection.Open()
+                Using transaction As SqlTransaction = connection.BeginTransaction(IsolationLevel.ReadCommitted)
+                    Try
+                        Using validateCommand As New SqlCommand(
+                            "SELECT COUNT(1) FROM tag_print_detail t WITH (UPDLOCK, ROWLOCK) " &
+                            "INNER JOIN production_working_info pwi ON pwi.pwi_id = t.pwi_id " &
+                            "INNER JOIN sup_work_plan_supply_dev sw ON sw.IND_ROW = pwi.ind_row " &
+                            "WHERE t.id = @oldTagId AND t.wi = @sourceWi " &
+                             "AND t.box_no = @sourceBoxNo AND t.flg_control IN ('0','2') " &
+                            "AND NULLIF(LTRIM(RTRIM(sw.ITEM_CD)), '') IS NOT NULL " &
+                            "AND UPPER(LTRIM(RTRIM(sw.ITEM_CD))) = UPPER(@itemCd) " &
+                            "AND TRY_CONVERT(INT, LTRIM(RTRIM(SUBSTRING(t.qr_detail, 53, 6)))) > 0 " &
+                            "AND TRY_CONVERT(INT, LTRIM(RTRIM(SUBSTRING(t.qr_detail, 53, 6)))) < @currentSnp", connection, transaction)
+                            validateCommand.Parameters.Add("@oldTagId", SqlDbType.Int).Value = oldTagId
+                            validateCommand.Parameters.Add("@sourceWi", SqlDbType.VarChar, 100).Value = sourceWi.Trim()
+                            validateCommand.Parameters.Add("@sourceBoxNo", SqlDbType.Int).Value = sourceBoxNo
+                            validateCommand.Parameters.Add("@itemCd", SqlDbType.VarChar, 100).Value = itemCd.Trim()
+                            validateCommand.Parameters.Add("@currentSnp", SqlDbType.Int).Value = currentSnp
+                            If Convert.ToInt32(validateCommand.ExecuteScalar()) <> 1 Then
+                                transaction.Rollback()
+                                Return 0
+                            End If
+                        End Using
+
+                        ' Idempotency check: verify whether replacement tag for this exact (PWI, Seq, CurrentBoxNo) already exists
+                        If Not String.IsNullOrWhiteSpace(Trim(pwiId)) AndAlso currentBoxNo > 0 Then
+                            Using checkExistingCmd As New SqlCommand(
+                                "SELECT TOP 1 id FROM tag_print_detail WITH (UPDLOCK, ROWLOCK) " &
+                                "WHERE pwi_id = @check_pwi_id AND (seq_no = @check_seq_no OR TRY_CONVERT(INT, seq_no) = TRY_CONVERT(INT, @check_seq_no)) " &
+                                "AND box_no = @check_box_no AND flg_control IN ('0','1','2') ORDER BY id DESC;", connection, transaction)
+                                checkExistingCmd.Parameters.Add("@check_pwi_id", SqlDbType.VarChar, 100).Value = Trim(pwiId)
+                                checkExistingCmd.Parameters.Add("@check_seq_no", SqlDbType.VarChar, 50).Value = If(seqNo, String.Empty).Trim()
+                                checkExistingCmd.Parameters.Add("@check_box_no", SqlDbType.Int).Value = currentBoxNo
+                                Dim existingIdObj As Object = checkExistingCmd.ExecuteScalar()
+                                If existingIdObj IsNot Nothing AndAlso Not IsDBNull(existingIdObj) Then
+                                    Dim existingId As Integer = Convert.ToInt32(existingIdObj)
+                                    If existingId > 0 Then
+                                        attemptedNewTagId = existingId
+                                        Using completeExistingSourceCommand As New SqlCommand(
+                                            "UPDATE tag_print_detail SET flg_control = '1', updated_date = GETDATE() " &
+                                            "WHERE id = @oldTagId AND wi = @sourceWi AND box_no = @sourceBoxNo " &
+                                            "AND flg_control IN ('0','2')", connection, transaction)
+                                            completeExistingSourceCommand.Parameters.Add("@oldTagId", SqlDbType.Int).Value = oldTagId
+                                            completeExistingSourceCommand.Parameters.Add("@sourceWi", SqlDbType.VarChar, 100).Value = sourceWi.Trim()
+                                            completeExistingSourceCommand.Parameters.Add("@sourceBoxNo", SqlDbType.Int).Value = sourceBoxNo
+                                            completeExistingSourceCommand.ExecuteNonQuery()
+                                        End Using
+                                        transaction.Commit()
+                                        committed = True
+                                        Return existingId
+                                    End If
+                                End If
+                            End Using
+                        End If
+
+                        Using insertCommand As New SqlCommand(
+                            "INSERT INTO tag_print_detail " &
+                            "(wi, qr_detail, box_no, print_count, created_date, updated_date, seq_no, shift, next_proc, flg_control, pwi_id, tag_group_no) " &
+                            "VALUES (@wi, @qrDetail, @boxNo, @printCount, @createdDate, @updatedDate, @seqNo, @shift, @nextProcess, @flgControl, @pwiId, @tagGroupNo); " &
+                            "SELECT SCOPE_IDENTITY();", connection, transaction)
+                            insertCommand.Parameters.Add("@wi", SqlDbType.VarChar, 100).Value = currentWi.Trim()
+                            insertCommand.Parameters.Add("@qrDetail", SqlDbType.VarChar, -1).Value = qrDetail
+                            insertCommand.Parameters.Add("@boxNo", SqlDbType.Int).Value = currentBoxNo
+                            insertCommand.Parameters.Add("@printCount", SqlDbType.Int).Value = printCount
+                            insertCommand.Parameters.Add("@createdDate", SqlDbType.VarChar, 30).Value = createdDate
+                            insertCommand.Parameters.Add("@updatedDate", SqlDbType.VarChar, 30).Value = createdDate
+                            insertCommand.Parameters.Add("@seqNo", SqlDbType.VarChar, 50).Value = If(seqNo, String.Empty)
+                            insertCommand.Parameters.Add("@shift", SqlDbType.VarChar, 50).Value = If(shift, String.Empty)
+                            insertCommand.Parameters.Add("@nextProcess", SqlDbType.VarChar, 100).Value = If(nextProcess, String.Empty)
+                            insertCommand.Parameters.Add("@flgControl", SqlDbType.Int).Value = replacementFlgControl
+                            insertCommand.Parameters.Add("@pwiId", SqlDbType.VarChar, 100).Value = If(pwiId, String.Empty)
+                            insertCommand.Parameters.Add("@tagGroupNo", SqlDbType.VarChar, 50).Value = "1"
+                            insertedTagId = Convert.ToInt32(insertCommand.ExecuteScalar())
+                            ' Keep this identity even if a later COMMIT response is
+                            ' ambiguous.  Retry code must reconcile it first, never
+                            ' blindly insert a second replacement tag.
+                            attemptedNewTagId = insertedTagId
+                        End Using
+
+                        If insertedTagId <= 0 Then Throw New DBConcurrencyException("Replacement tag insert did not return an ID.")
+
+                        Using completeCommand As New SqlCommand(
+                            "UPDATE tag_print_detail SET flg_control = '1', updated_date = GETDATE() " &
+                             "WHERE id = @oldTagId AND wi = @sourceWi AND box_no = @sourceBoxNo " &
+                            "AND flg_control IN ('0','2')", connection, transaction)
+                            completeCommand.Parameters.Add("@oldTagId", SqlDbType.Int).Value = oldTagId
+                            completeCommand.Parameters.Add("@sourceWi", SqlDbType.VarChar, 100).Value = sourceWi.Trim()
+                            completeCommand.Parameters.Add("@sourceBoxNo", SqlDbType.Int).Value = sourceBoxNo
+                            If completeCommand.ExecuteNonQuery() <> 1 Then
+                                Throw New DBConcurrencyException("The selected source tag changed before replacement commit.")
+                            End If
+                        End Using
+
+                        transaction.Commit()
+                        committed = True
+                    Catch
+                        Try
+                            transaction.Rollback()
+                        Catch
+                        End Try
+                        Throw
+                    End Try
+                End Using
+            End Using
+        Catch
+            Return 0
+        End Try
+
+        If committed Then
+            ' Mirror only a committed server record.  tr_status=1 prevents the
+            ' local transfer queue from inserting the replacement a second time.
+            model_api_sqlite.mas_Insert_tag_print(currentWi, qrDetail, currentBoxNo, printCount,
+                                                  seqNo, shift, replacementFlgControl, itemCd,
+                                                  pwiId, tagGroupNo, goodQty, nextProcess, "1", True)
+        End If
+        Return insertedTagId
+    End Function
+
+    ' Reads the Continue-specific transaction result without changing server state.
+    ' A retry is safe only when the selected source is still pending and there is no
+    ' matching replacement record.  Any mixed state is deliberately treated as a
+    ' data-integrity stop rather than guessed at by the client.
+    Public Shared Function ReconcileSelectedIncompleteBoxReplacement(oldTagId As Integer,
+                                                                       attemptedNewTagId As Integer,
+                                                                       sourceWi As String,
+                                                                       currentWi As String,
+                                                                       sourceBoxNo As Integer,
+                                                                       currentBoxNo As Integer,
+                                                                       qrDetail As String) As ContinueTagPersistenceResolution
+        If oldTagId <= 0 OrElse String.IsNullOrWhiteSpace(sourceWi) OrElse String.IsNullOrWhiteSpace(currentWi) OrElse sourceBoxNo <= 0 OrElse currentBoxNo <= 0 OrElse String.IsNullOrWhiteSpace(qrDetail) Then
+            Return ContinueTagPersistenceResolution.Unconfirmed
+        End If
+
+        Try
+            Using connection As New SqlConnection(sqlConnect)
+                connection.Open()
+
+                Dim sourceStatus As String = Nothing
+                Using sourceCommand As New SqlCommand("SELECT flg_control FROM tag_print_detail WHERE id = @oldTagId AND wi = @sourceWi AND box_no = @sourceBoxNo", connection)
+                    sourceCommand.Parameters.Add("@oldTagId", SqlDbType.Int).Value = oldTagId
+                    sourceCommand.Parameters.Add("@sourceWi", SqlDbType.VarChar, 100).Value = sourceWi.Trim()
+                    sourceCommand.Parameters.Add("@sourceBoxNo", SqlDbType.Int).Value = sourceBoxNo
+                    Dim value As Object = sourceCommand.ExecuteScalar()
+                    If value Is Nothing OrElse value Is DBNull.Value Then Return ContinueTagPersistenceResolution.Unconfirmed
+                    sourceStatus = value.ToString().Trim()
+                End Using
+
+                Dim replacementExists As Boolean = False
+                Dim replacementMatches As Boolean = False
+                Dim replacementId As Integer = attemptedNewTagId
+                Using replacementCommand As New SqlCommand(
+                    If(attemptedNewTagId > 0,
+                       "SELECT id, wi, box_no, qr_detail FROM tag_print_detail WHERE id = @attemptedNewTagId",
+                       "SELECT TOP 1 id, wi, box_no, qr_detail FROM tag_print_detail WHERE wi = @currentWi AND box_no = @currentBoxNo AND qr_detail = @qrDetail AND id <> @oldTagId ORDER BY id DESC"), connection)
+                    If attemptedNewTagId > 0 Then
+                        replacementCommand.Parameters.Add("@attemptedNewTagId", SqlDbType.Int).Value = attemptedNewTagId
+                    Else
+                        replacementCommand.Parameters.Add("@currentWi", SqlDbType.VarChar, 100).Value = currentWi.Trim()
+                        replacementCommand.Parameters.Add("@currentBoxNo", SqlDbType.Int).Value = currentBoxNo
+                        replacementCommand.Parameters.Add("@qrDetail", SqlDbType.VarChar, -1).Value = qrDetail
+                        replacementCommand.Parameters.Add("@oldTagId", SqlDbType.Int).Value = oldTagId
+                    End If
+
+                    Using reader As SqlDataReader = replacementCommand.ExecuteReader(CommandBehavior.SingleRow)
+                        If reader.Read() Then
+                            replacementExists = True
+                            replacementId = Convert.ToInt32(reader("id"))
+                            replacementMatches = String.Equals(DbString(reader, "wi").Trim(), currentWi.Trim(), StringComparison.OrdinalIgnoreCase) AndAlso
+                                                  DbInteger(reader, "box_no") = currentBoxNo AndAlso
+                                                 String.Equals(DbString(reader, "qr_detail"), qrDetail, StringComparison.Ordinal)
+                        End If
+                    End Using
+                End Using
+
+                Dim sourcePending As Boolean = sourceStatus = "0" OrElse sourceStatus = "2"
+                Dim sourceCompleted As Boolean = sourceStatus = "1"
+
+                If sourceCompleted AndAlso replacementExists AndAlso replacementMatches Then
+                    Return ContinueTagPersistenceResolution.Committed
+                End If
+                If sourcePending AndAlso Not replacementExists Then
+                    Return ContinueTagPersistenceResolution.RetrySafe
+                End If
+
+                Return ContinueTagPersistenceResolution.Inconsistent
+            End Using
+        Catch
+            Return ContinueTagPersistenceResolution.Unconfirmed
+        End Try
+    End Function
+
+    Public Shared Function IncrementIncompleteTagPrintCount(tagId As Integer) As Boolean
+        If tagId <= 0 Then Return False
+
+        Using connection As New SqlConnection(sqlConnect)
+            connection.Open()
+            Using transaction As SqlTransaction = connection.BeginTransaction(IsolationLevel.ReadCommitted)
+                Using command As New SqlCommand(
+                    "UPDATE tag_print_detail " &
+                    "SET print_count = ISNULL(print_count, 0) + 1, updated_date = GETDATE() " &
+                    "WHERE id = @tagId AND flg_control = '0'", connection, transaction)
+                    command.Parameters.Add("@tagId", SqlDbType.Int).Value = tagId
+                    Dim updated As Boolean = command.ExecuteNonQuery() = 1
+                    If updated Then
+                        transaction.Commit()
+                    Else
+                        transaction.Rollback()
+                    End If
+                    Return updated
+                End Using
+            End Using
+        End Using
+    End Function
+
+    Private Shared Function ReadIncompleteBox(connection As SqlConnection,
+                                              transaction As SqlTransaction,
+                                              tagId As Integer,
+                                              lockForUpdate As Boolean,
+                                              Optional claimed As Boolean = False,
+                                              Optional includeLegacyPendingStatus As Boolean = False,
+                                              Optional excludeActiveSourceOwnership As Boolean = False) As IncompleteBoxRecord
+        Using command As SqlCommand = CreateIncompleteBoxSelectCommand(connection, transaction, lockForUpdate, True, claimed, includeLegacyPendingStatus, False, excludeActiveSourceOwnership)
+            command.Parameters.Add("@tagId", SqlDbType.Int).Value = tagId
+            Using reader As SqlDataReader = command.ExecuteReader(CommandBehavior.SingleRow)
+                If reader.Read() Then Return MapIncompleteBox(reader)
+            End Using
+        End Using
+        Return Nothing
+    End Function
+
+    Private Shared Function CreateIncompleteBoxSelectCommand(connection As SqlConnection,
+                                                             transaction As SqlTransaction,
+                                                             lockForUpdate As Boolean,
+                                                              selectById As Boolean,
+                                                               Optional claimed As Boolean = False,
+                                                              Optional includeLegacyPendingStatus As Boolean = False,
+                                                              Optional allowCrossWi As Boolean = False,
+                                                              Optional excludeActiveSourceOwnership As Boolean = False) As SqlCommand
+        Dim lockHint As String = If(lockForUpdate, " WITH (UPDLOCK, ROWLOCK)", String.Empty)
+        Dim filter As String
+        If selectById Then
+            filter = "t.id = @tagId"
+        Else
+            filter = "NULLIF(LTRIM(RTRIM(sw.ITEM_CD)), '') IS NOT NULL " &
+                     "AND UPPER(LTRIM(RTRIM(sw.ITEM_CD))) = UPPER(@partNo)"
+            If Not allowCrossWi Then filter &= " AND t.wi = @currentWi"
+        End If
+
+        Dim sql As String =
+            "SELECT t.id, t.wi, t.pwi_id, t.box_no, t.seq_no, t.shift, t.flg_control, " &
+            "t.next_proc, t.qr_detail, t.created_date, t.print_count, " &
+            "pwi.pwi_lot_no, sw.LINE_CD, sw.ITEM_CD, sw.ITEM_NAME, " &
+            "sw.MODEL, sw.PS_UNIT_NUMERATOR " &
+            "FROM tag_print_detail t" & lockHint & " " &
+            "INNER JOIN production_working_info pwi ON pwi.pwi_id = t.pwi_id " &
+            "INNER JOIN sup_work_plan_supply_dev sw ON sw.IND_ROW = pwi.ind_row " &
+            "WHERE " & If(claimed,
+                            "t.flg_control = '2'",
+                            If(includeLegacyPendingStatus, "t.flg_control IN ('0','2')", "t.flg_control = '0'")) &
+            " AND sw.LVL = '1' AND " & filter & If(excludeActiveSourceOwnership,
+            " AND NOT EXISTS (SELECT 1 FROM history_box_log hbl WHERE hbl.hbl_source_tag_id = t.id AND hbl.hbl_flag = 0)", String.Empty) & " " &
+            "ORDER BY t.created_date DESC, t.id DESC"
+
+        Return New SqlCommand(sql, connection, transaction)
+    End Function
+
+    ' Read-only ownership check used only to give a stale Continue selection a
+    ' precise operator message. history_box_log remains server-authoritative.
+    Private Shared Function IsIncompleteSourceActivelyOwned(connection As SqlConnection, tagId As Integer) As Boolean
+        Using command As New SqlCommand("SELECT TOP 1 1 FROM history_box_log WHERE hbl_source_tag_id = @tagId AND hbl_flag = 0", connection)
+            command.Parameters.Add("@tagId", SqlDbType.Int).Value = tagId
+            Return command.ExecuteScalar() IsNot Nothing
+        End Using
+    End Function
+
+    Private Shared Function MapIncompleteBox(reader As SqlDataReader) As IncompleteBoxRecord
+        Dim qrDetail As String = DbString(reader, "qr_detail")
+        Dim box As New IncompleteBoxRecord With {
+            .TagId = DbInteger(reader, "id"),
+            .Wi = DbString(reader, "wi"),
+            .PwiId = DbString(reader, "pwi_id"),
+            .LineCode = DbString(reader, "LINE_CD"),
+            .PartNo = DbString(reader, "ITEM_CD"),
+            .PartName = DbString(reader, "ITEM_NAME"),
+            .Model = DbString(reader, "MODEL"),
+            .LotNo = DbString(reader, "pwi_lot_no"),
+            .SeqNo = DbString(reader, "seq_no"),
+            .FlgControl = DbString(reader, "flg_control"),
+            .BoxNo = DbInteger(reader, "box_no"),
+            .Quantity = ParseNormalTagQuantity(qrDetail),
+            .Snp = DbInteger(reader, "PS_UNIT_NUMERATOR"),
+            .Shift = DbString(reader, "shift"),
+            .NextProcess = DbString(reader, "next_proc"),
+            .QrDetail = qrDetail,
+            .PrintCount = DbInteger(reader, "print_count")
+        }
+
+        Dim createdValue As Object = reader("created_date")
+        If createdValue IsNot DBNull.Value Then
+            Dim createdDate As DateTime
+            If DateTime.TryParse(createdValue.ToString(), createdDate) Then box.CreatedDate = createdDate
+        End If
+        Return box
+    End Function
+
+    Private Shared Function IsCompatibleIncompleteBox(box As IncompleteBoxRecord,
+                                                      currentWi As String,
+                                                      lineCode As String,
+                                                       partNo As String,
+                                                       snp As Integer,
+                                                       nextProcess As String,
+                                                       Optional allowCrossWi As Boolean = False) As Boolean
+        If box Is Nothing OrElse box.TagId <= 0 Then Return False
+        If Not allowCrossWi AndAlso Not String.Equals(box.Wi.Trim(), currentWi.Trim(), StringComparison.OrdinalIgnoreCase) Then Return False
+        If Not String.Equals(box.PartNo.Trim(), partNo.Trim(), StringComparison.OrdinalIgnoreCase) Then Return False
+        ' Incomplete tags do not persist their own SNP.  Do not compare against
+        ' sw.PS_UNIT_NUMERATOR here: for legacy rows it is commonly 1.  The
+        ' selected line/part/next-process and the current plan's SNP remain the
+        ' compatibility boundary, and the tag quantity must fit that SNP.
+        If snp <= 1 OrElse snp = 999999 Then Return False
+        If box.Quantity <= 0 OrElse box.Quantity >= snp Then Return False
+
+        'Legacy reprint retains its original context check. Continue Existing Box
+        'uses the approved part-only cross-WI rule, so Source next-process is not a gate.
+        If Not allowCrossWi Then
+            Dim expectedNextProcess As String = If(nextProcess, String.Empty).Trim()
+            Dim boxNextProcess As String = If(box.NextProcess, String.Empty).Trim()
+            If expectedNextProcess.Length > 0 AndAlso
+               Not String.Equals(boxNextProcess, expectedNextProcess, StringComparison.OrdinalIgnoreCase) Then Return False
+        End If
+
+        Return True
+    End Function
+
+    Private Shared Function ParseNormalTagQuantity(qrDetail As String) As Integer
+        If String.IsNullOrEmpty(qrDetail) OrElse qrDetail.Length < 58 Then Return 0
+        Dim value As Integer
+        If Integer.TryParse(qrDetail.Substring(52, 6).Trim(), value) Then Return value
+        Return 0
+    End Function
+
+    Private Shared Function DbString(reader As SqlDataReader, columnName As String) As String
+        Dim value As Object = reader(columnName)
+        Return If(value Is DBNull.Value, String.Empty, value.ToString())
+    End Function
+
+    Private Shared Function DbInteger(reader As SqlDataReader, columnName As String) As Integer
+        Dim value As Integer
+        Integer.TryParse(DbString(reader, columnName), value)
+        Return value
+    End Function
+
     Public Shared Async Function CheckSingnalNetwork() As Task(Of Boolean)
         Dim targetHost As String = svp_ping
         Dim sw As New Stopwatch()
@@ -614,7 +2161,7 @@ Public Class Backoffice_model
             'Application.Exit()
         End Try
     End Function
-    Public Shared Function Insert_Rm_Scan_By_API(WI As String, ITEM_CD As String, LOT_PO As String, SEQ As String, SHIFT As String, Rm_created_date As String, Rm_created_by As String, Rm_Updated_date As String, Rm_updated_by As String, Rm_line_cd As String, Rm_QR_code As String, ref_id As String, rm_componece_part As String)
+    Public Shared Function Insert_Rm_Scan_By_API(WI As String, ITEM_CD As String, LOT_PO As String, SEQ As String, SHIFT As String, Rm_created_date As String, Rm_created_by As String, Rm_Updated_date As String, Rm_updated_by As String, Rm_line_cd As String, Rm_QR_code As String, ref_id As String, rm_componece_part As String, rm_componece_qty As Integer)
         Try
             Dim api = New api()
             Dim result = api.Load_data(
@@ -632,7 +2179,8 @@ Public Class Backoffice_model
                             "&Rm_line_cd=" & Rm_line_cd &
                             "&Rm_QR_code=" & Rm_QR_code &
                             "&ref_id=" & ref_id &
-                            "&rm_componece_part=" & rm_componece_part
+                            "&rm_componece_part=" & rm_componece_part &
+                            "&rm_componece_qty=" & rm_componece_qty
                         )
             Return result
         Catch ex As Exception
@@ -830,6 +2378,37 @@ re_insert_rework_act:
             'msgBox("MSSQL Database connect failed. Please contact PC System [Function GET_DATA_PRODUCTION_WORKING_INFO]" & ex.Message)
         End Try
     End Function
+    Public Shared Function TryGetProductionWorkingInfoReadOnly(indRow As String,
+                                                                lotNo As String,
+                                                                seqNo As String,
+                                                                ByRef found As Boolean,
+                                                                ByRef pwiValue As String,
+                                                                ByRef rawResponse As String,
+                                                                ByRef reason As String) As Boolean
+        found = False
+        pwiValue = String.Empty
+        rawResponse = String.Empty
+        reason = String.Empty
+        Try
+            Dim url As String = "http://" & svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/GET_DATA_PRODUCTION_WORKING_INFO?ind_row=" &
+                                Uri.EscapeDataString(indRow) & "&pwi_lot_no=" & Uri.EscapeDataString(lotNo) &
+                                "&pwi_seq_no=" & Uri.EscapeDataString(seqNo)
+            rawResponse = Convert.ToString(New api().Load_data(url)).Trim()
+            If String.IsNullOrWhiteSpace(rawResponse) Then
+                reason = "PWI lookup returned no response."
+                Return False
+            End If
+            If rawResponse = "0" Then Return True
+
+            pwiValue = rawResponse
+            found = True
+            Return True
+        Catch ex As Exception
+            reason = ex.GetType().Name & ": " & ex.Message
+            Return False
+        End Try
+    End Function
+
     Public Shared Function INSERT_production_working_info(ind_row, pwi_lot_no, pwi_seq_no, pwi_shift)
         Try
             Dim api = New api()
@@ -2117,7 +3696,7 @@ where
     End Function
 
 
-    Public Shared Function Insert_tag_print(wi As String, qr_detail As String, box_no As Integer, print_count As Integer, seq_no As String, shift As String, flg_control As Integer, item_cd As String, pwi_id As String, tag_group_no As String, goodQty As Integer, Gobal_NEXT_PROCESS As String, tr_status As Integer) As Integer
+    Public Shared Function Insert_tag_print(wi As String, qr_detail As String, box_no As Integer, print_count As Integer, seq_no As String, shift As String, flg_control As Integer, item_cd As String, pwi_id As String, tag_group_no As String, goodQty As Integer, Gobal_NEXT_PROCESS As String, tr_status As Integer, Optional preserveExistingIncompleteTags As Boolean = False) As Integer
         Dim currdated As String = DateTime.Now.ToString("yyyy/MM/dd H:m:s")
         update_tagprint(wi, "2", "0")
         Dim SQLConn As New SqlConnection()
@@ -2150,24 +3729,24 @@ where
             ' Execute the query and get the insert id
             Try
                 If My.Computer.Network.Ping(svp_ping) Then
-                    model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "1")
+                    model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "1", preserveExistingIncompleteTags)
                     Dim insertId As Integer = Convert.ToInt32(SQLCmd.ExecuteScalar())
                     ' 'Console.WriteLine("F1333")
                     Return insertId
                 Else
-                    model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "0")
+                    model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "0", preserveExistingIncompleteTags)
                     Return 0
                 End If
             Catch ex As Exception
                 ''Console.WriteLine("catch TRY ===>" & ex.Message)
-                model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "0")
+                model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "0", preserveExistingIncompleteTags)
                 Return 0
             End Try
         Catch ex As Exception
             ' 'Console.WriteLine("F555555")
             ' 'msgBox("MSSQL Database connect failed. Please contact PC System [Function Insert_tag_print]")
             '  'Console.WriteLine("Error tag_print_detail: " & ex.Message)
-            model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "0")
+            model_api_sqlite.mas_Insert_tag_print(wi, qr_detail, box_no, print_count, seq_no, shift, flg_control, item_cd, pwi_id, tag_group_no, goodQty, Gobal_NEXT_PROCESS, "0", preserveExistingIncompleteTags)
             Return 0 ' Return 0 in case of error
         Finally
             ' Ensure connection is closed
@@ -4977,3 +6556,4 @@ re_insert_rework_act:
         Return 0
     End Function
 End Class
+

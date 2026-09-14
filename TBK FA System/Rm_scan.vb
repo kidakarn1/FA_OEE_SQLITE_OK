@@ -70,9 +70,10 @@ Public Class Rm_scan
             Dim Rm_line_cd = Prd_detail.Label3.Text
             Dim Rm_QR_code = dataTag
             Dim rm_componece_part = lbPartNo.Text 'ComboBoxSelectPart.Text
+            Dim rm_componece_qty = lbQty.Text 'ComboBoxSelectPart.Text
             ' MsgBox("rm_componece_part===>" & rm_componece_part)
             ''msgBox("arr_ITEM_CD(21) = " & arr_ITEM_CD(21))
-            Backoffice_model.Insert_Rm_Scan_By_API(WI, ITEM_CD2, LOT_PO, SEQ, SHIFT, Rm_created_date, Rm_created_by, Rm_Updated_date, Rm_updated_by, Rm_line_cd, Rm_QR_code, "-", rm_componece_part)
+            Backoffice_model.Insert_Rm_Scan_By_API(WI, ITEM_CD2, LOT_PO, SEQ, SHIFT, Rm_created_date, Rm_created_by, Rm_Updated_date, Rm_updated_by, Rm_line_cd, Rm_QR_code, "-", rm_componece_part, rm_componece_qty)
             'msgBox("OK")
             keyboardRm_Scan.Close()
         Else
@@ -263,10 +264,19 @@ Public Class Rm_scan
             ' Add To ListView
             '================================================
             lbPartNo.Text = row("ITEM_CD").ToString()
+            lbQty.Text = "0"
         Next
     End Sub
 
     Private Sub Rm_scan_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         loadCP()
+    End Sub
+
+    Private Sub Label2_Click(sender As Object, e As EventArgs) Handles Label2.Click
+
+    End Sub
+
+    Private Sub lbQty_Click(sender As Object, e As EventArgs) Handles lbQty.Click
+
     End Sub
 End Class

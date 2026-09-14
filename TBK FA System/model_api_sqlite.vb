@@ -1,4 +1,4 @@
-﻿Imports System.Globalization
+Imports System.Globalization
 Imports System.Web.Script.Serialization
 Imports Newtonsoft.Json
 
@@ -365,10 +365,10 @@ Public Class model_api_sqlite
             'msgBox("Error Files model_api_sqlite In Function mas_INSERT_production_working_info")
         End Try
     End Function
-    Public Shared Async Function mas_Insert_tag_print(wi As String, qr_detail As String, box_no As Integer, print_count As Integer, seq_no As String, shift As String, flg_control As Integer, item_cd As String, pwi_id As String, tag_group_no As String, goodQty As Integer, nextProcess As String, tr_status As Integer) As Task(Of String)
+    Public Shared Async Function mas_Insert_tag_print(wi As String, qr_detail As String, box_no As Integer, print_count As Integer, seq_no As String, shift As String, flg_control As Integer, item_cd As String, pwi_id As String, tag_group_no As String, goodQty As Integer, nextProcess As String, tr_status As Integer, Optional preserveExistingIncompleteTags As Boolean = False) As Task(Of String)
         Try
             Dim currdated As String = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
-            Await mas_update_tagprint(wi, "2", "0", tr_status)
+            If Not preserveExistingIncompleteTags Then Await mas_update_tagprint(wi, "2", "0", tr_status)
             tag_group_no = "1"
             Dim Sql = "INSERT INTO tag_print_detail(wi,qr_detail,box_no,print_count,created_date,updated_date,seq_no,shift , next_proc ,  flg_control , pwi_id , tag_group_no , tr_status) VALUES ('" & wi & "','" & qr_detail & "','" & box_no & "','" & print_count & "','" & currdated & "','" & currdated & "','" & seq_no & "','" & shift & "','" & nextProcess & "' ,'" & flg_control & "','" & pwi_id & "','" & tag_group_no & "','" & tr_status & "')"
             ''Console.WriteLine(Sql)
@@ -413,11 +413,11 @@ Public Class model_api_sqlite
             'msgBox("Error Files model_api_sqlite In Function mas_Insert_tag_print_sub")
         End Try
     End Function
-    Public Shared Async Function mas_Insert_tag_print_main(wi As String, qr_detail As String, batch_no As Integer, print_count As Integer, seq_no As String, shift As String, flg_control As Integer, item_cd As String, pwi_id As String, tag_group_no As String, next_process As String, tr_status As Integer, lot_no As String) As Task(Of String)
+    Public Shared Async Function mas_Insert_tag_print_main(wi As String, qr_detail As String, batch_no As Integer, print_count As Integer, seq_no As String, shift As String, flg_control As Integer, item_cd As String, pwi_id As String, tag_group_no As String, next_process As String, tr_status As Integer, lot_no As String, Optional preserveExistingIncompleteTags As Boolean = False) As Task(Of String)
         Try
             ' 'msgBox("ready insert Main model")
             Dim currdated As String = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
-            Await mas_update_tagprint(wi, "2", "0", tr_status)
+            If Not preserveExistingIncompleteTags Then Await mas_update_tagprint(wi, "2", "0", tr_status)
             Await mas_update_tagprint_main(wi, "2", "0", tr_status)
             Dim start_id As String = Await mas_Get_ref_start_id(wi, seq_no, Working_Pro.Label18.Text)
             Dim end_id As String = Await mas_Get_ref_end_id(wi, seq_no, Working_Pro.Label18.Text)

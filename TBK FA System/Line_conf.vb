@@ -367,10 +367,7 @@ Public Class Line_conf
         End If
         Insert_list.Label3.Text = MainFrm.Label4.Text
         Prd_detail.Label3.Text = MainFrm.Label4.Text
-        Dim total_delay As Integer = (CDbl(Val(delay_sec.Text)) * 10)
-        Dim api = New api()
-        Dim result_data As String = api.Load_data("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/INSERT_COTROL_MASTER?line_cd=" & ComboBox2.Text & "&ComboBox_master_device=" & ComboBox_master_device.Text & "&device_dio_port_id=" & dio_port & "&printer=" & printer.Text & "&typ_counter=" & type_counter.Text & "&cavity=" & combo_cavity.Text & "&total_delay=" & total_delay & "&scanner=" & scanner.Text & "&TowerLamp=" & tower_lamp.Text)
-        ''Console.WriteLine("http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/INSERT_COTROL_MASTER?line_cd=" & ComboBox2.Text & "&ComboBox_master_device=" & ComboBox_master_device.Text & "&device_dio_port_id=" & dio_port & "&printer=" & printer.Text & "&typ_counter=" & type_counter.Text & "&cavity=" & combo_cavity.Text & "&total_delay=" & total_delay & "&scanner=" & scanner.Text & "&TowerLamp=" & tower_lamp.Text)
+        Dim result_data As String = SyncControlMaster(CInt(Val(combo_cavity.Text)), True)
         ' Button1.Enabled = False
         'btn_start.Enabled = False
         'btn_back.Enabled = False
@@ -393,6 +390,68 @@ Public Class Line_conf
         List_Emp.ListBox2.Items.Clear()
         ''msgBox("Update Success.")
     End Sub
+
+    Public Function SyncControlMaster(cavityValue As Integer, Optional useFormValues As Boolean = False) As String
+        Dim currentLine As String = MainFrm.Label4.Text
+        Dim currentCountType As String = MainFrm.count_type.Text
+        Dim currentScanner As String = MainFrm.lb_scanner_port.Text
+        Dim currentPrinter As String = MainFrm.lb_printer_port.Text
+        Dim currentDio As String = MainFrm.lb_dio_port.Text
+        Dim apiClient = New api()
+
+        If String.IsNullOrWhiteSpace(currentLine) Then currentLine = ComboBox2.Text
+        If String.IsNullOrWhiteSpace(currentCountType) Then currentCountType = type_counter.Text
+        If String.IsNullOrWhiteSpace(currentScanner) Then currentScanner = scanner.Text
+        If String.IsNullOrWhiteSpace(currentPrinter) Then currentPrinter = printer.Text
+        If String.IsNullOrWhiteSpace(currentDio) Then currentDio = DIO_PORT.Text
+
+        Dim masterDevice As String = "NO_DEVICE"
+        Dim towerLamp As String = "NO_DEVICE"
+        Dim totalDelay As Integer = 0
+
+        If useFormValues Then
+            masterDevice = If(String.IsNullOrWhiteSpace(ComboBox_master_device.Text), "NO_DEVICE", ComboBox_master_device.Text)
+            towerLamp = If(String.IsNullOrWhiteSpace(tower_lamp.Text), "NO_DEVICE", tower_lamp.Text)
+            totalDelay = CInt(CDbl(Val(delay_sec.Text)) * 10)
+        Else
+            Try
+                Dim masterUrl As String = "http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/GET_DATA_NEW_FA/JOIN_CHECK_LINE_MASTER?line_cd=" & Uri.EscapeDataString(currentLine)
+                Dim masterData As String = apiClient.Load_data(masterUrl)
+                If Not String.IsNullOrWhiteSpace(masterData) AndAlso masterData <> "NO_DATA" Then
+                    Dim masterRows As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(masterData)
+                    For Each masterRow As Object In masterRows
+                        currentLine = masterRow("me_line_cd").ToString()
+                        currentCountType = masterRow("mect_name").ToString()
+                        currentScanner = masterRow("mes_name").ToString()
+                        currentPrinter = masterRow("mep_name").ToString()
+                        currentDio = masterRow("mec_name").ToString()
+                        masterDevice = masterRow("mecg_name").ToString()
+                        towerLamp = masterRow("metl_comport").ToString()
+                    Next
+                End If
+            Catch
+            End Try
+            Try
+                Dim delayValue As Object = New Backoffice_model().Get_default_pd_detail_PD("Delay")
+                totalDelay = CInt(CDbl(Val(delayValue.ToString())) * 10)
+            Catch
+                totalDelay = 0
+            End Try
+        End If
+
+        Dim baseUrl As String = "http://" & Backoffice_model.svApi & "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/INSERT_COTROL_MASTER"
+        Dim requestUrl As String = baseUrl &
+            "?line_cd=" & Uri.EscapeDataString(currentLine) &
+            "&ComboBox_master_device=" & Uri.EscapeDataString(masterDevice) &
+            "&device_dio_port_id=" & Uri.EscapeDataString(currentDio) &
+            "&printer=" & Uri.EscapeDataString(currentPrinter) &
+            "&typ_counter=" & Uri.EscapeDataString(currentCountType) &
+            "&cavity=" & cavityValue.ToString() &
+            "&total_delay=" & totalDelay.ToString() &
+            "&scanner=" & Uri.EscapeDataString(currentScanner) &
+            "&TowerLamp=" & Uri.EscapeDataString(towerLamp)
+        Return apiClient.Load_data(requestUrl)
+    End Function
     Private Sub menu3_Click(sender As Object, e As EventArgs)
         Me.Enabled = False
         Me.ComboBox2.DataSource = Nothing
