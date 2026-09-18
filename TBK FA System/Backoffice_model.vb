@@ -316,14 +316,20 @@ Public Class Backoffice_model
             Return False
         End If
 
+        Dim normalizedSeq As Integer
+        If Not TryNormalizeProductionActualDetailSequence(oldSeq, normalizedSeq) Then
+            reason = "Historical sequence is invalid."
+            Return False
+        End If
+
         Try
             Using connection As New SqlConnection(sqlConnect)
                 connection.Open()
                 Const sql As String = "SELECT COALESCE(SUM(qty), 0) FROM production_actual_detail " &
-                                      "WHERE pwi_id = @pwi_id AND seq_no = @seq_no"
+                                      "WHERE pwi_id = @pwi_id AND TRY_CONVERT(INT, seq_no) = @seq_no"
                 Using command As New SqlCommand(sql, connection)
                     command.Parameters.Add("@pwi_id", SqlDbType.VarChar, 100).Value = oldPwi.Trim()
-                    command.Parameters.Add("@seq_no", SqlDbType.VarChar, 50).Value = oldSeq.Trim()
+                    command.Parameters.Add("@seq_no", SqlDbType.Int).Value = normalizedSeq
                     Dim value As Object = command.ExecuteScalar()
                     If value IsNot Nothing AndAlso value IsNot DBNull.Value Then
                         netMovement = Convert.ToInt64(value, CultureInfo.InvariantCulture)
@@ -358,9 +364,14 @@ Public Class Backoffice_model
             If pair Is Nothing OrElse String.IsNullOrWhiteSpace(pair.Item1) OrElse String.IsNullOrWhiteSpace(pair.Item2) Then
                 Continue For
             End If
-            Dim key As String = pair.Item1.Trim() & "|" & pair.Item2.Trim()
+            Dim normalizedSeq As Integer
+            If Not TryNormalizeProductionActualDetailSequence(pair.Item2, normalizedSeq) Then
+                reason = "Historical sequence is invalid."
+                Return False
+            End If
+            Dim key As String = BuildProductionActualDetailRecoveryKey(pair.Item1, pair.Item2)
             If seenKeys.Add(key) Then
-                distinctPairs.Add(New Tuple(Of String, String)(pair.Item1.Trim(), pair.Item2.Trim()))
+                distinctPairs.Add(New Tuple(Of String, String)(pair.Item1.Trim(), normalizedSeq.ToString(CultureInfo.InvariantCulture)))
             End If
         Next
 
@@ -378,25 +389,24 @@ Public Class Backoffice_model
                     For i As Integer = 0 To distinctPairs.Count - 1
                         Dim pwiParam As String = "@pwi" & i.ToString(CultureInfo.InvariantCulture)
                         Dim seqParam As String = "@seq" & i.ToString(CultureInfo.InvariantCulture)
-                        whereClauses.Add("(pwi_id = " & pwiParam & " AND seq_no = " & seqParam & ")")
+                        whereClauses.Add("(pwi_id = " & pwiParam & " AND TRY_CONVERT(INT, seq_no) = " & seqParam & ")")
 
                         command.Parameters.Add(pwiParam, SqlDbType.VarChar, 100).Value = distinctPairs(i).Item1
-                        command.Parameters.Add(seqParam, SqlDbType.VarChar, 50).Value = distinctPairs(i).Item2
+                        command.Parameters.Add(seqParam, SqlDbType.Int).Value = Integer.Parse(distinctPairs(i).Item2, CultureInfo.InvariantCulture)
                     Next
 
-                    Dim sql As String = "SELECT pwi_id, seq_no, COALESCE(SUM(qty), 0) AS net_movement " &
+                    Dim sql As String = "SELECT pwi_id, TRY_CONVERT(INT, seq_no) AS normalized_seq, COALESCE(SUM(qty), 0) AS net_movement " &
                                         "FROM production_actual_detail " &
                                         "WHERE " & String.Join(" OR ", whereClauses) & " " &
-                                        "GROUP BY pwi_id, seq_no"
+                                        "GROUP BY pwi_id, TRY_CONVERT(INT, seq_no)"
                     command.CommandText = sql
 
                     Using reader As SqlDataReader = command.ExecuteReader()
                         While reader.Read()
                             Dim rPwi As String = reader("pwi_id").ToString().Trim()
-                            Dim rSeq As String = reader("seq_no").ToString().Trim()
-                            Dim rKey As String = rPwi & "|" & rSeq
+                            Dim rKey As String = BuildProductionActualDetailRecoveryKey(rPwi, reader("normalized_seq").ToString())
                             Dim netVal As Long = Convert.ToInt64(reader("net_movement"), CultureInfo.InvariantCulture)
-                            netMovementsByPair(rKey) = netVal
+                            If Not String.IsNullOrEmpty(rKey) Then netMovementsByPair(rKey) = netVal
                         End While
                     End Using
                 End Using
@@ -406,6 +416,21 @@ Public Class Backoffice_model
             reason = "Unable to read batched production detail movement. " & ex.GetType().Name & ": " & ex.Message
             Return False
         End Try
+    End Function
+
+    ' Recovery identity treats the numeric sequence forms 7, 07, and 007 as
+    ' the same production sequence.  This affects only read-only detail SUM
+    ' matching; stored/displayed HBL sequence text remains unchanged.
+    Public Shared Function BuildProductionActualDetailRecoveryKey(pwi As String, seq As String) As String
+        If String.IsNullOrWhiteSpace(pwi) Then Return String.Empty
+        Dim normalizedSeq As Integer
+        If Not TryNormalizeProductionActualDetailSequence(seq, normalizedSeq) Then Return String.Empty
+        Return pwi.Trim() & "|" & normalizedSeq.ToString(CultureInfo.InvariantCulture)
+    End Function
+
+    Private Shared Function TryNormalizeProductionActualDetailSequence(value As String, ByRef normalizedSeq As Integer) As Boolean
+        normalizedSeq = 0
+        Return Integer.TryParse(If(value, String.Empty).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, normalizedSeq) AndAlso normalizedSeq >= 0
     End Function
 
     ' The only automatic Phase-1 mutation.  The caller has already required

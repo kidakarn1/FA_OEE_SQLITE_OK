@@ -797,9 +797,9 @@ Public Class MainFrm
                 recovery.DetailQueryReason = batchReason
                 recovery.NetMovement = 0
             Else
-                Dim key As String = transfer.CurrentPwi.Trim() & "|" & transfer.CurrentSeq.Trim()
+                Dim key As String = Backoffice_model.BuildProductionActualDetailRecoveryKey(transfer.CurrentPwi, transfer.CurrentSeq)
                 Dim netMovement As Long = 0
-                If batchMovements IsNot Nothing AndAlso batchMovements.TryGetValue(key, netMovement) Then
+                If Not String.IsNullOrEmpty(key) AndAlso batchMovements IsNot Nothing AndAlso batchMovements.TryGetValue(key, netMovement) Then
                     recovery.NetMovement = netMovement
                 Else
                     ' Valid pair with no detail rows recorded in production_actual_detail: movement is 0
