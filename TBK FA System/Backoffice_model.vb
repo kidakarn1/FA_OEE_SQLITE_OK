@@ -1672,8 +1672,6 @@ Public Class Backoffice_model
 
     Public Shared Function sqlite_conn_dbsv()
         Dim sqliteConn As New SQLiteConnection(sqliteConnect)
-        Check_connect_sqlite()
-        Clear_sqlite()
         Try
             sqliteConn.Open()
             Dim temp_stre As String = ""
@@ -1696,6 +1694,8 @@ Public Class Backoffice_model
         Catch ex As Exception
             'msgBox("SQLite Database connect failed. Please contact PC System [Function sqlite_conn_dbsv]")
             sqliteConn.Close()
+        Finally
+            sqliteConn.Dispose()
         End Try
     End Function
     Public Shared Function OpenRS232(mec_name)
@@ -1742,8 +1742,6 @@ Public Class Backoffice_model
     End Function
     Public Shared Sub GetLocalServerAPI()
         Dim sqliteConn As New SQLiteConnection(sqliteConnect)
-        Check_connect_sqlite()
-        Clear_sqlite()
         Try
             sqliteConn.Open()
             Dim sva_ip_address As String = ""
@@ -1758,12 +1756,12 @@ Public Class Backoffice_model
         Catch ex As Exception
             'msgBox("SQLite Database connect failed. Please contact PC System [Function GetLocalServerAPI]")
             sqliteConn.Close()
+        Finally
+            sqliteConn.Dispose()
         End Try
     End Sub
     Public Shared Sub GetLocalServerOEE()
         Dim sqliteConn As New SQLiteConnection(sqliteConnect)
-        Check_connect_sqlite()
-        Clear_sqlite()
         Try
             sqliteConn.Open()
             Dim svo_ip_address As String = ""
@@ -1779,12 +1777,12 @@ Public Class Backoffice_model
         Catch ex As Exception
             'msgBox("SQLite Database connect failed. Please contact PC System [Function GetLocalServerOEE]")
             sqliteConn.Close()
+        Finally
+            sqliteConn.Dispose()
         End Try
     End Sub
     Public Shared Sub GetLocalServerping()
         Dim sqliteConn As New SQLiteConnection(sqliteConnect)
-        Check_connect_sqlite()
-        Clear_sqlite()
         Try
             sqliteConn.Open()
             Dim tmpsvp_ping As String = ""
@@ -1800,6 +1798,8 @@ Public Class Backoffice_model
         Catch ex As Exception
             'msgBox("SQLite Database connect failed. Please contact PC System [Function svp_ping]")
             sqliteConn.Close()
+        Finally
+            sqliteConn.Dispose()
         End Try
     End Sub
     Public Shared Function checkTransection(pwi_id As String, number_qty As String, DateTime As String)
@@ -2207,6 +2207,22 @@ Public Class Backoffice_model
                             "&rm_componece_part=" & rm_componece_part &
                             "&rm_componece_qty=" & rm_componece_qty
                         )
+            Console.WriteLine("http://" & svApi &
+                            "/API_NEW_FA/index.php/INSERT_DATA_NEW_FA/InsertRmScan" &
+                            "?WI=" & WI &
+                            "&ITEM_CD=" & ITEM_CD &
+                            "&LOT_PO=" & LOT_PO &
+                            "&SEQ=" & SEQ &
+                            "&SHIFT=" & SHIFT &
+                            "&Rm_created_date=" & Rm_created_date &
+                            "&Rm_created_by=" & Rm_created_by &
+                            "&Rm_Updated_date=" & Rm_Updated_date &
+                            "&Rm_updated_by=" & Rm_updated_by &
+                            "&Rm_line_cd=" & Rm_line_cd &
+                            "&Rm_QR_code=" & Rm_QR_code &
+                            "&ref_id=" & ref_id &
+                            "&rm_componece_part=" & rm_componece_part &
+                            "&rm_componece_qty=" & rm_componece_qty)
             Return result
         Catch ex As Exception
             MsgBox("Error Function Insert_Rm_Scan_By_API In Backoffice_model")
@@ -5651,13 +5667,13 @@ recheck:
         End Try
     End Function
     Public Shared Function Check_connect_sqlite()
-        Dim sqliteConn As New SQLiteConnection(sqliteConnect)
-        Try
-            sqliteConn.Open()
-        Catch ex As Exception
-            sqliteConn.Dispose()
-            sqliteConn.Close()
-        End Try
+        Using sqliteConn As New SQLiteConnection(sqliteConnect)
+            Try
+                sqliteConn.Open()
+            Catch ex As Exception
+                ' Callers report connection failures when opening their own query.
+            End Try
+        End Using
     End Function
     Public Shared Function update_tr_status_load(id As Integer)
         Check_connect_sqlite()

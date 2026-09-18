@@ -1209,6 +1209,7 @@
     <Compile Include="Working_Pro.Designer.vb">
       <DependentUpon>Working_Pro.vb</DependentUpon>
     </Compile>
+    <Compile Include="NiCounterInputs.vb" />
     <Compile Include="Working_Pro.vb">
       <SubType>Form</SubType>
     </Compile>

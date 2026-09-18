@@ -52,14 +52,17 @@ Public Class CheckWindow
         Try
             If Not Working_Pro.rsWindow Then Return "Not Supported on this OS"
 
+            Working_Pro.Timer_new_dio.Stop()
+            Working_Pro.ConfigureNiCounterInputs()
             Dim r = SetupReader(digitalReadTask_new_dio, reader_new_dio,
                                 "Dev1/port0/line0:7")
-            If r <> "OK" Then Return r
 
+            If r <> "OK" Then Return r
             Working_Pro.Timer_new_dio.Start()
             Return "OK"
-        Catch
-            Return "Please Check USB DIO"
+        Catch ex As Exception
+            MessageBox.Show(ex.Message, "NI Counter configuration", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return "Please Check USB DIO: " & ex.Message
         End Try
     End Function
 

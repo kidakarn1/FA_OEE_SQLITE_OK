@@ -175,18 +175,11 @@ Public Class MainFrm
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         'CheckSetingMachine.sentParameterLossIO(False)
+        Dim startupStage As String = "Local configuration"
+        Try
         check_process()
         If CheckIfRunning() = 0 Then
-            Await Task.Run(Sub()
-                               dbClass.GetLocalServerAPI()
-                               dbClass.GetLocalServerping()
-                               dbClass.GetLocalServerOEE()
-                               dbClass.sqlite_conn_dbsv()
-                           End Sub)
-            If Not Await WaitForSQLiteEmptyAsync() Then
-                Me.Close()
-                Return
-            End If
+            menu1.Enabled = False
             ' Await dbClass.updated_data_to_dbsvr(Me, "1")
             Timer1.Start()
             Timer2.Start()
@@ -258,6 +251,19 @@ Public Class MainFrm
             If Backoffice_model.SCANNER_PORT <> "" AndAlso Backoffice_model.SCANNER_PORT <> "USB" Then
                 lb_ctrl_sc_flg.Text = "emp"
             End If
+            startupStage = "Server configuration"
+            Backoffice_model.LogPerformance("MainFrm.Startup | " & startupStage, 0)
+            Await Task.Run(Sub()
+                               dbClass.GetLocalServerAPI()
+                               dbClass.GetLocalServerping()
+                               dbClass.GetLocalServerOEE()
+                               dbClass.sqlite_conn_dbsv()
+                           End Sub)
+            startupStage = "Pending production/OP synchronization"
+            Backoffice_model.LogPerformance("MainFrm.Startup | " & startupStage, 0)
+            If Not Await WaitForSQLiteEmptyAsync() Then Return
+            menu1.Enabled = True
+            startupStage = "Production forms"
             Insert_list.Label3.Text = Label4.Text
             Prd_detail.Label3.Text = Label4.Text
             'Await F_UpdateSqlite()
@@ -266,6 +272,14 @@ Public Class MainFrm
         Else
             Application.Exit()
         End If
+        Catch ex As Exception
+            menu1.Enabled = False
+            Me.Enabled = True
+            Backoffice_model.LogPerformance("MainFrm.Startup | Failed | " & startupStage & " | " & ex.GetType().Name, 0)
+            MessageBox.Show("Unable to initialize FA: " & startupStage & vbCrLf & ex.Message & vbCrLf &
+                            "If editing SQLite, save with Write Changes and restart FA.",
+                            "FA startup", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
     End Sub
     Private Sub Timer1_Tick(sender As Object, e As EventArgs) Handles Timer1.Tick
         check_close_fa()
@@ -517,7 +531,13 @@ Public Class MainFrm
                     rsCheckCriticalFlg = Await Check_critical_flg()
                     ' Load the current plan first. Part-based incomplete-box
                     ' detection needs the current Part and runtime SNP.
-                    Await load_page(False)
+                    Dim planLoadResult As String = Await load_page(False)
+                    If planLoadResult <> "1" Then
+                        ProductionStartFlowState.Reset(True)
+                        Prd_detail.Timer3.Enabled = False
+                        Me.Enabled = True
+                        Return
+                    End If
 
                     If ProductionStartFlowState.SelectedMode = ProductionStartMode.NewBox Then
                         ' The normal standard-tag flow creates the next sequence
@@ -680,6 +700,27 @@ Public Class MainFrm
     End Function
 
     Private Async Function WaitForSQLiteEmptyAsync() As Task(Of Boolean)
+        ' Detect an uncommitted DB Browser edit before legacy sync starts writing.
+        ' This transaction changes no data and releases its lock immediately.
+        Try
+            Dim settings As New System.Data.SQLite.SQLiteConnectionStringBuilder(Backoffice_model.sqliteConnect)
+            settings.DefaultTimeout = 1
+            settings.FailIfMissing = True
+            Using connection As New System.Data.SQLite.SQLiteConnection(settings.ConnectionString)
+                connection.Open()
+                Using command As New System.Data.SQLite.SQLiteCommand("BEGIN IMMEDIATE", connection)
+                    command.ExecuteNonQuery()
+                    command.CommandText = "ROLLBACK"
+                    command.ExecuteNonQuery()
+                End Using
+            End Using
+        Catch ex As Exception
+            Me.Enabled = True
+            MessageBox.Show("The local FA database is locked or unavailable." & vbCrLf &
+                            "Save SQLite edits with Write Changes (or revert them), close DB Browser, then restart FA." &
+                            vbCrLf & ex.Message, "Local FA Database", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return False
+        End Try
         Dim hasData As Boolean = True
         ' ฟังก์ชันช่วย ping แบบปลอดภัย ป้องกัน exception
         Dim SafePing As Func(Of String, Boolean) = Function(host As String) As Boolean
@@ -780,9 +821,9 @@ Public Class MainFrm
         Dim batchMovements As Dictionary(Of String, Long) = Nothing
         Dim batchReason As String = String.Empty
         Dim batchSuccess As Boolean = Await Task.Run(Function()
-                                                          Return Backoffice_model.GetProductionActualDetailNetMovementsBatch(
+                                                         Return Backoffice_model.GetProductionActualDetailNetMovementsBatch(
                                                               pairs, batchMovements, batchReason)
-                                                      End Function)
+                                                     End Function)
 
         For Each recovery As IncompleteTransferCrashRecoveryRecord In recoveries
             If recovery Is Nothing OrElse recovery.Transfer Is Nothing Then Continue For
@@ -1004,15 +1045,15 @@ Public Class MainFrm
             }
             closeButton.FlatAppearance.BorderSize = 0
             Dim cancelDialog As Action = Sub()
-                                              result = ProductionStartMode.None
-                                              dialog.Close()
-                                          End Sub
+                                             result = ProductionStartMode.None
+                                             dialog.Close()
+                                         End Sub
             AddHandler closeButton.Click, Sub() cancelDialog()
 
             AddHandler continueButton.Click, Sub()
-                                                result = ProductionStartMode.ContinueExistingBox
-                                                dialog.Close()
-                                            End Sub
+                                                 result = ProductionStartMode.ContinueExistingBox
+                                                 dialog.Close()
+                                             End Sub
             AddHandler anywayButton.Click, Sub()
                                                result = ProductionStartMode.NewBox
                                                dialog.Close()
@@ -1109,6 +1150,7 @@ Public Class MainFrm
     Public Async Function load_page(Optional showProductionConfirmation As Boolean = True) As Task(Of String)
         Working_Pro.lb_nc_qty.Text = "0"
         Working_Pro.lb_ng_qty.Text = "0"
+        Dim status_flg As Integer = 0
         ''msgBox(line_id.Text)
         Try
             ArrayDataPlan = New List(Of DataPlan)
@@ -1117,8 +1159,12 @@ Public Class MainFrm
                 If rsCheckCriticalFlg = "0" Then
                     LoadSQL_prd_plan = Backoffice_model.Get_prd_plan_new(Label4.Text)
                     dataPlan = LoadSQL_prd_plan
-                    Dim dict As Object = New JavaScriptSerializer().Deserialize(Of List(Of Object))(LoadSQL_prd_plan)
-                    If LoadSQL_prd_plan <> " " Then
+                    Dim dict As List(Of Object) = Nothing
+                    If Not String.IsNullOrWhiteSpace(LoadSQL_prd_plan) AndAlso
+                       Trim(LoadSQL_prd_plan) <> "0" Then
+                        dict = New JavaScriptSerializer().Deserialize(Of List(Of Object))(LoadSQL_prd_plan)
+                    End If
+                    If dict IsNot Nothing AndAlso dict.Count > 0 Then
                         For Each item As Object In dict
                             ArrayDataPlan.Add(New DataPlan With {.IND_ROW = item("IND_ROW").ToString(), .PS_UNIT_NUMERATOR = "PS_UNIT_NUMERATOR", .CT = item("CT").ToString(), .seq_no = item("seq_no").ToString(), .WORK_ODR_DLV_DATE = item("WORK_ODR_DLV_DATE").ToString(), .LOCATION_PART = item("LOCATION_PART").ToString(), .MODEL = item("MODEL").ToString(), .PRODUCT_TYP = item("PRODUCT_TYP").ToString(), .wi = item("WI").ToString(), .item_cd = item("ITEM_CD").ToString(), .item_name = item("ITEM_NAME").ToString()})
                             chk_spec_line = item("chk_spec_line").ToString()
@@ -1132,12 +1178,16 @@ Public Class MainFrm
                             Prd_detail.lb_remain_qty.Text = (item("QTY").ToString() - item("prd_qty_sum").ToString())
                             Prd_detail.lb_wi.Text = item("WI").ToString()
                             Prd_detail.LB_PLAN_DATE.Text = item("WORK_ODR_DLV_DATE").ToString().Substring(0, 10)
+                            status_flg = 1
                         Next
                         If showProductionConfirmation Then
-                            Me.Enabled = False
-                            Prd_detail.Show()
+                            If status_flg = 1 Then
+                                Me.Enabled = False
+                                Prd_detail.Show()
+                            End If
                         End If
                     Else
+                        status_flg = 0
                         dataPlan = ""
                         menu1.Enabled = False
                         menu4.Enabled = False
@@ -1158,6 +1208,8 @@ Public Class MainFrm
                         Me.Enabled = True
                     End If
                 Else
+                    ' Plan selection continues in ManagePlan; no plan is ready here yet.
+                    status_flg = 0
                     chk_spec_line = "0"
                     ManagePlan.Show()
                 End If
@@ -1168,6 +1220,7 @@ Public Class MainFrm
                 LoadSQLskill.Close()
             End If
         Catch ex As Exception
+            status_flg = 0
             'Console.WriteLine("error ===>" & ex.Message)
             load_show.Show()
             Me.Enabled = True
@@ -1176,6 +1229,7 @@ Public Class MainFrm
                             MessageBoxButtons.OK,
                             MessageBoxIcon.Error)
         End Try
+        Return status_flg.ToString()
     End Function
     Function GetLastDayOfMonth(ByVal CurrentDate As DateTime) As DateTime
         With CurrentDate

@@ -7236,7 +7236,7 @@ outNet:
                                                                         End Sub, TaskScheduler.FromCurrentSynchronizationContext())
             Catch ex As Exception
                 ''Console.WriteLine("[Manage_counter_NI_MAX] " & ex.Message)
-                check_bull_op(0) = 0
+                check_bull_op(flagIndex) = 0
             End Try
         End If
     End Function
@@ -7342,22 +7342,94 @@ outNet:
 
         'Return cboExpected.SelectedItem.ToString()
     End Function
+    Private niInputs As NiCounterInputs
+    Private niCounterDraining As Boolean
+    Private niLastDiagnostic As String = Nothing
+    Private niLastDiagnosticMs As Long = -2000
+    Private ReadOnly niInputClock As Diagnostics.Stopwatch = Diagnostics.Stopwatch.StartNew()
+
+    Public Sub ConfigureNiCounterInputs()
+        If niCounterDraining Then Throw New InvalidOperationException("Wait for the current NI count before reconfiguring inputs.")
+        Using connection As New SQLiteConnection(Backoffice_model.sqliteConnect)
+            connection.Open()
+            ' Legacy schemas declare dio_detail INTEGER. System.Data.SQLite may
+            ' coerce stored CSV text to its first number unless SQL returns TEXT.
+            Using command As New SQLiteCommand("SELECT CAST(dio_detail AS TEXT) FROM line_detail WHERE id = 1", connection)
+                Dim config As Object = command.ExecuteScalar()
+                niInputs = New NiCounterInputs(Convert.ToString(config))
+                Backoffice_model.LogPerformance("NI.Config | dio_detail=" & Convert.ToString(config) & " | Device=Dev1/port0/line0:7", 0)
+                niLastDiagnostic = Nothing
+            End Using
+        End Using
+    End Sub
+
+    Private Function NiProductionContext() As String
+        ' Box/sequence changes within the same WI must not discard simultaneous counts.
+        Return MainFrm.Label4.Text & "|" & wi_no.Text & "|" & Label3.Text & "|" & Label18.Text & "|" & Convert.ToString(pwi_id)
+    End Function
+
+    Private Async Function DrainNiCounterInputs() As Task
+        If niCounterDraining OrElse check_bull <> 0 OrElse RemainScanDmc > 0 Then Return
+        niCounterDraining = True
+        Try
+            While Timer_new_dio.Enabled AndAlso start_flg = 1 AndAlso Not IsDisposed
+                If RemainScanDmc > 0 Then Exit While
+                If Not CanAcceptContinueCounterInput() Then Exit While
+                Dim channel As Integer
+                If Not niInputs.TryTake(NiProductionContext(), channel) Then Exit While
+                Backoffice_model.LogPerformance("NI.Count.Begin | Channel=" & channel.ToString() & " | Actual=" & Label6.Text, 0)
+                check_bull = 1
+                Try
+                    WriteDebugDiagnostic("NI main counter line=" & channel.ToString())
+                    If slm_flg_qr_prod = 1 Then
+                        RemainScanDmc += 1
+                        Await ManageScanQrProd()
+                    Else
+                        Await counter_data_new_dio()
+                    End If
+                    cal_eff()
+                    Backoffice_model.LogPerformance("NI.Count.End | Channel=" & channel.ToString() & " | Actual=" & Label6.Text, 0)
+                    Dim delayMs As Integer = Math.Max(0, If(status_conter = "0", s_delay * 100, s_delay * 1000))
+                    Await Task.Delay(delayMs)
+                Finally
+                    ' Never replay a partially committed count after an exception.
+                    check_bull = 0
+                End Try
+            End While
+            If start_flg <> 1 OrElse Not Timer_new_dio.Enabled Then niInputs.Clear()
+        Catch
+            Timer_new_dio.Stop()
+            niInputs.Clear()
+            Throw
+        Finally
+            niCounterDraining = False
+        End Try
+    End Function
+
     Private Async Sub Tiemr_new_dio_Tick(sender As Object, e As EventArgs) Handles Timer_new_dio.Tick
         If rsWindow Then
             Try
                 'Await CheckModel_Pokayoke()
                 Dim states As Boolean() = CheckWindow.reader_new_dio.ReadSingleSampleMultiLine()
-                CheckWindow.data_new_dio = CheckWindow.reader_new_dio.ReadSingleSamplePortUInt32()
+                ' Use one snapshot for both main counts and OP counts.
+                CheckWindow.data_new_dio = 0UI
+                For bit As Integer = 0 To states.Length - 1
+                    If states(bit) Then CheckWindow.data_new_dio = CheckWindow.data_new_dio Or (1UI << bit)
+                Next
                 WriteDebugDiagnostic("[Timer] Pokayoke states read")
-                'If CheckWindow.data_new_dio.ToString() <> "255" Then
-                If Not states(0) Then
-                    If check_bull = 0 Then
-                        If start_flg = 1 Then
-                            WriteDebugDiagnostic("Pokayoke counter event")
-                            Await Manage_counter_NI_MAX()
-                        End If
-                    End If
+                If niInputs Is Nothing Then Throw New InvalidOperationException("NI Counter configuration has not been loaded.")
+                Dim debounceMs As Integer = Math.Max(0, If(status_conter = "0", s_delay * 100, s_delay * 1000))
+                niInputs.Capture(states, NiProductionContext(), start_flg = 1, niInputClock.ElapsedMilliseconds, debounceMs)
+                Dim inputSummary As String = "NI.Input | HighBits=" & CheckWindow.data_new_dio.ToString() &
+                    " | Start=" & start_flg.ToString() & " | Busy=" & check_bull.ToString() &
+                    " | ScanPending=" & RemainScanDmc.ToString() & " | Draining=" & niCounterDraining.ToString() &
+                    " | Pending=" & niInputs.PendingCount.ToString() & " | DebounceMs=" & debounceMs.ToString()
+                If inputSummary <> niLastDiagnostic AndAlso niInputClock.ElapsedMilliseconds - niLastDiagnosticMs >= 500 Then
+                    Backoffice_model.LogPerformance(inputSummary, 0)
+                    niLastDiagnostic = inputSummary
+                    niLastDiagnosticMs = niInputClock.ElapsedMilliseconds
                 End If
+                Dim pendingWork As New List(Of Task)()
                 If Not String.IsNullOrWhiteSpace(map_OP) AndAlso map_OP <> "0" Then
                     Dim serializer As New JavaScriptSerializer()
                     Dim dict2 As List(Of Dictionary(Of String, Object)) = serializer.Deserialize(Of List(Of Dictionary(Of String, Object)))(map_OP)
@@ -7371,7 +7443,7 @@ outNet:
                                 Dim plan_seq As String = Label22.Text.PadLeft(3, "0"c)
                                 Dim opId As String = Convert.ToString(m("op_id"))
                                 ' check_bull_op(idx) = 1 ' กันเด้งก่อน Await
-                                Await Manage_counter_NI_MAX_By_OP(
+                                pendingWork.Add(Manage_counter_NI_MAX_By_OP(
                     MainFrm.Label6.Text,  ' pd
                     MainFrm.Label4.Text,  ' line_cd
                     wi_no.Text,           ' wi_plan
@@ -7381,18 +7453,21 @@ outNet:
                     plan_seq,             ' seq_no
                     opId,                 ' ใช้จาก JSON
                     idx
-)
+))
                             End If
                         Else
                             check_bull_op(idx) = 0 ' ปล่อยสัญญาณแล้ว รีเซ็ต
                         End If
                     Next
                 End If
+                pendingWork.Add(DrainNiCounterInputs())
+                Await Task.WhenAll(pendingWork)
             Catch ex As Exception
                 'Button1.Enabled = False
                 btnStart.Enabled = False
                 btn_back.Enabled = False
-                Dim listdetail = "Please Check DIO"
+                Dim listdetail = "Please Check DIO: " & ex.Message
+                Backoffice_model.LogPerformance("NI.Error | " & ex.ToString(), 0)
                 PictureBox10.BringToFront()
                 PictureBox10.Show()
                 PictureBox16.BringToFront()
@@ -7403,6 +7478,7 @@ outNet:
                 Label2.BringToFront()
                 Label2.Show()
                 Timer_new_dio.Stop()
+                If niInputs IsNot Nothing Then niInputs.Clear()
             End Try
         End If
     End Sub
