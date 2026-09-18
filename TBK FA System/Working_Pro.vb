@@ -3241,6 +3241,20 @@ Public Class Working_Pro
             EnsureNormalNewBoxPackagingBaseline()
         End If
         If Not SeedOldActiveRecoveryPackagingForCurrentNewSequence() Then Return
+        If IsOldActiveRecoveryFull() Then
+            ' The recovered production detail already fills BOX001. Complete and
+            ' print it now; requiring another counter event would create a false
+            ' extra production quantity merely to release the durable ACTIVE row.
+            Console.WriteLine("[OLD-RECOVERY] FULL AT START | Complete without additional production movement.")
+            GoodQty = CInt(Val(Label27.Text))
+            tag_print()
+            If _continueTagPersistenceFailed OrElse
+               ProductionStartFlowState.SelectedOldActiveRecovery IsNot Nothing Then
+                logStartStage("OldRecoveryFullAtStart", "BlockedIncomplete")
+                Return
+            End If
+            logStartStage("OldRecoveryFullAtStart", "Completed")
+        End If
         logStartStage("NormalPackagingBaseline", "Completed")
         Try
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
@@ -5407,6 +5421,9 @@ outNet:
                         the_Label_bach = Label_bach.Text
                     End If
                     box_no = the_Label_bach
+                End If
+                If IsDurableContinueFullCompletionPending() Then
+                    box_no = _resumeContext.CurrentBoxNo.ToString("000", CultureInfo.InvariantCulture)
                 End If
                 Dim tr_status As Integer = 1
                 ' 'msgBox("IF ")

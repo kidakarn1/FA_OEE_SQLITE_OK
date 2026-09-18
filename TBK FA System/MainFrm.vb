@@ -8,6 +8,7 @@ Imports Microsoft.Web.WebView2.Core
 Imports Microsoft.Web.WebView2.WinForms
 Public Class MainFrm
     Private WithEvents WebViewEmergency As WebView2
+    Private Shared _productionStartFlowActive As Integer
     Public Sub ClickButton()
         Application.Exit()
     End Sub
@@ -177,101 +178,101 @@ Public Class MainFrm
         'CheckSetingMachine.sentParameterLossIO(False)
         Dim startupStage As String = "Local configuration"
         Try
-        check_process()
-        If CheckIfRunning() = 0 Then
-            menu1.Enabled = False
-            ' Await dbClass.updated_data_to_dbsvr(Me, "1")
-            Timer1.Start()
-            Timer2.Start()
-            Dim sqlss = Backoffice_model.ConnectDBSQLite()
-            If sqlss Is Nothing Then
-                Backoffice_model.LogPerformance("MainFrm.LocalLineConfiguration | ReaderUnavailable", 0)
-                MessageBox.Show("Local line configuration could not be loaded." & vbCrLf &
+            check_process()
+            If CheckIfRunning() = 0 Then
+                menu1.Enabled = False
+                ' Await dbClass.updated_data_to_dbsvr(Me, "1")
+                Timer1.Start()
+                Timer2.Start()
+                Dim sqlss = Backoffice_model.ConnectDBSQLite()
+                If sqlss Is Nothing Then
+                    Backoffice_model.LogPerformance("MainFrm.LocalLineConfiguration | ReaderUnavailable", 0)
+                    MessageBox.Show("Local line configuration could not be loaded." & vbCrLf &
                                 "Please check the local FA database/configuration.",
                                 "Local Configuration",
                                 MessageBoxButtons.OK,
                                 MessageBoxIcon.Error)
-                Me.Close()
-                Return
-            End If
+                    Me.Close()
+                    Return
+                End If
 
-            Dim configuredPd As String = String.Empty
-            Dim configuredLineCode As String = String.Empty
-            Dim configuredCountType As String = String.Empty
-            Dim configuredCavity As String = String.Empty
-            Dim configuredScannerPort As String = String.Empty
-            Dim configuredPrinterPort As String = String.Empty
-            Dim configuredDioPort As String = String.Empty
-            Try
-                While sqlss.Read()
-                    configuredPd = Convert.ToString(sqlss("pd")).Trim()
-                    configuredLineCode = Convert.ToString(sqlss("line_cd")).Trim()
-                    configuredCountType = Convert.ToString(sqlss("count_type"))
-                    configuredCavity = Convert.ToString(sqlss("cavity"))
-                    configuredScannerPort = Convert.ToString(sqlss("scanner_port"))
-                    configuredPrinterPort = Convert.ToString(sqlss("printer_port"))
-                    configuredDioPort = Convert.ToString(sqlss("dio_port"))
-                End While
-            Catch ex As Exception
-                Backoffice_model.LogPerformance("MainFrm.LocalLineConfiguration | ReadFailed", 0)
-                MessageBox.Show("Local line configuration could not be loaded." & vbCrLf &
-                                "Please check the local FA database/configuration.",
-                                "Local Configuration",
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Error)
-                Me.Close()
-                Return
-            Finally
+                Dim configuredPd As String = String.Empty
+                Dim configuredLineCode As String = String.Empty
+                Dim configuredCountType As String = String.Empty
+                Dim configuredCavity As String = String.Empty
+                Dim configuredScannerPort As String = String.Empty
+                Dim configuredPrinterPort As String = String.Empty
+                Dim configuredDioPort As String = String.Empty
                 Try
-                    sqlss.Close()
+                    While sqlss.Read()
+                        configuredPd = Convert.ToString(sqlss("pd")).Trim()
+                        configuredLineCode = Convert.ToString(sqlss("line_cd")).Trim()
+                        configuredCountType = Convert.ToString(sqlss("count_type"))
+                        configuredCavity = Convert.ToString(sqlss("cavity"))
+                        configuredScannerPort = Convert.ToString(sqlss("scanner_port"))
+                        configuredPrinterPort = Convert.ToString(sqlss("printer_port"))
+                        configuredDioPort = Convert.ToString(sqlss("dio_port"))
+                    End While
                 Catch ex As Exception
-                    Backoffice_model.LogPerformance("MainFrm.LocalLineConfiguration | ReaderCloseFailed", 0)
+                    Backoffice_model.LogPerformance("MainFrm.LocalLineConfiguration | ReadFailed", 0)
+                    MessageBox.Show("Local line configuration could not be loaded." & vbCrLf &
+                                "Please check the local FA database/configuration.",
+                                "Local Configuration",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error)
+                    Me.Close()
+                    Return
+                Finally
+                    Try
+                        sqlss.Close()
+                    Catch ex As Exception
+                        Backoffice_model.LogPerformance("MainFrm.LocalLineConfiguration | ReaderCloseFailed", 0)
+                    End Try
                 End Try
-            End Try
 
-            If String.IsNullOrWhiteSpace(configuredPd) OrElse String.IsNullOrWhiteSpace(configuredLineCode) Then
-                Backoffice_model.LogPerformance("MainFrm.LocalLineConfiguration | MissingPdOrLine", 0)
-                MessageBox.Show("Local line configuration is incomplete." & vbCrLf &
+                If String.IsNullOrWhiteSpace(configuredPd) OrElse String.IsNullOrWhiteSpace(configuredLineCode) Then
+                    Backoffice_model.LogPerformance("MainFrm.LocalLineConfiguration | MissingPdOrLine", 0)
+                    MessageBox.Show("Local line configuration is incomplete." & vbCrLf &
                                 "Please configure a valid PD and Line Code in the local FA database.",
                                 "Local Configuration",
                                 MessageBoxButtons.OK,
                                 MessageBoxIcon.Error)
-                Me.Close()
-                Return
-            End If
+                    Me.Close()
+                    Return
+                End If
 
-            Label6.Text = configuredPd
-            Label4.Text = configuredLineCode
-            count_type.Text = configuredCountType
-            cavity.Text = configuredCavity
-            lb_scanner_port.Text = configuredScannerPort
-            lb_printer_port.Text = configuredPrinterPort
-            lb_dio_port.Text = configuredDioPort
-            Backoffice_model.SCANNER_PORT = configuredScannerPort
-            If Backoffice_model.SCANNER_PORT <> "" AndAlso Backoffice_model.SCANNER_PORT <> "USB" Then
-                lb_ctrl_sc_flg.Text = "emp"
+                Label6.Text = configuredPd
+                Label4.Text = configuredLineCode
+                count_type.Text = configuredCountType
+                cavity.Text = configuredCavity
+                lb_scanner_port.Text = configuredScannerPort
+                lb_printer_port.Text = configuredPrinterPort
+                lb_dio_port.Text = configuredDioPort
+                Backoffice_model.SCANNER_PORT = configuredScannerPort
+                If Backoffice_model.SCANNER_PORT <> "" AndAlso Backoffice_model.SCANNER_PORT <> "USB" Then
+                    lb_ctrl_sc_flg.Text = "emp"
+                End If
+                startupStage = "Server configuration"
+                Backoffice_model.LogPerformance("MainFrm.Startup | " & startupStage, 0)
+                Await Task.Run(Sub()
+                                   dbClass.GetLocalServerAPI()
+                                   dbClass.GetLocalServerping()
+                                   dbClass.GetLocalServerOEE()
+                                   dbClass.sqlite_conn_dbsv()
+                               End Sub)
+                startupStage = "Pending production/OP synchronization"
+                Backoffice_model.LogPerformance("MainFrm.Startup | " & startupStage, 0)
+                If Not Await WaitForSQLiteEmptyAsync() Then Return
+                menu1.Enabled = True
+                startupStage = "Production forms"
+                Insert_list.Label3.Text = Label4.Text
+                Prd_detail.Label3.Text = Label4.Text
+                'Await F_UpdateSqlite()
+                Await ShowInformationByStatus(Label6.Text, Label4.Text)
+                Await checkcmd()
+            Else
+                Application.Exit()
             End If
-            startupStage = "Server configuration"
-            Backoffice_model.LogPerformance("MainFrm.Startup | " & startupStage, 0)
-            Await Task.Run(Sub()
-                               dbClass.GetLocalServerAPI()
-                               dbClass.GetLocalServerping()
-                               dbClass.GetLocalServerOEE()
-                               dbClass.sqlite_conn_dbsv()
-                           End Sub)
-            startupStage = "Pending production/OP synchronization"
-            Backoffice_model.LogPerformance("MainFrm.Startup | " & startupStage, 0)
-            If Not Await WaitForSQLiteEmptyAsync() Then Return
-            menu1.Enabled = True
-            startupStage = "Production forms"
-            Insert_list.Label3.Text = Label4.Text
-            Prd_detail.Label3.Text = Label4.Text
-            'Await F_UpdateSqlite()
-            Await ShowInformationByStatus(Label6.Text, Label4.Text)
-            Await checkcmd()
-        Else
-            Application.Exit()
-        End If
         Catch ex As Exception
             menu1.Enabled = False
             Me.Enabled = True
@@ -500,8 +501,14 @@ Public Class MainFrm
     End Function
 
     Private Async Sub menu1_Click_1(sender As Object, e As EventArgs) Handles menu1.Click
-        Await CheckMemoryLeak()
+        If Interlocked.CompareExchange(_productionStartFlowActive, 1, 0) <> 0 Then
+            Console.WriteLine("[PRODUCTION-START] Duplicate click ignored.")
+            Return
+        End If
+
         Try
+            menu1.Enabled = False
+            Await CheckMemoryLeak()
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 If Not Await WaitForSQLiteEmptyAsync() Then Return
                 Backoffice_model.gobal_Flg_autoTranferProductions = Await Backoffice_model.Check_detail_actual_insert_act(Me) 'กรณีเครื่องดับ'
@@ -540,6 +547,7 @@ Public Class MainFrm
                     End If
 
                     If ProductionStartFlowState.SelectedMode = ProductionStartMode.NewBox Then
+                        Dim startNewBoxWarningAcknowledged As Boolean = False
                         ' The normal standard-tag flow creates the next sequence
                         ' from this displayed prior sequence.  Discover and log
                         ' line-level older ACTIVE transfers before this fresh
@@ -554,6 +562,7 @@ Public Class MainFrm
                         End If
                         Dim oldActiveRecoveries As List(Of IncompleteTransferCrashRecoveryRecord) = Nothing
                         Dim oldActiveReason As String = String.Empty
+                        ' MsgBox("D1")
                         If Backoffice_model.GetCrashRecoveryActiveTransfersForLine(Label4.Text, oldActiveRecoveries, oldActiveReason) AndAlso
                            oldActiveRecoveries IsNot Nothing AndAlso oldActiveRecoveries.Count > 0 Then
                             Await LoadOldActiveRecoveryQuantitiesAsync(oldActiveRecoveries)
@@ -561,12 +570,14 @@ Public Class MainFrm
                             ' normal incomplete-box picker.  Choosing Start New
                             ' deliberately leaves recovery unselected; choosing
                             ' View opens the unchanged picker with recovery rows.
+                            '  MsgBox("D2")
                             Dim recoveryChoice As ProductionStartMode = ShowIncompleteBoxWarning(New IncompleteBoxRecord())
                             If recoveryChoice = ProductionStartMode.None Then
                                 ProductionStartFlowState.Reset(False)
                                 Me.Enabled = True
                                 Return
                             End If
+                            ' MsgBox("D3")
                             If recoveryChoice = ProductionStartMode.ContinueExistingBox Then
                                 Dim selectedOldActive As IncompleteTransferCrashRecoveryRecord = SelectOldActiveRecoveryBeforePlanConfirmation(oldActiveRecoveries)
                                 If selectedOldActive Is Nothing Then
@@ -584,6 +595,8 @@ Public Class MainFrm
                             Else
                                 ProductionStartFlowState.SelectedOldActiveRecovery = Nothing
                                 ProductionStartFlowState.OldActiveRecoverySeedApplied = False
+                                startNewBoxWarningAcknowledged = True
+                                Console.WriteLine("[INCOMPLETE-WARNING] DECISION=NEW_BOX source=OLD-RECOVERY; pending warning skipped.")
                             End If
                         ElseIf Not String.IsNullOrWhiteSpace(oldActiveReason) Then
                             Console.WriteLine("[OLD-RECOVERY] DISCOVERY ERROR | " & oldActiveReason)
@@ -592,7 +605,8 @@ Public Class MainFrm
                         ' A chosen old ACTIVE recovery box is a NewBox packaging
                         ' hand-off, never a normal Continue candidate.  Do not let
                         ' the normal picker replace that explicit selection.
-                        If ProductionStartFlowState.SelectedOldActiveRecovery Is Nothing Then
+                        If ProductionStartFlowState.SelectedOldActiveRecovery Is Nothing AndAlso
+                           Not startNewBoxWarningAcknowledged Then
                             Dim incompleteBoxes = Backoffice_model.GetIncompleteBoxes(
                                 Prd_detail.lb_wi.Text,
                                 Label4.Text,
@@ -651,6 +665,7 @@ Public Class MainFrm
                 Me.Enabled = True ' กัน หน้าจอ ล็อค
             End If
         Catch ex As Exception
+            ' MsgBox("D4")
             ProductionStartFlowState.Reset(True)
             load_show.Show()
             Me.Enabled = True ' กัน หน้าจอ ล็อค
@@ -659,6 +674,9 @@ Public Class MainFrm
                             MessageBoxButtons.OK,
                             MessageBoxIcon.Error)
             ' 'msgBox("Please Wait Trasnfer Data.")
+        Finally
+            If Not IsDisposed Then menu1.Enabled = True
+            Interlocked.Exchange(_productionStartFlowActive, 0)
         End Try
     End Sub
 
@@ -1038,26 +1056,33 @@ Public Class MainFrm
             ConfigureIncompleteBoxActionButton(anywayButton, Color.FromArgb(28, 164, 81), False)
             ConfigureIncompleteBoxCancelButton(cancelButton)
 
+            Dim decisionTaken As Boolean = False
+            Dim completeDecision As Action(Of ProductionStartMode) =
+                Sub(selectedMode)
+                    If decisionTaken Then
+                        Console.WriteLine("[INCOMPLETE-WARNING] Duplicate modal click ignored.")
+                        Return
+                    End If
+                    decisionTaken = True
+                    continueButton.Enabled = False
+                    anywayButton.Enabled = False
+                    cancelButton.Enabled = False
+                    result = selectedMode
+                    Console.WriteLine("[INCOMPLETE-WARNING] Modal decision=" & selectedMode.ToString())
+                    dialog.Close()
+                End Sub
+
             Dim closeButton As New Button With {
                 .Text = "×", .FlatStyle = FlatStyle.Flat, .BackColor = Color.FromArgb(255, 197, 37),
                 .ForeColor = Color.FromArgb(24, 35, 45), .Font = New Font("Segoe UI", 22.0!, FontStyle.Bold),
                 .Location = New Point(665, 22), .Size = New Size(36, 36), .TabStop = False
             }
             closeButton.FlatAppearance.BorderSize = 0
-            Dim cancelDialog As Action = Sub()
-                                             result = ProductionStartMode.None
-                                             dialog.Close()
-                                         End Sub
+            Dim cancelDialog As Action = Sub() completeDecision(ProductionStartMode.None)
             AddHandler closeButton.Click, Sub() cancelDialog()
 
-            AddHandler continueButton.Click, Sub()
-                                                 result = ProductionStartMode.ContinueExistingBox
-                                                 dialog.Close()
-                                             End Sub
-            AddHandler anywayButton.Click, Sub()
-                                               result = ProductionStartMode.NewBox
-                                               dialog.Close()
-                                           End Sub
+            AddHandler continueButton.Click, Sub() completeDecision(ProductionStartMode.ContinueExistingBox)
+            AddHandler anywayButton.Click, Sub() completeDecision(ProductionStartMode.NewBox)
             AddHandler cancelButton.Click, Sub() cancelDialog()
 
             dialog.CancelButton = cancelButton

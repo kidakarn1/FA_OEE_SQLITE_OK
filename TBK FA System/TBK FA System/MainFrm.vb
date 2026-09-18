@@ -8,6 +8,7 @@ Imports Microsoft.Web.WebView2.Core
 Imports Microsoft.Web.WebView2.WinForms
 Public Class MainFrm
     Private WithEvents WebViewEmergency As WebView2
+    Private Shared _productionStartFlowActive As Integer
     Public Sub ClickButton()
         Application.Exit()
     End Sub
@@ -486,8 +487,14 @@ Public Class MainFrm
     End Function
 
     Private Async Sub menu1_Click_1(sender As Object, e As EventArgs) Handles menu1.Click
-        Await CheckMemoryLeak()
+        If Interlocked.CompareExchange(_productionStartFlowActive, 1, 0) <> 0 Then
+            Console.WriteLine("[PRODUCTION-START] Duplicate click ignored.")
+            Return
+        End If
+
         Try
+            menu1.Enabled = False
+            Await CheckMemoryLeak()
             If My.Computer.Network.Ping(Backoffice_model.svp_ping) Then
                 If Not Await WaitForSQLiteEmptyAsync() Then Return
                 Backoffice_model.gobal_Flg_autoTranferProductions = Await Backoffice_model.Check_detail_actual_insert_act(Me) 'กรณีเครื่องดับ'
@@ -520,6 +527,7 @@ Public Class MainFrm
                     Await load_page(False)
 
                     If ProductionStartFlowState.SelectedMode = ProductionStartMode.NewBox Then
+                        Dim startNewBoxWarningAcknowledged As Boolean = False
                         ' The normal standard-tag flow creates the next sequence
                         ' from this displayed prior sequence.  Discover and log
                         ' line-level older ACTIVE transfers before this fresh
@@ -564,6 +572,8 @@ Public Class MainFrm
                             Else
                                 ProductionStartFlowState.SelectedOldActiveRecovery = Nothing
                                 ProductionStartFlowState.OldActiveRecoverySeedApplied = False
+                                startNewBoxWarningAcknowledged = True
+                                Console.WriteLine("[INCOMPLETE-WARNING] DECISION=NEW_BOX source=OLD-RECOVERY; pending warning skipped.")
                             End If
                         ElseIf Not String.IsNullOrWhiteSpace(oldActiveReason) Then
                             Console.WriteLine("[OLD-RECOVERY] DISCOVERY ERROR | " & oldActiveReason)
@@ -572,7 +582,8 @@ Public Class MainFrm
                         ' A chosen old ACTIVE recovery box is a NewBox packaging
                         ' hand-off, never a normal Continue candidate.  Do not let
                         ' the normal picker replace that explicit selection.
-                        If ProductionStartFlowState.SelectedOldActiveRecovery Is Nothing Then
+                        If ProductionStartFlowState.SelectedOldActiveRecovery Is Nothing AndAlso
+                           Not startNewBoxWarningAcknowledged Then
                             Dim incompleteBoxes = Backoffice_model.GetIncompleteBoxes(
                                 Prd_detail.lb_wi.Text,
                                 Label4.Text,
@@ -639,6 +650,9 @@ Public Class MainFrm
                             MessageBoxButtons.OK,
                             MessageBoxIcon.Error)
             ' 'msgBox("Please Wait Trasnfer Data.")
+        Finally
+            If Not IsDisposed Then menu1.Enabled = True
+            Interlocked.Exchange(_productionStartFlowActive, 0)
         End Try
     End Sub
 
@@ -997,26 +1011,33 @@ Public Class MainFrm
             ConfigureIncompleteBoxActionButton(anywayButton, Color.FromArgb(28, 164, 81), False)
             ConfigureIncompleteBoxCancelButton(cancelButton)
 
+            Dim decisionTaken As Boolean = False
+            Dim completeDecision As Action(Of ProductionStartMode) =
+                Sub(selectedMode)
+                    If decisionTaken Then
+                        Console.WriteLine("[INCOMPLETE-WARNING] Duplicate modal click ignored.")
+                        Return
+                    End If
+                    decisionTaken = True
+                    continueButton.Enabled = False
+                    anywayButton.Enabled = False
+                    cancelButton.Enabled = False
+                    result = selectedMode
+                    Console.WriteLine("[INCOMPLETE-WARNING] Modal decision=" & selectedMode.ToString())
+                    dialog.Close()
+                End Sub
+
             Dim closeButton As New Button With {
                 .Text = "×", .FlatStyle = FlatStyle.Flat, .BackColor = Color.FromArgb(255, 197, 37),
                 .ForeColor = Color.FromArgb(24, 35, 45), .Font = New Font("Segoe UI", 22.0!, FontStyle.Bold),
                 .Location = New Point(665, 22), .Size = New Size(36, 36), .TabStop = False
             }
             closeButton.FlatAppearance.BorderSize = 0
-            Dim cancelDialog As Action = Sub()
-                                              result = ProductionStartMode.None
-                                              dialog.Close()
-                                          End Sub
+            Dim cancelDialog As Action = Sub() completeDecision(ProductionStartMode.None)
             AddHandler closeButton.Click, Sub() cancelDialog()
 
-            AddHandler continueButton.Click, Sub()
-                                                result = ProductionStartMode.ContinueExistingBox
-                                                dialog.Close()
-                                            End Sub
-            AddHandler anywayButton.Click, Sub()
-                                               result = ProductionStartMode.NewBox
-                                               dialog.Close()
-                                           End Sub
+            AddHandler continueButton.Click, Sub() completeDecision(ProductionStartMode.ContinueExistingBox)
+            AddHandler anywayButton.Click, Sub() completeDecision(ProductionStartMode.NewBox)
             AddHandler cancelButton.Click, Sub() cancelDialog()
 
             dialog.CancelButton = cancelButton

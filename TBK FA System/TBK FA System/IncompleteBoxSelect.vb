@@ -182,6 +182,14 @@ Public Class IncompleteBoxSelect
         End Try
     End Sub
 
+    Private Function IsFullOldActiveRecovery(box As IncompleteBoxRecord) As Boolean
+        If box Is Nothing OrElse _oldActiveRecoveryByTagId Is Nothing OrElse box.Snp <= 0 Then Return False
+        Dim recovery As IncompleteTransferCrashRecoveryRecord = Nothing
+        Return _oldActiveRecoveryByTagId.TryGetValue(box.TagId, recovery) AndAlso
+               recovery IsNot Nothing AndAlso recovery.Transfer IsNot Nothing AndAlso
+               recovery.Transfer.Flag = 0 AndAlso box.Quantity >= box.Snp
+    End Function
+
     Private Function CreateBoxCard(box As IncompleteBoxRecord) As Panel
         Dim border As New Panel()
         border.Width = GetFixedCardWidth()
@@ -213,12 +221,13 @@ Public Class IncompleteBoxSelect
         Dim textColor As Color = Color.FromArgb(20, 48, 75)
         Dim boxCaption As Label = MakeCardLabel("BOX", sx(64), 4, sx(92), 18, 9.0!, Color.FromArgb(91, 111, 140), ContentAlignment.MiddleLeft)
         Dim boxValue As Label = MakeCardLabel(box.BoxNo.ToString("000"), sx(64), 21, sx(100), 48, 21.0!, textColor, ContentAlignment.MiddleLeft)
-        Dim displaySnp As Integer = If(_mode = ProductionStartMode.ContinueExistingBox, _snp, box.Snp)
+        Dim fullOldRecovery As Boolean = IsFullOldActiveRecovery(box)
+        Dim displaySnp As Integer = If(fullOldRecovery, box.Snp, If(_mode = ProductionStartMode.ContinueExistingBox, _snp, box.Snp))
         Dim displayRemaining As Integer = Math.Max(0, displaySnp - box.Quantity)
         Dim qtyCaption As Label = MakeCardLabel("QTY / SNP", sx(178), 4, sx(140), 18, 9.0!, Color.FromArgb(91, 111, 140), ContentAlignment.MiddleLeft)
         Dim qtyValue As Label = MakeCardLabel(box.Quantity.ToString() & " / " & displaySnp.ToString(), sx(178), 21, sx(144), 48, 19.0!, textColor, ContentAlignment.MiddleLeft)
-        Dim remainCaption As Label = MakeCardLabel("REMAIN", sx(342), 4, sx(140), 18, 9.0!, Color.FromArgb(91, 111, 140), ContentAlignment.MiddleLeft)
-        Dim remainValue As Label = MakeCardLabel(displayRemaining.ToString(), sx(342), 21, sx(140), 48, 21.0!, Color.FromArgb(220, 112, 18), ContentAlignment.MiddleLeft)
+        Dim remainCaption As Label = MakeCardLabel(If(fullOldRecovery, "STATUS", "REMAIN"), sx(342), 4, sx(140), 18, 9.0!, Color.FromArgb(91, 111, 140), ContentAlignment.MiddleLeft)
+        Dim remainValue As Label = MakeCardLabel(If(fullOldRecovery, "FULL", displayRemaining.ToString()), sx(342), 21, sx(140), 48, 21.0!, Color.FromArgb(220, 112, 18), ContentAlignment.MiddleLeft)
 
         Dim dividerOne As Panel = MakeDivider(sx(52), 10, 1, 58)
         Dim dividerTwo As Panel = MakeDivider(sx(166), 10, 1, 58)
@@ -384,11 +393,14 @@ Public Class IncompleteBoxSelect
 
         lblSelectedBox.Text = "BOX " & box.BoxNo.ToString("000")
         lblSelectedQty.Text = box.Quantity.ToString()
-        Dim displaySnp As Integer = If(_mode = ProductionStartMode.ContinueExistingBox, _snp, box.Snp)
+        Dim fullOldRecovery As Boolean = IsFullOldActiveRecovery(box)
+        Dim displaySnp As Integer = If(fullOldRecovery, box.Snp, If(_mode = ProductionStartMode.ContinueExistingBox, _snp, box.Snp))
         Dim displayRemaining As Integer = Math.Max(0, displaySnp - box.Quantity)
         lblSelectedSnp.Text = displaySnp.ToString()
         lblProduceQty.Text = displayRemaining.ToString()
-        lblStatus.Text = "BOX " & box.BoxNo.ToString("000") & " SELECTED — " & box.Quantity & "/" & displaySnp & " PACKAGED"
+        lblStatus.Text = If(fullOldRecovery,
+                            "FULL BOX — PENDING TAG COMPLETION",
+                            "BOX " & box.BoxNo.ToString("000") & " SELECTED — " & box.Quantity & "/" & displaySnp & " PACKAGED")
     End Sub
 
     Private Sub UpdateIdentityChipColors(parent As Control, selected As Boolean)
