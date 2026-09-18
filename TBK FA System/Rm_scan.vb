@@ -73,7 +73,6 @@ Public Class Rm_scan
             Dim rm_componece_qty = lbQty.Text 'ComboBoxSelectPart.Text
             ' MsgBox("rm_componece_part===>" & rm_componece_part)
             ''msgBox("arr_ITEM_CD(21) = " & arr_ITEM_CD(21))
-            MsgBox("ready load")
             Backoffice_model.Insert_Rm_Scan_By_API(WI, ITEM_CD2, LOT_PO, SEQ, SHIFT, Rm_created_date, Rm_created_by, Rm_Updated_date, Rm_updated_by, Rm_line_cd, Rm_QR_code, "-", rm_componece_part, rm_componece_qty)
             'msgBox("OK")
             keyboardRm_Scan.Close()
